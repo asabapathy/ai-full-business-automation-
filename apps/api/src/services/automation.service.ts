@@ -1,6 +1,14 @@
 import { AIProviderFactory } from '@kanavu/ai-core'
+import { TwilioService, EmailService } from '@kanavu/integrations'
 import { prisma } from './database.js'
 import { logger } from '../utils/logger.js'
+
+function tryEmailService(): EmailService | null {
+  try { return EmailService.fromEnv() } catch { return null }
+}
+function tryTwilioService(): TwilioService | null {
+  try { return TwilioService.fromEnv() } catch { return null }
+}
 
 interface CreateWorkflowRequest {
   name: string
@@ -133,12 +141,43 @@ export class AutomationService {
 
   private async executeStep(type: string, config: Record<string, unknown>, triggerData: Record<string, unknown>, organizationId: string): Promise<unknown> {
     switch (type) {
-      case 'SEND_EMAIL':
-        logger.info({ type, to: config['to'] }, 'Email step — integration pending')
-        return { sent: false, reason: 'email_integration_pending' }
-      case 'SEND_SMS':
-        logger.info({ type, to: config['to'] }, 'SMS step — integration pending')
-        return { sent: false, reason: 'sms_integration_pending' }
+      case 'SEND_EMAIL': {
+        const emailSvc = tryEmailService()
+        if (!emailSvc) {
+          logger.warn({ type }, 'Email integration not configured')
+          return { sent: false, reason: 'email_not_configured' }
+        }
+        try {
+          const result = await emailSvc.send({
+            to: config['to'] as string,
+            subject: (config['subject'] as string) ?? 'A message from us',
+            html: (config['body'] as string) ?? '<p>Hello</p>',
+          })
+          logger.info({ type, to: config['to'], id: result.id }, 'Email sent via workflow')
+          return { sent: true, messageId: result.id }
+        } catch (err) {
+          logger.error({ err, type }, 'Email send failed')
+          return { sent: false, reason: 'send_failed', error: String(err) }
+        }
+      }
+      case 'SEND_SMS': {
+        const twilioSvc = tryTwilioService()
+        if (!twilioSvc) {
+          logger.warn({ type }, 'Twilio integration not configured')
+          return { sent: false, reason: 'sms_not_configured' }
+        }
+        try {
+          const result = await twilioSvc.sendSms(
+            config['to'] as string,
+            (config['body'] as string) ?? 'A message from your service provider',
+          )
+          logger.info({ type, to: config['to'], sid: result.sid }, 'SMS sent via workflow')
+          return { sent: true, sid: result.sid, status: result.status }
+        } catch (err) {
+          logger.error({ err, type }, 'SMS send failed')
+          return { sent: false, reason: 'send_failed', error: String(err) }
+        }
+      }
       case 'WAIT_DELAY':
         return { delayed: true, minutes: config['minutes'] ?? 0 }
       case 'NOTIFY_TEAM':

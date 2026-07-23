@@ -1,4 +1,5 @@
 import { AIProviderFactory, FinanceAgent } from '@kanavu/ai-core'
+import { EmailService } from '@kanavu/integrations'
 import type { AgentContext } from '@kanavu/types'
 import { prisma } from './database.js'
 import { logger } from '../utils/logger.js'
@@ -110,8 +111,27 @@ export class FinanceService {
       `Generate a payment reminder for ${invoice.contact?.firstName ?? 'client'} for invoice #${invoice.number} of $${Number(invoice.total).toFixed(2)}, ${daysOverdue} days overdue.`
     )
 
+    // Send real email if integration is configured
+    let emailResult: { sent: boolean; reason?: string } = { sent: false, reason: 'no_email_on_contact' }
+    if (invoice.contact?.email) {
+      try {
+        const emailSvc = EmailService.fromEnv()
+        emailResult = await emailSvc.sendPaymentReminder(invoice.contact.email, {
+          businessName: org.name,
+          invoiceNumber: invoice.number,
+          amount: `$${Number(invoice.total).toFixed(2)}`,
+          daysOverdue,
+          contactName: invoice.contact.firstName ?? undefined,
+        })
+        logger.info({ invoiceId, daysOverdue, email: invoice.contact.email }, 'Payment reminder email sent')
+      } catch (err) {
+        logger.warn({ err }, 'Email integration not configured or failed — reminder generated but not sent')
+        emailResult = { sent: false, reason: 'email_not_configured' }
+      }
+    }
+
     logger.info({ invoiceId, daysOverdue }, 'Payment reminder generated')
-    return { reminder: response.content, invoice, daysOverdue }
+    return { reminder: response.content, invoice, daysOverdue, emailResult }
   }
 
   async getExpenses(organizationId: string, filters: { category?: string; page?: number; limit?: number }) {

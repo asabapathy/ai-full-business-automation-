@@ -1,4 +1,5 @@
 import { AIProviderFactory, ReceptionistAgent } from '@kanavu/ai-core'
+import { EmailService, TwilioService } from '@kanavu/integrations'
 import type { AgentContext } from '@kanavu/types'
 import { prisma } from './database.js'
 import { logger } from '../utils/logger.js'
@@ -72,7 +73,7 @@ export class ReceptionistService {
     const endTime = new Date(data.startTime)
     endTime.setMinutes(endTime.getMinutes() + data.duration)
 
-    return prisma.appointment.create({
+    const appointment = await prisma.appointment.create({
       data: {
         organizationId,
         contactId: data.contactId,
@@ -87,10 +88,46 @@ export class ReceptionistService {
         confirmationSentAt: data.sendConfirmation ? new Date() : null,
       },
       include: {
-        contact: { select: { id: true, firstName: true, lastName: true, email: true } },
+        contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         service: { select: { id: true, name: true } },
       },
     })
+
+    if (data.sendConfirmation && appointment.contact) {
+      const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } })
+      const aptTime = new Date(data.startTime).toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      const contactName = `${appointment.contact.firstName ?? ''} ${appointment.contact.lastName ?? ''}`.trim()
+
+      if (appointment.contact.email) {
+        try {
+          const emailSvc = EmailService.fromEnv()
+          await emailSvc.sendAppointmentConfirmation(appointment.contact.email, {
+            businessName: org?.name ?? 'Your Service Provider',
+            contactName,
+            serviceName: appointment.service?.name ?? data.title,
+            appointmentTime: aptTime,
+          })
+          logger.info({ appointmentId: appointment.id }, 'Appointment confirmation email sent')
+        } catch (err) {
+          logger.warn({ err }, 'Email integration not configured — confirmation not sent')
+        }
+      }
+
+      if (appointment.contact.phone) {
+        try {
+          const twilioSvc = TwilioService.fromEnv()
+          await twilioSvc.sendSms(
+            appointment.contact.phone,
+            `Hi ${contactName}! Your appointment for ${appointment.service?.name ?? data.title} is confirmed for ${aptTime}. Reply STOP to opt out.`,
+          )
+          logger.info({ appointmentId: appointment.id }, 'Appointment confirmation SMS sent')
+        } catch (err) {
+          logger.warn({ err }, 'Twilio integration not configured — SMS not sent')
+        }
+      }
+    }
+
+    return appointment
   }
 
   async updateAppointmentStatus(organizationId: string, appointmentId: string, status: string) {

@@ -14,6 +14,7 @@
     "@kanavu/database": "workspace:*",
     "@kanavu/types": "workspace:*",
     "@kanavu/ai-core": "workspace:*",
+    "@kanavu/integrations": "workspace:*",
     "express": "^4.21.0",
     "cors": "^2.8.5",
     "helmet": "^8.0.0",
