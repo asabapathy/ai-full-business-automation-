@@ -15,6 +15,7 @@ interface CreateDealRequest {
 
 interface CreateQuoteRequest {
   contactId?: string
+  dealId?: string
   title: string
   lineItems: Array<{ description: string; quantity: number; unitPrice: number; unit?: string }>
   validDays?: number
@@ -41,7 +42,10 @@ export class SalesService {
     const [deals, total] = await Promise.all([
       prisma.deal.findMany({
         where,
-        include: { contact: { select: { id: true, firstName: true, lastName: true, email: true } }, company: { select: { id: true, name: true } } },
+        include: {
+          contact: { select: { id: true, firstName: true, lastName: true, email: true } },
+          company: { select: { id: true, name: true } },
+        },
         orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,
@@ -88,13 +92,13 @@ export class SalesService {
     const where = {
       organizationId,
       ...(contactId ? { contactId } : {}),
-      ...(status ? { status: status as never } : {}),
+      ...(status ? { status } : {}),
     }
 
     const [quotes, total] = await Promise.all([
       prisma.quote.findMany({
         where,
-        include: { contact: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        include: { deal: { select: { id: true, title: true } } },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -108,21 +112,24 @@ export class SalesService {
   async createQuote(organizationId: string, data: CreateQuoteRequest) {
     const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
     const taxRate = data.taxRate ?? 0
-    const tax = subtotal * taxRate
-    const total = subtotal + tax
+    const taxAmount = subtotal * taxRate
+    const total = subtotal + taxAmount
+    const number = `QT-${Date.now().toString().slice(-6)}`
 
     return prisma.quote.create({
       data: {
         organizationId,
         contactId: data.contactId,
+        dealId: data.dealId,
+        number,
         title: data.title,
         lineItems: data.lineItems as never,
         subtotal,
-        tax,
+        taxAmount,
         total,
         validUntil: new Date(Date.now() + (data.validDays ?? 30) * 24 * 60 * 60 * 1000),
         notes: data.notes,
-        status: 'DRAFT',
+        status: 'draft',
       },
     })
   }
@@ -150,33 +157,8 @@ export class SalesService {
     return { sequence: response.content, actions: response.actions, deal }
   }
 
-  async generateAiInsights(organizationId: string) {
-    const org = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { name: true, industry: true },
-    })
-    if (!org) throw new Error('Organization not found')
-
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const [totalDeals, activeDeals, dealsByStage, totalQuotes] = await Promise.all([
-      prisma.deal.count({ where: { organizationId } }),
-      prisma.deal.count({ where: { organizationId, stage: { notIn: ['WON', 'LOST'] as never[] } } }),
-      prisma.deal.groupBy({
-        by: ['stage'],
-        where: { organizationId },
-        _count: true,
-        _sum: { value: true },
-      }),
-      prisma.quote.count({ where: { organizationId, createdAt: { gte: thirtyDaysAgo } } }),
-    ])
-
-    const pipelineValue = dealsByStage.reduce((sum, s) => sum + (s._sum.value ?? 0), 0)
-
-    return { totalDeals, activeDeals, dealsByStage, totalQuotes, pipelineValue }
-  }
-
   async getPipelineAnalytics(organizationId: string) {
-    const [deals, wonDeals] = await Promise.all([
+    const [dealsByStage, wonDeals] = await Promise.all([
       prisma.deal.groupBy({
         by: ['stage'],
         where: { organizationId },
@@ -190,13 +172,13 @@ export class SalesService {
       }),
     ])
 
+    const totalDeals = dealsByStage.reduce((s, d) => s + d._count, 0)
+
     return {
-      pipeline: deals,
-      wonRevenue: wonDeals._sum.value ?? 0,
+      pipeline: dealsByStage,
+      wonRevenue: Number(wonDeals._sum.value ?? 0),
       wonDeals: wonDeals._count,
-      conversionRate: deals.length > 0
-        ? Math.round((wonDeals._count / deals.reduce((s, d) => s + d._count, 0)) * 100)
-        : 0,
+      conversionRate: totalDeals > 0 ? Math.round((wonDeals._count / totalDeals) * 100) : 0,
     }
   }
 }

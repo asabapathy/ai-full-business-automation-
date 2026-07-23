@@ -114,6 +114,42 @@ aiRouter.get('/tasks', async (req, res) => {
   res.json({ success: true, data: { tasks } })
 })
 
+// Live business context snapshot (for Brain UI sidebar)
+aiRouter.get('/context', async (req, res) => {
+  const orgId = req.organizationId!
+  const now = new Date()
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000)
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
+  const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999)
+
+  const [revAgg, contacts30d, pipelineAgg, appointmentsToday, reviewStats, overdueInvoices, unrespondedReviews] = await Promise.all([
+    prisma.invoice.aggregate({ where: { organizationId: orgId, createdAt: { gte: thirtyDaysAgo } }, _sum: { total: true } }),
+    prisma.contact.count({ where: { organizationId: orgId, createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.deal.aggregate({ where: { organizationId: orgId, stage: { notIn: ['WON', 'LOST'] as never[] } }, _sum: { value: true }, _count: true }),
+    prisma.appointment.count({ where: { organizationId: orgId, startTime: { gte: todayStart, lte: todayEnd } } }),
+    prisma.review.aggregate({ where: { organizationId: orgId }, _avg: { rating: true }, _count: true }),
+    prisma.invoice.count({ where: { organizationId: orgId, status: { notIn: ['PAID', 'VOID', 'REFUNDED'] as never[] }, dueAt: { lt: now } } }),
+    prisma.review.count({ where: { organizationId: orgId, respondedAt: null } }),
+  ])
+
+  res.json({
+    success: true,
+    data: {
+      revenue30d: Number(revAgg._sum.total ?? 0),
+      newContacts30d: contacts30d,
+      pipelineValue: Number(pipelineAgg._sum.value ?? 0),
+      activeDeals: pipelineAgg._count,
+      appointmentsToday,
+      avgRating: Number((reviewStats._avg.rating ?? 0).toFixed(1)),
+      totalReviews: reviewStats._count,
+      alerts: [
+        ...(overdueInvoices > 0 ? [{ type: 'warning', message: `${overdueInvoices} overdue invoice${overdueInvoices > 1 ? 's' : ''}` }] : []),
+        ...(unrespondedReviews > 0 ? [{ type: 'info', message: `${unrespondedReviews} review${unrespondedReviews > 1 ? 's' : ''} awaiting response` }] : []),
+      ],
+    },
+  })
+})
+
 // Memory search
 aiRouter.get('/memory/search', async (req, res) => {
   const { q, type } = req.query as { q?: string; type?: string }

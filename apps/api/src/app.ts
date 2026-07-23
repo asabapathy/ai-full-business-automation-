@@ -38,6 +38,9 @@ export function createApp(): express.Application {
   // Compression
   app.use(compression())
 
+  // Raw body for Stripe webhooks (must come before express.json)
+  app.use('/api/v1/stripe/webhook', express.raw({ type: 'application/json' }))
+
   // Body parsing
   app.use(express.json({ limit: '10mb' }))
   app.use(express.urlencoded({ extended: true, limit: '10mb' }))

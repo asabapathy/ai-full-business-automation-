@@ -15,9 +15,8 @@ interface CreatePageRequest {
   websiteId: string
   title: string
   slug: string
-  pageType?: string
-  metaTitle?: string
-  metaDescription?: string
+  isHomePage?: boolean
+  metaDesc?: string
 }
 
 interface GenerateSiteRequest {
@@ -54,9 +53,8 @@ export class WebsiteService {
         name: data.name,
         domain: data.domain,
         template: data.template ?? 'default',
-        primaryColor: data.primaryColor ?? '#6366f1',
         status: 'DRAFT',
-        settings: { description: data.description ?? '' },
+        settings: { description: data.description ?? '', primaryColor: data.primaryColor ?? '#6366f1' },
       },
     })
   }
@@ -64,27 +62,24 @@ export class WebsiteService {
   async getPages(organizationId: string, websiteId: string) {
     const website = await prisma.website.findFirst({ where: { id: websiteId, organizationId } })
     if (!website) throw new Error('Website not found')
-
-    return prisma.webPage.findMany({
-      where: { websiteId },
-      orderBy: { createdAt: 'asc' },
-    })
+    return prisma.webPage.findMany({ where: { websiteId }, orderBy: { order: 'asc' } })
   }
 
   async createPage(organizationId: string, data: CreatePageRequest) {
     const website = await prisma.website.findFirst({ where: { id: data.websiteId, organizationId } })
     if (!website) throw new Error('Website not found')
 
+    const pageCount = await prisma.webPage.count({ where: { websiteId: data.websiteId } })
     return prisma.webPage.create({
       data: {
         websiteId: data.websiteId,
         title: data.title,
         slug: data.slug,
-        pageType: data.pageType ?? 'page',
-        metaTitle: data.metaTitle ?? data.title,
-        metaDescription: data.metaDescription,
-        status: 'DRAFT',
+        isHomePage: data.isHomePage ?? false,
+        metaDesc: data.metaDesc,
+        status: 'draft',
         content: {},
+        order: pageCount,
       },
     })
   }
@@ -111,9 +106,9 @@ Create the site structure, all page content outlines, and SEO strategy.`
         organizationId,
         name: `${org.name} Website`,
         template: request.template ?? 'professional',
-        primaryColor: request.primaryColor ?? '#6366f1',
         status: 'DRAFT',
         settings: {
+          primaryColor: request.primaryColor ?? '#6366f1',
           aiGenerated: true,
           aiPlan: response.actions ?? [],
           businessGoals: request.businessGoals ?? [],
@@ -121,19 +116,16 @@ Create the site structure, all page content outlines, and SEO strategy.`
       },
     })
 
-    const defaultPages = ['home', 'services', 'about', 'contact']
-    await Promise.all(defaultPages.map(pageType =>
+    const defaultPages = [
+      { title: 'Home', slug: '/', isHomePage: true, order: 0 },
+      { title: 'Services', slug: '/services', isHomePage: false, order: 1 },
+      { title: 'About', slug: '/about', isHomePage: false, order: 2 },
+      { title: 'Contact', slug: '/contact', isHomePage: false, order: 3 },
+    ]
+
+    await Promise.all(defaultPages.map(p =>
       prisma.webPage.create({
-        data: {
-          websiteId: website.id,
-          title: pageType.charAt(0).toUpperCase() + pageType.slice(1),
-          slug: pageType === 'home' ? '/' : `/${pageType}`,
-          pageType,
-          metaTitle: `${pageType.charAt(0).toUpperCase() + pageType.slice(1)} | ${org.name}`,
-          status: 'DRAFT',
-          content: {},
-          aiGenerated: true,
-        },
+        data: { websiteId: website.id, ...p, status: 'draft', content: {} },
       })
     ))
 
@@ -157,7 +149,7 @@ Create the site structure, all page content outlines, and SEO strategy.`
     const agent = new WebsiteAgent({ provider: this.provider }, context)
 
     const response = await agent.run(
-      `Generate complete, conversion-optimized content for the "${page.pageType}" page of ${org.name}'s website.
+      `Generate complete, conversion-optimized content for the "${page.title}" page of ${org.name}'s website.
 Primary keyword: ${request.primaryKeyword ?? page.title}.
 Tone: ${request.tone ?? 'professional'}.
 Industry: ${org.industry.replace(/_/g, ' ').toLowerCase()}.
@@ -168,8 +160,7 @@ Write the full page content including headlines, body copy, and a call to action
       where: { id: pageId },
       data: {
         content: { generatedContent: response.content } as never,
-        metaTitle: `${page.title} | ${org.name}`,
-        aiGenerated: true,
+        metaDesc: response.content.slice(0, 160),
       },
     })
 
@@ -182,15 +173,10 @@ Write the full page content including headlines, body copy, and a call to action
 
     const { status, page = 1, limit = 10 } = filters
     const skip = (page - 1) * limit
-    const where = { websiteId, ...(status ? { status: status as never } : {}) }
+    const where = { websiteId, ...(status ? { status } : {}) }
 
     const [posts, total] = await Promise.all([
-      prisma.blogPost.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
+      prisma.blogPost.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
       prisma.blogPost.count({ where }),
     ])
 
@@ -218,6 +204,7 @@ Write the complete article with a compelling title, introduction, 4-5 sections w
     )
 
     const slug = request.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
     const post = await prisma.blogPost.create({
       data: {
         websiteId,
@@ -225,10 +212,10 @@ Write the complete article with a compelling title, introduction, 4-5 sections w
         slug,
         content: response.content,
         excerpt: response.content.slice(0, 200) + '...',
-        metaTitle: `${request.topic} | ${org.name}`,
-        metaDescription: `${response.content.slice(0, 150)}...`,
+        seoTitle: `${request.topic} | ${org.name}`,
+        seoDesc: response.content.slice(0, 160),
         tags: [request.targetKeyword],
-        status: 'DRAFT',
+        status: 'draft',
         aiGenerated: true,
       },
     })
@@ -242,7 +229,7 @@ Write the complete article with a compelling title, introduction, 4-5 sections w
     const [totalWebsites, totalPages, publishedPages, totalPosts] = await Promise.all([
       prisma.website.count({ where: { organizationId } }),
       prisma.webPage.count({ where: { website: { organizationId } } }),
-      prisma.webPage.count({ where: { website: { organizationId }, status: 'PUBLISHED' as never } }),
+      prisma.webPage.count({ where: { website: { organizationId }, status: 'published' } }),
       prisma.blogPost.count({ where: { website: { organizationId }, createdAt: { gte: thirtyDaysAgo } } }),
     ])
 
