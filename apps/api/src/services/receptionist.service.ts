@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js'
 interface CreateAppointmentRequest {
   contactId?: string
   serviceId?: string
-  staffId?: string
+  employeeId?: string
   title: string
   startTime: string
   duration: number
@@ -35,23 +35,18 @@ export class ReceptionistService {
     }
   }
 
-  async getAppointments(organizationId: string, filters: { status?: string; date?: string; staffId?: string; page?: number; limit?: number }) {
-    const { status, date, staffId, page = 1, limit = 20 } = filters
+  async getAppointments(organizationId: string, filters: { status?: string; date?: string; employeeId?: string; page?: number; limit?: number }) {
+    const { status, date, employeeId, page = 1, limit = 20 } = filters
     const skip = (page - 1) * limit
 
     const dateFilter = date
-      ? {
-          startTime: {
-            gte: new Date(date),
-            lt: new Date(new Date(date).setDate(new Date(date).getDate() + 1)),
-          },
-        }
+      ? { startTime: { gte: new Date(date), lt: new Date(new Date(date).setDate(new Date(date).getDate() + 1)) } }
       : {}
 
     const where = {
       organizationId,
       ...(status ? { status: status as never } : {}),
-      ...(staffId ? { staffId } : {}),
+      ...(employeeId ? { employeeId } : {}),
       ...dateFilter,
     }
 
@@ -61,6 +56,7 @@ export class ReceptionistService {
         include: {
           contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
           service: { select: { id: true, name: true, price: true } },
+          employee: { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { startTime: 'asc' },
         skip,
@@ -81,14 +77,14 @@ export class ReceptionistService {
         organizationId,
         contactId: data.contactId,
         serviceId: data.serviceId,
-        staffId: data.staffId,
+        employeeId: data.employeeId,
         title: data.title,
         startTime: new Date(data.startTime),
         endTime,
         duration: data.duration,
         notes: data.notes,
         status: 'SCHEDULED',
-        confirmationSent: data.sendConfirmation ?? true,
+        confirmationSentAt: data.sendConfirmation ? new Date() : null,
       },
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -98,9 +94,7 @@ export class ReceptionistService {
   }
 
   async updateAppointmentStatus(organizationId: string, appointmentId: string, status: string) {
-    const appointment = await prisma.appointment.findFirst({
-      where: { id: appointmentId, organizationId },
-    })
+    const appointment = await prisma.appointment.findFirst({ where: { id: appointmentId, organizationId } })
     if (!appointment) throw new Error('Appointment not found')
 
     return prisma.appointment.update({
@@ -126,7 +120,7 @@ export class ReceptionistService {
     return { response: response.content, actions: response.actions }
   }
 
-  async getAvailableSlots(organizationId: string, filters: { date?: string; serviceId?: string; staffId?: string }) {
+  async getAvailableSlots(organizationId: string, filters: { date?: string; serviceId?: string; employeeId?: string }) {
     const date = filters.date ? new Date(filters.date) : new Date()
     const startOfDay = new Date(date)
     startOfDay.setHours(8, 0, 0, 0)
@@ -137,14 +131,14 @@ export class ReceptionistService {
       where: {
         organizationId,
         startTime: { gte: startOfDay, lt: endOfDay },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] as never[] },
-        ...(filters.staffId ? { staffId: filters.staffId } : {}),
+        status: { notIn: ['CANCELED', 'NO_SHOW'] as never[] },
+        ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
       },
       orderBy: { startTime: 'asc' },
     })
 
     const slots = []
-    let current = new Date(startOfDay)
+    const current = new Date(startOfDay)
 
     while (current < endOfDay) {
       const slotEnd = new Date(current)
@@ -155,12 +149,7 @@ export class ReceptionistService {
         (apt.startTime < slotEnd && apt.endTime >= slotEnd)
       )
 
-      slots.push({
-        startTime: new Date(current).toISOString(),
-        endTime: slotEnd.toISOString(),
-        available: !isBooked,
-      })
-
+      slots.push({ startTime: new Date(current).toISOString(), endTime: slotEnd.toISOString(), available: !isBooked })
       current.setMinutes(current.getMinutes() + 60)
     }
 
@@ -168,19 +157,16 @@ export class ReceptionistService {
   }
 
   async getServices(organizationId: string) {
-    return prisma.service.findMany({
-      where: { organizationId, isActive: true },
-      orderBy: { name: 'asc' },
-    })
+    return prisma.service.findMany({ where: { organizationId, isActive: true }, orderBy: { name: 'asc' } })
   }
 
   async getAnalytics(organizationId: string) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
-    const [totalAppointments, completedAppointments, cancelledAppointments, appointmentsByStatus] = await Promise.all([
+    const [total, completed, cancelled, byStatus] = await Promise.all([
       prisma.appointment.count({ where: { organizationId, startTime: { gte: thirtyDaysAgo } } }),
       prisma.appointment.count({ where: { organizationId, status: 'COMPLETED' as never, startTime: { gte: thirtyDaysAgo } } }),
-      prisma.appointment.count({ where: { organizationId, status: 'CANCELLED' as never, startTime: { gte: thirtyDaysAgo } } }),
+      prisma.appointment.count({ where: { organizationId, status: 'CANCELED' as never, startTime: { gte: thirtyDaysAgo } } }),
       prisma.appointment.groupBy({
         by: ['status'],
         where: { organizationId, startTime: { gte: thirtyDaysAgo } },
@@ -190,12 +176,12 @@ export class ReceptionistService {
 
     return {
       period: '30 days',
-      totalAppointments,
-      completedAppointments,
-      cancelledAppointments,
-      showRate: totalAppointments > 0 ? Math.round((completedAppointments / totalAppointments) * 100) : 0,
-      cancellationRate: totalAppointments > 0 ? Math.round((cancelledAppointments / totalAppointments) * 100) : 0,
-      appointmentsByStatus,
+      totalAppointments: total,
+      completedAppointments: completed,
+      cancelledAppointments: cancelled,
+      showRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+      cancellationRate: total > 0 ? Math.round((cancelled / total) * 100) : 0,
+      appointmentsByStatus: byStatus,
     }
   }
 }

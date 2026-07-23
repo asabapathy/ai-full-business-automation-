@@ -5,9 +5,8 @@ import { logger } from '../utils/logger.js'
 
 interface CreateInvoiceRequest {
   contactId?: string
-  title: string
   lineItems: Array<{ description: string; quantity: number; unitPrice: number; unit?: string }>
-  dueDate?: string
+  dueAt?: string
   notes?: string
   taxRate?: number
 }
@@ -17,8 +16,9 @@ interface CreateExpenseRequest {
   amount: number
   category?: string
   date?: string
-  vendorName?: string
+  vendorId?: string
   receiptUrl?: string
+  isRecurring?: boolean
 }
 
 export class FinanceService {
@@ -58,22 +58,22 @@ export class FinanceService {
   async createInvoice(organizationId: string, data: CreateInvoiceRequest) {
     const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
     const taxRate = data.taxRate ?? 0
-    const tax = subtotal * taxRate
-    const total = subtotal + tax
+    const taxAmount = subtotal * taxRate
+    const total = subtotal + taxAmount
+    const number = `INV-${Date.now().toString().slice(-6)}`
 
     return prisma.invoice.create({
       data: {
         organizationId,
         contactId: data.contactId,
-        title: data.title,
+        number,
         lineItems: data.lineItems as never,
         subtotal,
-        tax,
+        taxAmount,
         total,
-        dueDate: data.dueDate ? new Date(data.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        dueAt: data.dueAt ? new Date(data.dueAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         notes: data.notes,
         status: 'DRAFT',
-        invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
       },
     })
   }
@@ -104,10 +104,10 @@ export class FinanceService {
 
     const context = this.buildContext(organizationId, org)
     const agent = new FinanceAgent({ provider: this.provider }, context)
-    const daysOverdue = Math.max(0, Math.floor((Date.now() - (invoice.dueDate?.getTime() ?? Date.now())) / 86400000))
+    const daysOverdue = Math.max(0, Math.floor((Date.now() - (invoice.dueAt?.getTime() ?? Date.now())) / 86400000))
 
     const response = await agent.run(
-      `Generate a payment reminder for ${invoice.contact?.firstName ?? 'client'} for invoice #${invoice.invoiceNumber} of $${invoice.total.toFixed(2)}, ${daysOverdue} days overdue.`
+      `Generate a payment reminder for ${invoice.contact?.firstName ?? 'client'} for invoice #${invoice.number} of $${Number(invoice.total).toFixed(2)}, ${daysOverdue} days overdue.`
     )
 
     logger.info({ invoiceId, daysOverdue }, 'Payment reminder generated')
@@ -120,12 +120,7 @@ export class FinanceService {
     const where = { organizationId, ...(category ? { category } : {}) }
 
     const [expenses, total] = await Promise.all([
-      prisma.expense.findMany({
-        where,
-        orderBy: { date: 'desc' },
-        skip,
-        take: limit,
-      }),
+      prisma.expense.findMany({ where, orderBy: { date: 'desc' }, skip, take: limit }),
       prisma.expense.count({ where }),
     ])
 
@@ -140,9 +135,9 @@ export class FinanceService {
         amount: data.amount,
         category: data.category ?? 'Other',
         date: data.date ? new Date(data.date) : new Date(),
-        vendorName: data.vendorName,
+        vendorId: data.vendorId,
         receiptUrl: data.receiptUrl,
-        status: 'PENDING',
+        isRecurring: data.isRecurring ?? false,
       },
     })
   }
@@ -150,10 +145,10 @@ export class FinanceService {
   async getFinancialSummary(organizationId: string) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
-    const [invoiceStats, expenseStats, overdueInvoices, recentPayments] = await Promise.all([
+    const [invoiceStats, expenseStats, overdueInvoices] = await Promise.all([
       prisma.invoice.aggregate({
         where: { organizationId, createdAt: { gte: thirtyDaysAgo } },
-        _sum: { total: true },
+        _sum: { total: true, amountPaid: true },
         _count: true,
       }),
       prisma.expense.aggregate({
@@ -164,20 +159,15 @@ export class FinanceService {
       prisma.invoice.count({
         where: {
           organizationId,
-          status: { notIn: ['PAID', 'CANCELLED'] as never[] },
-          dueDate: { lt: new Date() },
+          status: { notIn: ['PAID', 'VOID', 'REFUNDED'] as never[] },
+          dueAt: { lt: new Date() },
         },
-      }),
-      prisma.payment.aggregate({
-        where: { organizationId, createdAt: { gte: thirtyDaysAgo }, status: 'COMPLETED' as never },
-        _sum: { amount: true },
-        _count: true,
       }),
     ])
 
-    const revenue = invoiceStats._sum.total ?? 0
-    const expenses = expenseStats._sum.amount ?? 0
-    const collected = recentPayments._sum.amount ?? 0
+    const revenue = Number(invoiceStats._sum.total ?? 0)
+    const collected = Number(invoiceStats._sum.amountPaid ?? 0)
+    const expenses = Number(expenseStats._sum.amount ?? 0)
 
     return {
       period: '30 days',
@@ -204,10 +194,7 @@ export class FinanceService {
     const context = this.buildContext(organizationId, org)
     const agent = new FinanceAgent({ provider: this.provider }, context)
 
-    const response = await agent.run(
-      `Financial context: ${JSON.stringify(summary)}. User query: ${request.query}`
-    )
-
+    const response = await agent.run(`Financial context: ${JSON.stringify(summary)}. User query: ${request.query}`)
     return { analysis: response.content, summary }
   }
 }

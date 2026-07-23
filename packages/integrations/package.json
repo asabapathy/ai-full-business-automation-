@@ -1,0 +1,27 @@
+{
+  "name": "@kanavu/integrations",
+  "version": "1.0.0",
+  "description": "Third-party integrations for Kanavu AI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "twilio": "^5.3.4",
+    "resend": "^3.5.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "@types/node": "^22.5.4"
+  }
+}

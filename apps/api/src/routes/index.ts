@@ -8,6 +8,12 @@ import { salesRouter } from './sales.routes.js'
 import { financeRouter } from './finance.routes.js'
 import { receptionistRouter } from './receptionist.routes.js'
 import { websiteRouter } from './website.routes.js'
+import { analyticsRouter } from './analytics.routes.js'
+import { reviewRouter } from './review.routes.js'
+import { operationsRouter } from './operations.routes.js'
+import { automationsRouter } from './automations.routes.js'
+import { notificationsRouter } from './notifications.routes.js'
+import { searchRouter } from './search.routes.js'
 
 export const apiRouter = Router()
 
@@ -20,6 +26,12 @@ apiRouter.use('/sales', salesRouter)
 apiRouter.use('/finance', financeRouter)
 apiRouter.use('/receptionist', receptionistRouter)
 apiRouter.use('/website', websiteRouter)
+apiRouter.use('/analytics', analyticsRouter)
+apiRouter.use('/reviews', reviewRouter)
+apiRouter.use('/operations', operationsRouter)
+apiRouter.use('/automations', automationsRouter)
+apiRouter.use('/notifications', notificationsRouter)
+apiRouter.use('/search', searchRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })
