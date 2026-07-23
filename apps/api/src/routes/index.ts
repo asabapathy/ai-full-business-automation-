@@ -14,6 +14,9 @@ import { operationsRouter } from './operations.routes.js'
 import { automationsRouter } from './automations.routes.js'
 import { notificationsRouter } from './notifications.routes.js'
 import { searchRouter } from './search.routes.js'
+import { portalRouter } from './portal.routes.js'
+import { stripeRouter } from './stripe.routes.js'
+import { socialRouter } from './social.routes.js'
 
 export const apiRouter = Router()
 
@@ -32,6 +35,9 @@ apiRouter.use('/operations', operationsRouter)
 apiRouter.use('/automations', automationsRouter)
 apiRouter.use('/notifications', notificationsRouter)
 apiRouter.use('/search', searchRouter)
+apiRouter.use('/portal', portalRouter)
+apiRouter.use('/stripe', stripeRouter)
+apiRouter.use('/social', socialRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   Brain, LayoutDashboard, Users, TrendingUp, Megaphone,
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
-  Star, Package, LogOut, ChevronDown, Building2
+  Star, Package, LogOut, ChevronDown, Building2, Share2
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -24,6 +24,7 @@ const navigation = [
   { name: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { name: 'Operations', href: '/dashboard/operations', icon: Package },
   { name: 'Automations', href: '/dashboard/automations', icon: Zap },
+  { name: 'Social', href: '/dashboard/social', icon: Share2 },
 ]
 
 const bottomNav = [

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@kanavu/types": "workspace:*",
@@ -57,6 +59,7 @@
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.5.4",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^15.0.0"
+    "eslint-config-next": "^15.0.0",
+    "@playwright/test": "^1.49.0"
   }
 }
