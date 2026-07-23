@@ -1,0 +1,131 @@
+version: '3.9'
+
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: kanavu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kanavu
+      POSTGRES_PASSWORD: kanavu_secret
+      POSTGRES_DB: kanavu_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kanavu -d kanavu_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Shadow database for Prisma migrate
+  postgres-shadow:
+    image: pgvector/pgvector:pg16
+    container_name: kanavu-postgres-shadow
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kanavu
+      POSTGRES_PASSWORD: kanavu_secret
+      POSTGRES_DB: kanavu_shadow
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_shadow_data:/var/lib/postgresql/data
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: kanavu-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO (S3-compatible object storage)
+  minio:
+    image: minio/minio:latest
+    container_name: kanavu-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kanavu_minio
+      MINIO_ROOT_PASSWORD: kanavu_minio_secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Backend API
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api/Dockerfile
+      target: development
+    container_name: kanavu-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://kanavu:kanavu_secret@postgres:5432/kanavu_db
+      DATABASE_SHADOW_URL: postgresql://kanavu:kanavu_secret@postgres-shadow:5432/kanavu_shadow
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production-must-be-32-chars-minimum
+      JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production-must-be-32-chars
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - full
+
+  # Frontend
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web/Dockerfile
+      target: development
+    container_name: kanavu-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+    depends_on:
+      - api
+    profiles:
+      - full
+
+volumes:
+  postgres_data:
+  postgres_shadow_data:
+  redis_data:
+  minio_data:
+
+networks:
+  default:
+    name: kanavu-network

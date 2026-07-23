@@ -1,0 +1,1502 @@
+// ============================================================
+// Kanavu AI — Prisma Database Schema
+// Production-ready multi-tenant SaaS schema
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/client"
+  previewFeatures = ["multiSchema", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  shadowDatabaseUrl = env("DATABASE_SHADOW_URL")
+  extensions = [pgvector(map: "vector", schema: "extensions"), uuid_ossp(map: "uuid-ossp", schema: "extensions"), pg_trgm(schema: "extensions")]
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  MEMBER
+  VIEWER
+  AI_AGENT
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+  CUSTOM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+}
+
+enum IndustryType {
+  DENTAL_CLINIC
+  MEDICAL_PRACTICE
+  HVAC
+  PLUMBING
+  ELECTRICAL
+  ROOFING
+  LANDSCAPING
+  AUTO_REPAIR
+  RESTAURANT
+  SALON
+  GYM
+  LAW_FIRM
+  INSURANCE_AGENCY
+  REAL_ESTATE
+  ACCOUNTING_FIRM
+  AUTISM_THERAPY
+  ABA_PROVIDER
+  DAYCARE
+  VETERINARY
+  CLEANING_COMPANY
+  ECOMMERCE
+  RETAIL
+  TECHNOLOGY
+  CONSULTING
+  OTHER
+}
+
+enum ContactType {
+  LEAD
+  PROSPECT
+  CUSTOMER
+  PARTNER
+  VENDOR
+  EMPLOYEE
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATING
+  WON
+  LOST
+  UNQUALIFIED
+}
+
+enum DealStage {
+  PROSPECTING
+  QUALIFICATION
+  NEEDS_ANALYSIS
+  VALUE_PROPOSITION
+  DECISION_MAKERS
+  PERCEPTION_ANALYSIS
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELED
+  WAITING_APPROVAL
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum AIAgentType {
+  BUSINESS_BRAIN
+  RECEPTIONIST
+  MARKETING
+  SALES
+  FINANCE
+  OPERATIONS
+  EMPLOYEE_ASSISTANT
+  WEBSITE_BUILDER
+  COMPETITOR_INTEL
+  BUSINESS_DOCTOR
+  AUTOMATION_BUILDER
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum CampaignType {
+  EMAIL
+  SMS
+  SOCIAL_FACEBOOK
+  SOCIAL_INSTAGRAM
+  SOCIAL_TIKTOK
+  SOCIAL_LINKEDIN
+  GOOGLE_ADS
+  REFERRAL
+  REVIEW_REQUEST
+  LOYALTY
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  NO_SHOW
+  CANCELED
+  RESCHEDULED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+  REFUNDED
+}
+
+enum WorkflowTriggerType {
+  EVENT
+  SCHEDULE
+  WEBHOOK
+  MANUAL
+  AI_DECISION
+  FORM_SUBMISSION
+  CONTACT_CREATED
+  CONTACT_UPDATED
+  DEAL_STAGE_CHANGED
+  APPOINTMENT_BOOKED
+  INVOICE_OVERDUE
+  REVIEW_RECEIVED
+}
+
+enum WorkflowStepType {
+  SEND_EMAIL
+  SEND_SMS
+  MAKE_CALL
+  CREATE_TASK
+  UPDATE_CRM
+  POST_SOCIAL
+  WAIT_DELAY
+  CONDITION_BRANCH
+  AI_ACTION
+  WEBHOOK
+  NOTIFY_TEAM
+  CREATE_INVOICE
+  BOOK_APPOINTMENT
+  ADD_TAG
+  REMOVE_TAG
+  ASSIGN_OWNER
+}
+
+enum MemoryType {
+  EPISODIC
+  SEMANTIC
+  PROCEDURAL
+  WORKING
+}
+
+enum WebsiteStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ReviewPlatform {
+  GOOGLE
+  YELP
+  FACEBOOK
+  TRIPADVISOR
+  BBB
+  HEALTHGRADES
+  ZOCDOC
+  OTHER
+}
+
+enum ReviewSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+// ============================================================
+// CORE: ORGANIZATIONS & USERS (Multi-Tenant Foundation)
+// ============================================================
+
+model Organization {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  slug             String           @unique
+  industry         IndustryType     @default(OTHER)
+  logoUrl          String?
+  website          String?
+  phone            String?
+  email            String?
+  address          Json?
+  timezone         String           @default("America/New_York")
+  locale           String           @default("en-US")
+  currency         String           @default("USD")
+  aiPersonality    Json?
+  businessHours    Json?
+  settings         Json             @default("{}")
+  onboardingStep   Int              @default(0)
+  onboardingDone   Boolean          @default(false)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  members          OrganizationMember[]
+  subscription     Subscription?
+  contacts         Contact[]
+  companies        Company[]
+  deals            Deal[]
+  campaigns        Campaign[]
+  appointments     Appointment[]
+  invoices         Invoice[]
+  workflows        Workflow[]
+  aiTasks          AITask[]
+  memories         Memory[]
+  conversations    Conversation[]
+  knowledgeItems   KnowledgeItem[]
+  socialAccounts   SocialAccount[]
+  websites         Website[]
+  employees        Employee[]
+  schedules        Schedule[]
+  inventoryItems   InventoryItem[]
+  vendors          Vendor[]
+  competitors      Competitor[]
+  reviews          Review[]
+  automationRuns   WorkflowExecution[]
+  featureFlags     OrganizationFeatureFlag[]
+  apiKeys          ApiKey[]
+  webhooks         Webhook[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  tags             Tag[]
+  customFields     CustomField[]
+  dashboards       Dashboard[]
+
+  @@index([slug])
+  @@index([industry])
+  @@map("organizations")
+}
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique
+  emailVerified   Boolean   @default(false)
+  passwordHash    String?
+  firstName       String
+  lastName        String
+  avatarUrl       String?
+  phone           String?
+  timezone        String    @default("America/New_York")
+  locale          String    @default("en-US")
+  preferences     Json      @default("{}")
+  lastLoginAt     DateTime?
+  isActive        Boolean   @default(true)
+  isSuperAdmin    Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  memberships     OrganizationMember[]
+  sessions        Session[]
+  refreshTokens   RefreshToken[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  assignedTasks   AITask[]           @relation("TaskAssignee")
+  createdTasks    AITask[]           @relation("TaskCreator")
+  ownedDeals      Deal[]
+  ownedContacts   Contact[]
+  conversations   Conversation[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model OrganizationMember {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  userId         String    @db.Uuid
+  role           UserRole  @default(MEMBER)
+  permissions    Json      @default("{}")
+  invitedBy      String?   @db.Uuid
+  invitedAt      DateTime?
+  joinedAt       DateTime  @default(now())
+  isActive       Boolean   @default(true)
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model Session {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// BILLING & SUBSCRIPTIONS
+// ============================================================
+
+model Subscription {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String             @unique @db.Uuid
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(TRIALING)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  trialEndsAt          DateTime?
+  seats                Int                @default(5)
+  aiCallsPerMonth      Int                @default(100)
+  storageGb            Int                @default(5)
+  metadata             Json               @default("{}")
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices             BillingInvoice[]
+  usageRecords         UsageRecord[]
+
+  @@map("subscriptions")
+}
+
+model BillingInvoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId String   @db.Uuid
+  stripeId       String?  @unique
+  amount         Int
+  currency       String   @default("usd")
+  status         String
+  paidAt         DateTime?
+  invoiceUrl     String?
+  createdAt      DateTime @default(now())
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("billing_invoices")
+}
+
+model UsageRecord {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId String   @db.Uuid
+  metric         String
+  quantity       Int
+  recordedAt     DateTime @default(now())
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, metric])
+  @@map("usage_records")
+}
+
+// ============================================================
+// AI BRAIN: MEMORY & KNOWLEDGE
+// ============================================================
+
+model Memory {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String     @db.Uuid
+  type           MemoryType @default(EPISODIC)
+  content        String     @db.Text
+  summary        String?    @db.Text
+  sourceType     String?
+  sourceId       String?
+  embedding      Unsupported("vector(1536)")?
+  metadata       Json       @default("{}")
+  importance     Float      @default(0.5)
+  accessCount    Int        @default(0)
+  lastAccessedAt DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([sourceType, sourceId])
+  @@map("memories")
+}
+
+model KnowledgeItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  title          String
+  content        String   @db.Text
+  category       String?
+  tags           String[] @default([])
+  embedding      Unsupported("vector(1536)")?
+  fileUrl        String?
+  fileType       String?
+  isActive       Boolean  @default(true)
+  version        Int      @default(1)
+  createdBy      String?  @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, category])
+  @@map("knowledge_items")
+}
+
+// ============================================================
+// AI CONVERSATIONS & AGENTS
+// ============================================================
+
+model Conversation {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String      @db.Uuid
+  userId         String?     @db.Uuid
+  contactId      String?     @db.Uuid
+  agentType      AIAgentType @default(BUSINESS_BRAIN)
+  channel        String      @default("web")
+  title          String?
+  summary        String?     @db.Text
+  status         String      @default("active")
+  metadata       Json        @default("{}")
+  startedAt      DateTime    @default(now())
+  endedAt        DateTime?
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id])
+  contact        Contact?     @relation(fields: [contactId], references: [id])
+  messages       Message[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([contactId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String      @db.Uuid
+  role           MessageRole
+  content        String      @db.Text
+  toolCalls      Json?
+  toolResults    Json?
+  tokensUsed     Int?
+  model          String?
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model AITask {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  createdById    String?      @db.Uuid
+  assignedToId   String?      @db.Uuid
+  agentType      AIAgentType
+  title          String
+  description    String?      @db.Text
+  status         TaskStatus   @default(PENDING)
+  priority       TaskPriority @default(MEDIUM)
+  input          Json         @default("{}")
+  output         Json?
+  error          String?      @db.Text
+  retryCount     Int          @default(0)
+  maxRetries     Int          @default(3)
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  dueAt          DateTime?
+  metadata       Json         @default("{}")
+  parentTaskId   String?      @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator        User?        @relation("TaskCreator", fields: [createdById], references: [id])
+  assignee       User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  parentTask     AITask?      @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks       AITask[]     @relation("SubTasks")
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, agentType])
+  @@map("ai_tasks")
+}
+
+model AIDecision {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  agentType      AIAgentType
+  context        Json
+  decision       String   @db.Text
+  reasoning      String   @db.Text
+  confidence     Float    @default(0.0)
+  outcome        String?
+  approved       Boolean?
+  approvedById   String?  @db.Uuid
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, agentType])
+  @@map("ai_decisions")
+}
+
+// ============================================================
+// CRM: CONTACTS, COMPANIES, DEALS
+// ============================================================
+
+model Contact {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String      @db.Uuid
+  ownerId        String?     @db.Uuid
+  companyId      String?     @db.Uuid
+  type           ContactType @default(LEAD)
+  status         LeadStatus  @default(NEW)
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  mobile         String?
+  avatarUrl      String?
+  jobTitle       String?
+  address        Json?
+  source         String?
+  score          Int         @default(0)
+  tags           String[]    @default([])
+  customFields   Json        @default("{}")
+  lastContactedAt DateTime?
+  doNotEmail     Boolean     @default(false)
+  doNotCall      Boolean     @default(false)
+  doNotSms       Boolean     @default(false)
+  notes          String?     @db.Text
+  embedding      Unsupported("vector(1536)")?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User?        @relation(fields: [ownerId], references: [id])
+  company        Company?     @relation(fields: [companyId], references: [id])
+  deals          Deal[]
+  activities     Activity[]
+  appointments   Appointment[]
+  invoices       Invoice[]
+  conversations  Conversation[]
+  tags_rel       ContactTag[]
+
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+  @@index([email])
+  @@map("contacts")
+}
+
+model Company {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  website        String?
+  phone          String?
+  email          String?
+  industry       String?
+  size           String?
+  revenue        Decimal? @db.Decimal(15, 2)
+  address        Json?
+  logoUrl        String?
+  description    String?  @db.Text
+  customFields   Json     @default("{}")
+  tags           String[] @default([])
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts       Contact[]
+  deals          Deal[]
+  activities     Activity[]
+
+  @@index([organizationId])
+  @@map("companies")
+}
+
+model Deal {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  ownerId        String?   @db.Uuid
+  contactId      String?   @db.Uuid
+  companyId      String?   @db.Uuid
+  title          String
+  stage          DealStage @default(PROSPECTING)
+  value          Decimal   @default(0) @db.Decimal(15, 2)
+  currency       String    @default("USD")
+  probability    Int       @default(0)
+  expectedCloseDate DateTime?
+  closedAt       DateTime?
+  lostReason     String?
+  notes          String?   @db.Text
+  customFields   Json      @default("{}")
+  tags           String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User?        @relation(fields: [ownerId], references: [id])
+  contact        Contact?     @relation(fields: [contactId], references: [id])
+  company        Company?     @relation(fields: [companyId], references: [id])
+  activities     Activity[]
+  quotes         Quote[]
+
+  @@index([organizationId])
+  @@index([organizationId, stage])
+  @@index([ownerId])
+  @@map("deals")
+}
+
+model Activity {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String?  @db.Uuid
+  contactId      String?  @db.Uuid
+  companyId      String?  @db.Uuid
+  dealId         String?  @db.Uuid
+  type           String
+  subject        String
+  description    String?  @db.Text
+  outcome        String?
+  dueAt          DateTime?
+  completedAt    DateTime?
+  duration       Int?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact?  @relation(fields: [contactId], references: [id])
+  company        Company?  @relation(fields: [companyId], references: [id])
+  deal           Deal?     @relation(fields: [dealId], references: [id])
+
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([dealId])
+  @@map("activities")
+}
+
+model Quote {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  dealId         String?  @db.Uuid
+  contactId      String?  @db.Uuid
+  number         String
+  title          String
+  status         String   @default("draft")
+  lineItems      Json     @default("[]")
+  subtotal       Decimal  @default(0) @db.Decimal(15, 2)
+  taxAmount      Decimal  @default(0) @db.Decimal(15, 2)
+  discountAmount Decimal  @default(0) @db.Decimal(15, 2)
+  total          Decimal  @default(0) @db.Decimal(15, 2)
+  currency       String   @default("USD")
+  validUntil     DateTime?
+  notes          String?  @db.Text
+  terms          String?  @db.Text
+  pdfUrl         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  deal           Deal?    @relation(fields: [dealId], references: [id])
+
+  @@index([organizationId])
+  @@map("quotes")
+}
+
+// ============================================================
+// APPOINTMENTS & SCHEDULING
+// ============================================================
+
+model Appointment {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String            @db.Uuid
+  contactId      String?           @db.Uuid
+  employeeId     String?           @db.Uuid
+  serviceId      String?           @db.Uuid
+  title          String
+  description    String?
+  status         AppointmentStatus @default(SCHEDULED)
+  startTime      DateTime
+  endTime        DateTime
+  duration       Int
+  location       String?
+  meetingUrl     String?
+  color          String?
+  notes          String?           @db.Text
+  reminders      Json              @default("[]")
+  confirmationSentAt DateTime?
+  reminderSentAt     DateTime?
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact?     @relation(fields: [contactId], references: [id])
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  service        Service?     @relation(fields: [serviceId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, startTime])
+  @@index([employeeId, startTime])
+  @@map("appointments")
+}
+
+model Service {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  description    String?  @db.Text
+  duration       Int
+  price          Decimal  @default(0) @db.Decimal(10, 2)
+  category       String?
+  color          String?
+  isActive       Boolean  @default(true)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  appointments   Appointment[]
+
+  @@index([organizationId])
+  @@map("services")
+}
+
+// ============================================================
+// MARKETING & CAMPAIGNS
+// ============================================================
+
+model Campaign {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @db.Uuid
+  name           String
+  type           CampaignType
+  status         CampaignStatus @default(DRAFT)
+  subject        String?
+  content        String?        @db.Text
+  htmlContent    String?        @db.Text
+  audience       Json           @default("{}")
+  settings       Json           @default("{}")
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  completedAt    DateTime?
+  stats          Json           @default("{}")
+  aiGenerated    Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executions     CampaignExecution[]
+
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@map("campaigns")
+}
+
+model CampaignExecution {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId  String   @db.Uuid
+  contactId   String?  @db.Uuid
+  status      String   @default("pending")
+  sentAt      DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  bouncedAt   DateTime?
+  unsubscribedAt DateTime?
+  error       String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([contactId])
+  @@map("campaign_executions")
+}
+
+model SocialAccount {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  platform       String
+  accountId      String
+  accountName    String
+  accessToken    String?  @db.Text
+  refreshToken   String?  @db.Text
+  tokenExpiresAt DateTime?
+  isActive       Boolean  @default(true)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts          SocialPost[]
+
+  @@unique([organizationId, platform, accountId])
+  @@map("social_accounts")
+}
+
+model SocialPost {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @db.Uuid
+  socialAccountId String   @db.Uuid
+  content         String   @db.Text
+  mediaUrls       String[] @default([])
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  status          String   @default("draft")
+  platformPostId  String?
+  stats           Json     @default("{}")
+  aiGenerated     Boolean  @default(false)
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([socialAccountId])
+  @@map("social_posts")
+}
+
+// ============================================================
+// FINANCE
+// ============================================================
+
+model Invoice {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @db.Uuid
+  contactId      String?       @db.Uuid
+  number         String
+  status         InvoiceStatus @default(DRAFT)
+  lineItems      Json          @default("[]")
+  subtotal       Decimal       @default(0) @db.Decimal(15, 2)
+  taxAmount      Decimal       @default(0) @db.Decimal(15, 2)
+  discountAmount Decimal       @default(0) @db.Decimal(15, 2)
+  total          Decimal       @default(0) @db.Decimal(15, 2)
+  amountPaid     Decimal       @default(0) @db.Decimal(15, 2)
+  currency       String        @default("USD")
+  dueAt          DateTime?
+  paidAt         DateTime?
+  sentAt         DateTime?
+  notes          String?       @db.Text
+  terms          String?       @db.Text
+  pdfUrl         String?
+  stripePaymentId String?
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact?     @relation(fields: [contactId], references: [id])
+  payments       Payment[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([contactId])
+  @@map("invoices")
+}
+
+model Payment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId String   @db.Uuid
+  amount    Decimal  @db.Decimal(15, 2)
+  currency  String   @default("USD")
+  method    String
+  reference String?
+  notes     String?
+  paidAt    DateTime @default(now())
+  metadata  Json     @default("{}")
+
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+model Expense {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  category       String
+  description    String
+  amount         Decimal  @db.Decimal(15, 2)
+  currency       String   @default("USD")
+  vendorId       String?  @db.Uuid
+  receiptUrl     String?
+  date           DateTime
+  isRecurring    Boolean  @default(false)
+  recurringRule  Json?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id])
+
+  @@index([organizationId])
+  @@map("expenses")
+}
+
+// ============================================================
+// AUTOMATION WORKFLOWS
+// ============================================================
+
+model Workflow {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String      @db.Uuid
+  name           String
+  description    String?
+  triggerType    WorkflowTriggerType
+  triggerConfig  Json        @default("{}")
+  isActive       Boolean     @default(true)
+  isAiGenerated  Boolean     @default(false)
+  runCount       Int         @default(0)
+  lastRunAt      DateTime?
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  steps          WorkflowStep[]
+  executions     WorkflowExecution[]
+
+  @@index([organizationId])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId String           @db.Uuid
+  type       WorkflowStepType
+  name       String
+  config     Json             @default("{}")
+  order      Int
+  conditions Json?
+  onSuccess  String?
+  onFailure  String?
+  createdAt  DateTime         @default(now())
+
+  workflow   Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@map("workflow_steps")
+}
+
+model WorkflowExecution {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String     @db.Uuid
+  workflowId     String     @db.Uuid
+  status         TaskStatus @default(PENDING)
+  triggerData    Json       @default("{}")
+  stepResults    Json       @default("[]")
+  error          String?    @db.Text
+  startedAt      DateTime   @default(now())
+  completedAt    DateTime?
+  metadata       Json       @default("{}")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@map("workflow_executions")
+}
+
+// ============================================================
+// WEBSITE BUILDER
+// ============================================================
+
+model Website {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @db.Uuid
+  domain         String?       @unique
+  subdomain      String?       @unique
+  name           String
+  status         WebsiteStatus @default(DRAFT)
+  template       String?
+  settings       Json          @default("{}")
+  seoConfig      Json          @default("{}")
+  analytics      Json          @default("{}")
+  publishedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pages          WebPage[]
+  blogPosts      BlogPost[]
+
+  @@index([organizationId])
+  @@map("websites")
+}
+
+model WebPage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  websiteId   String   @db.Uuid
+  slug        String
+  title       String
+  metaDesc    String?
+  content     Json     @default("{}")
+  status      String   @default("draft")
+  isHomePage  Boolean  @default(false)
+  order       Int      @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, slug])
+  @@index([websiteId])
+  @@map("web_pages")
+}
+
+model BlogPost {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  websiteId   String   @db.Uuid
+  slug        String
+  title       String
+  excerpt     String?  @db.Text
+  content     String   @db.Text
+  coverImage  String?
+  tags        String[] @default([])
+  status      String   @default("draft")
+  seoTitle    String?
+  seoDesc     String?
+  aiGenerated Boolean  @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, slug])
+  @@index([websiteId])
+  @@map("blog_posts")
+}
+
+// ============================================================
+// OPERATIONS
+// ============================================================
+
+model Employee {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String?  @db.Uuid
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  role           String
+  department     String?
+  hourlyRate     Decimal? @db.Decimal(10, 2)
+  startDate      DateTime?
+  endDate        DateTime?
+  isActive       Boolean  @default(true)
+  skills         String[] @default([])
+  availability   Json     @default("{}")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointments   Appointment[]
+  schedules      Schedule[]
+
+  @@index([organizationId])
+  @@map("employees")
+}
+
+model Schedule {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  employeeId     String   @db.Uuid
+  date           DateTime @db.Date
+  startTime      String
+  endTime        String
+  breakMinutes   Int      @default(0)
+  notes          String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([employeeId])
+  @@map("schedules")
+}
+
+model InventoryItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  sku            String?
+  category       String?
+  description    String?
+  quantity       Int      @default(0)
+  reorderPoint   Int      @default(0)
+  reorderQty     Int      @default(0)
+  unitCost       Decimal? @db.Decimal(10, 2)
+  unitPrice      Decimal? @db.Decimal(10, 2)
+  vendor         String?
+  location       String?
+  isActive       Boolean  @default(true)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, category])
+  @@map("inventory_items")
+}
+
+model Vendor {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  email          String?
+  phone          String?
+  website        String?
+  address        Json?
+  category       String?
+  isActive       Boolean  @default(true)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  expenses       Expense[]
+
+  @@index([organizationId])
+  @@map("vendors")
+}
+
+// ============================================================
+// REVIEWS & REPUTATION
+// ============================================================
+
+model Review {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String          @db.Uuid
+  platform       ReviewPlatform
+  externalId     String?
+  reviewerName   String?
+  rating         Int
+  content        String?         @db.Text
+  sentiment      ReviewSentiment @default(NEUTRAL)
+  sentimentScore Float?
+  response       String?         @db.Text
+  respondedAt    DateTime?
+  aiResponse     String?         @db.Text
+  publishedAt    DateTime?
+  metadata       Json            @default("{}")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, platform])
+  @@map("reviews")
+}
+
+// ============================================================
+// COMPETITOR INTELLIGENCE
+// ============================================================
+
+model Competitor {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  website        String?
+  description    String?  @db.Text
+  lastScrapedAt  DateTime?
+  intelligence   Json     @default("{}")
+  metadata       Json     @default("{}")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  snapshots      CompetitorSnapshot[]
+
+  @@index([organizationId])
+  @@map("competitors")
+}
+
+model CompetitorSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  competitorId String   @db.Uuid
+  pricing      Json?
+  services     Json?
+  reviews      Json?
+  social       Json?
+  seo          Json?
+  ads          Json?
+  website      Json?
+  insights     String?  @db.Text
+  capturedAt   DateTime @default(now())
+
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId])
+  @@map("competitor_snapshots")
+}
+
+// ============================================================
+// INFRASTRUCTURE: TAGS, CUSTOM FIELDS, NOTIFICATIONS
+// ============================================================
+
+model Tag {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  color          String   @default("#6366f1")
+  entityType     String
+  createdAt      DateTime @default(now())
+
+  contactTags    ContactTag[]
+
+  @@unique([organizationId, name, entityType])
+  @@index([organizationId])
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId String   @db.Uuid
+  tagId     String   @db.Uuid
+  addedAt   DateTime @default(now())
+
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+model CustomField {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  entityType     String
+  name           String
+  label          String
+  fieldType      String
+  options        Json?
+  isRequired     Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, entityType, name])
+  @@index([organizationId])
+  @@map("custom_fields")
+}
+
+model Notification {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String?  @db.Uuid
+  type           String
+  title          String
+  body           String
+  data           Json     @default("{}")
+  readAt         DateTime?
+  actionUrl      String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, userId])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model Dashboard {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  layout         Json     @default("[]")
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("dashboards")
+}
+
+// ============================================================
+// SECURITY: API KEYS, WEBHOOKS, AUDIT LOGS
+// ============================================================
+
+model ApiKey {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  name           String
+  keyHash        String    @unique
+  keyPrefix      String
+  scopes         String[]  @default([])
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  url            String
+  events         String[] @default([])
+  secretHash     String?
+  isActive       Boolean  @default(true)
+  failureCount   Int      @default(0)
+  lastTriggeredAt DateTime?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries     WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webhookId   String   @db.Uuid
+  event       String
+  payload     Json
+  statusCode  Int?
+  response    String?  @db.Text
+  duration    Int?
+  success     Boolean  @default(false)
+  attemptedAt DateTime @default(now())
+
+  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@map("webhook_deliveries")
+}
+
+model AuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @db.Uuid
+  userId         String?  @db.Uuid
+  action         String
+  entityType     String?
+  entityId       String?
+  oldValues      Json?
+  newValues      Json?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model OrganizationFeatureFlag {
+  organizationId String   @db.Uuid
+  flag           String
+  enabled        Boolean  @default(false)
+  value          Json?
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, flag])
+  @@map("organization_feature_flags")
+}
