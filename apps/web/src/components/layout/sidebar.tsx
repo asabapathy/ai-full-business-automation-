@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation'
 import {
   Brain, LayoutDashboard, Users, TrendingUp, Megaphone,
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
-  Star, Package, LogOut, ChevronDown, Building2, Share2
+  Star, Package, LogOut, ChevronDown, Building2, Share2,
+  Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -25,6 +26,11 @@ const navigation = [
   { name: 'Operations', href: '/dashboard/operations', icon: Package },
   { name: 'Automations', href: '/dashboard/automations', icon: Zap },
   { name: 'Social', href: '/dashboard/social', icon: Share2 },
+  { name: 'Campaigns', href: '/dashboard/campaigns', icon: Mail },
+  { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
+  { name: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
+  { name: 'Locations', href: '/dashboard/locations', icon: MapPin },
+  { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },
 ]
 
 const bottomNav = [

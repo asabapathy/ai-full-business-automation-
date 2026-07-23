@@ -303,14 +303,22 @@ model Organization {
   competitors      Competitor[]
   reviews          Review[]
   automationRuns   WorkflowExecution[]
-  featureFlags     OrganizationFeatureFlag[]
-  apiKeys          ApiKey[]
-  webhooks         Webhook[]
-  auditLogs        AuditLog[]
-  notifications    Notification[]
-  tags             Tag[]
-  customFields     CustomField[]
-  dashboards       Dashboard[]
+  featureFlags          OrganizationFeatureFlag[]
+  apiKeys               ApiKey[]
+  webhooks              Webhook[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  tags                  Tag[]
+  customFields          CustomField[]
+  dashboards            Dashboard[]
+  locations             Location[]
+  chatSessions          ChatSession[]
+  customerSubscriptions CustomerSubscription[]
+  brandConfig           BrandConfig?
+  emailCampaigns        EmailCampaign[]
+  outboundWebhooks      OutboundWebhook[]
+  calendarIntegrations  CalendarIntegration[]
+  leadScores            LeadScore[]
 
   @@index([slug])
   @@index([industry])
@@ -651,12 +659,14 @@ model Contact {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   owner          User?        @relation(fields: [ownerId], references: [id])
   company        Company?     @relation(fields: [companyId], references: [id])
-  deals          Deal[]
-  activities     Activity[]
-  appointments   Appointment[]
-  invoices       Invoice[]
-  conversations  Conversation[]
-  tags_rel       ContactTag[]
+  deals                 Deal[]
+  activities            Activity[]
+  appointments          Appointment[]
+  invoices              Invoice[]
+  conversations         Conversation[]
+  tags_rel              ContactTag[]
+  customerSubscriptions CustomerSubscription[]
+  leadScore             LeadScore?
 
   @@index([organizationId])
   @@index([organizationId, type])
@@ -1499,4 +1509,249 @@ model OrganizationFeatureFlag {
 
   @@id([organizationId, flag])
   @@map("organization_feature_flags")
+}
+
+// ============================================================
+// MULTI-LOCATION
+// ============================================================
+
+model Location {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  address        Json     @default("{}")
+  phone          String?
+  email          String?
+  timezone       String   @default("America/New_York")
+  businessHours  Json     @default("{}")
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("locations")
+}
+
+// ============================================================
+// LIVE CHAT
+// ============================================================
+
+model ChatSession {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  visitorId      String
+  visitorName    String?
+  visitorEmail   String?
+  contactId      String?  @db.Uuid
+  status         String   @default("active")
+  channel        String   @default("widget")
+  metadata       Json     @default("{}")
+  startedAt      DateTime @default(now())
+  endedAt        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages       ChatMessage[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String   @db.Uuid
+  role        String
+  content     String   @db.Text
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("chat_messages")
+}
+
+// ============================================================
+// CUSTOMER SUBSCRIPTIONS (recurring plans sold to customers)
+// ============================================================
+
+model CustomerSubscription {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String   @db.Uuid
+  contactId            String   @db.Uuid
+  name                 String
+  description          String?
+  amount               Decimal  @default(0) @db.Decimal(10, 2)
+  currency             String   @default("USD")
+  interval             String   @default("monthly")
+  status               String   @default("active")
+  stripeSubscriptionId String?  @unique
+  stripePriceId        String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean  @default(false)
+  metadata             Json     @default("{}")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact              Contact      @relation(fields: [contactId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("customer_subscriptions")
+}
+
+// ============================================================
+// BRAND CONFIG (white-label)
+// ============================================================
+
+model BrandConfig {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @unique @db.Uuid
+  brandName      String?
+  logoUrl        String?
+  faviconUrl     String?
+  primaryColor   String   @default("#6366f1")
+  accentColor    String   @default("#8b5cf6")
+  customDomain   String?  @unique
+  customCss      String?  @db.Text
+  emailFromName  String?
+  emailFromAddr  String?
+  hideKanavuBranding Boolean @default(false)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("brand_configs")
+}
+
+// ============================================================
+// EMAIL CAMPAIGNS
+// ============================================================
+
+model EmailCampaign {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  name           String
+  subject        String
+  previewText    String?
+  htmlBody       String    @db.Text
+  textBody       String    @db.Text
+  status         String    @default("DRAFT")
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int       @default(0)
+  openCount      Int       @default(0)
+  clickCount     Int       @default(0)
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("email_campaigns")
+}
+
+// ============================================================
+// OUTBOUND WEBHOOKS (Zapier / custom integrations)
+// ============================================================
+
+model OutboundWebhook {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  name           String
+  url            String
+  secret         String?
+  events         String[]  @default([])
+  isActive       Boolean   @default(true)
+  headers        Json      @default("{}")
+  lastTriggeredAt DateTime?
+  failureCount   Int       @default(0)
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries     WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("outbound_webhooks")
+}
+
+model WebhookDelivery {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webhookId  String   @db.Uuid
+  event      String
+  payload    Json
+  statusCode Int?
+  response   String?  @db.Text
+  success    Boolean  @default(false)
+  attempt    Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  webhook    OutboundWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@map("webhook_deliveries")
+}
+
+// ============================================================
+// CALENDAR INTEGRATIONS
+// ============================================================
+
+model CalendarIntegration {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  userId         String    @db.Uuid
+  provider       String
+  accessToken    String    @db.Text
+  refreshToken   String?   @db.Text
+  tokenExpiresAt DateTime?
+  calendarId     String?
+  calendarName   String?
+  isActive       Boolean   @default(true)
+  lastSyncedAt   DateTime?
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, provider])
+  @@index([organizationId])
+  @@map("calendar_integrations")
+}
+
+// ============================================================
+// AI LEAD SCORING
+// ============================================================
+
+model LeadScore {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  contactId      String    @unique @db.Uuid
+  score          Int       @default(0)
+  grade          String    @default("C")
+  signals        Json      @default("{}")
+  lastScoredAt   DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, score])
+  @@map("lead_scores")
 }

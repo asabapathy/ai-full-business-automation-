@@ -17,6 +17,16 @@ import { searchRouter } from './search.routes.js'
 import { portalRouter } from './portal.routes.js'
 import { stripeRouter } from './stripe.routes.js'
 import { socialRouter } from './social.routes.js'
+import { voiceRouter } from './voice.routes.js'
+import { chatRouter } from './chat.routes.js'
+import { campaignBuilderRouter } from './campaign-builder.routes.js'
+import { calendarRouter } from './calendar.routes.js'
+import { webhookOutboundRouter } from './webhook-outbound.routes.js'
+import { leadScoringRouter } from './lead-scoring.routes.js'
+import { customerSubscriptionsRouter } from './customer-subscriptions.routes.js'
+import { reportsRouter } from './reports.routes.js'
+import { locationsRouter } from './locations.routes.js'
+import { brandRouter } from './brand.routes.js'
 
 export const apiRouter = Router()
 
@@ -38,6 +48,16 @@ apiRouter.use('/search', searchRouter)
 apiRouter.use('/portal', portalRouter)
 apiRouter.use('/stripe', stripeRouter)
 apiRouter.use('/social', socialRouter)
+apiRouter.use('/voice', voiceRouter)
+apiRouter.use('/chat', chatRouter)
+apiRouter.use('/campaigns', campaignBuilderRouter)
+apiRouter.use('/calendar', calendarRouter)
+apiRouter.use('/webhooks', webhookOutboundRouter)
+apiRouter.use('/lead-scoring', leadScoringRouter)
+apiRouter.use('/customer-subscriptions', customerSubscriptionsRouter)
+apiRouter.use('/reports', reportsRouter)
+apiRouter.use('/locations', locationsRouter)
+apiRouter.use('/brand', brandRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })
