@@ -36,7 +36,7 @@ export class WebhookDeliveryService {
           orderBy: { createdAt: 'desc' },
           take: 5,
           select: { id: true, event: true, success: true, statusCode: true, createdAt: true },
-        },
+        } as any,
       },
     })
   }
@@ -95,7 +95,7 @@ export class WebhookDeliveryService {
       responseText = String(err)
     }
 
-    await prisma.webhookDelivery.create({
+    await prisma.outboundWebhookDelivery.create({
       data: { webhookId: wh.id, event, payload, statusCode, response: responseText, success, attempt },
     }).catch(() => {})
 

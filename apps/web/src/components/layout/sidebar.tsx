@@ -6,7 +6,8 @@ import {
   Brain, LayoutDashboard, Users, TrendingUp, Megaphone,
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
   Star, Package, LogOut, ChevronDown, Building2, Share2,
-  Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook
+  Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook,
+  ClipboardList, MessageSquare, Clock, Wrench, GitBranch, Video, LineChart
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -31,6 +32,13 @@ const navigation = [
   { name: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
   { name: 'Locations', href: '/dashboard/locations', icon: MapPin },
   { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },
+  { name: 'Proposals', href: '/dashboard/proposals', icon: ClipboardList },
+  { name: 'SMS Inbox', href: '/dashboard/sms', icon: MessageSquare },
+  { name: 'Staff Schedule', href: '/dashboard/staff-schedule', icon: Clock },
+  { name: 'Job Costing', href: '/dashboard/job-costing', icon: Wrench },
+  { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch },
+  { name: 'Testimonials', href: '/dashboard/testimonials', icon: Video },
+  { name: 'Forecasting', href: '/dashboard/forecasting', icon: LineChart },
 ]
 
 const bottomNav = [

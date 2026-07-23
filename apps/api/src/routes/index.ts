@@ -27,6 +27,15 @@ import { customerSubscriptionsRouter } from './customer-subscriptions.routes.js'
 import { reportsRouter } from './reports.routes.js'
 import { locationsRouter } from './locations.routes.js'
 import { brandRouter } from './brand.routes.js'
+import { appointmentReschedulerRouter } from './appointment-rescheduler.routes.js'
+import { reviewRequestsRouter } from './review-requests.routes.js'
+import { proposalsRouter } from './proposals.routes.js'
+import { smsInboxRouter } from './sms-inbox.routes.js'
+import { staffScheduleRouter } from './staff-schedule.routes.js'
+import { jobCostingRouter } from './job-costing.routes.js'
+import { followUpSequencesRouter } from './follow-up-sequences.routes.js'
+import { testimonialsRouter } from './testimonials.routes.js'
+import { forecastingRouter } from './forecasting.routes.js'
 
 export const apiRouter = Router()
 
@@ -58,6 +67,15 @@ apiRouter.use('/customer-subscriptions', customerSubscriptionsRouter)
 apiRouter.use('/reports', reportsRouter)
 apiRouter.use('/locations', locationsRouter)
 apiRouter.use('/brand', brandRouter)
+apiRouter.use('/reschedule', appointmentReschedulerRouter)
+apiRouter.use('/review-requests', reviewRequestsRouter)
+apiRouter.use('/proposals', proposalsRouter)
+apiRouter.use('/sms', smsInboxRouter)
+apiRouter.use('/staff-schedule', staffScheduleRouter)
+apiRouter.use('/job-costing', jobCostingRouter)
+apiRouter.use('/sequences', followUpSequencesRouter)
+apiRouter.use('/testimonials', testimonialsRouter)
+apiRouter.use('/forecasting', forecastingRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })
