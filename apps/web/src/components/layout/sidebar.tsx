@@ -7,7 +7,9 @@ import {
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
   Star, Package, LogOut, ChevronDown, Building2, Share2,
   Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook,
-  ClipboardList, MessageSquare, Clock, Wrench, GitBranch, Video, LineChart
+  ClipboardList, MessageSquare, Clock, Wrench, GitBranch, Video, LineChart,
+  PhoneCall, UserCircle, RefreshCw, Inbox, CalendarDays, DollarSign,
+  Layers, FormInput, Map, BookOpen
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -39,6 +41,16 @@ const navigation = [
   { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch },
   { name: 'Testimonials', href: '/dashboard/testimonials', icon: Video },
   { name: 'Forecasting', href: '/dashboard/forecasting', icon: LineChart },
+  { name: 'Receptionist', href: '/dashboard/receptionist', icon: PhoneCall },
+  { name: 'Client Portal', href: '/dashboard/client-portal', icon: UserCircle },
+  { name: 'Recurring Appts', href: '/dashboard/recurring-appointments', icon: RefreshCw },
+  { name: 'Team Inbox', href: '/dashboard/team-inbox', icon: Inbox },
+  { name: 'Content Calendar', href: '/dashboard/content-calendar', icon: CalendarDays },
+  { name: 'Commissions', href: '/dashboard/commissions', icon: DollarSign },
+  { name: 'Billing', href: '/dashboard/billing', icon: Layers },
+  { name: 'Forms', href: '/dashboard/forms', icon: FormInput },
+  { name: 'Location Reports', href: '/dashboard/location-reports', icon: Map },
+  { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
 ]
 
 const bottomNav = [

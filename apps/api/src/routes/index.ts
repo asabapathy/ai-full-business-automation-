@@ -36,6 +36,16 @@ import { jobCostingRouter } from './job-costing.routes.js'
 import { followUpSequencesRouter } from './follow-up-sequences.routes.js'
 import { testimonialsRouter } from './testimonials.routes.js'
 import { forecastingRouter } from './forecasting.routes.js'
+import { callLogRouter } from './call-log.routes.js'
+import { clientPortalRouter } from './client-portal.routes.js'
+import { recurringAppointmentsRouter } from './recurring-appointments.routes.js'
+import { teamInboxRouter } from './team-inbox.routes.js'
+import { contentCalendarRouter } from './content-calendar.routes.js'
+import { commissionRouter } from './commission.routes.js'
+import { billingPortalRouter } from './billing-portal.routes.js'
+import { formBuilderRouter } from './form-builder.routes.js'
+import { multiLocationReportRouter } from './multi-location-report.routes.js'
+import { knowledgeBaseRouter } from './knowledge-base.routes.js'
 
 export const apiRouter = Router()
 
@@ -76,6 +86,16 @@ apiRouter.use('/job-costing', jobCostingRouter)
 apiRouter.use('/sequences', followUpSequencesRouter)
 apiRouter.use('/testimonials', testimonialsRouter)
 apiRouter.use('/forecasting', forecastingRouter)
+apiRouter.use('/call-log', callLogRouter)
+apiRouter.use('/client-portal', clientPortalRouter)
+apiRouter.use('/recurring-appointments', recurringAppointmentsRouter)
+apiRouter.use('/team-inbox', teamInboxRouter)
+apiRouter.use('/content-calendar', contentCalendarRouter)
+apiRouter.use('/commission', commissionRouter)
+apiRouter.use('/billing-portal', billingPortalRouter)
+apiRouter.use('/forms', formBuilderRouter)
+apiRouter.use('/location-reports', multiLocationReportRouter)
+apiRouter.use('/knowledge-base', knowledgeBaseRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

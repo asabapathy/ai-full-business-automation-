@@ -328,6 +328,14 @@ model Organization {
   followUpSequences     FollowUpSequence[]
   videoTestimonials     VideoTestimonial[]
   revenueForecasts      RevenueForecast[]
+  callLogs              CallLog[]
+  portalSessions        PortalSession[]
+  emailThreads          EmailThread[]
+  contentPosts          ContentPost[]
+  commissionRules       CommissionRule[]
+  commissionPayouts     CommissionPayout[]
+  leadForms             LeadForm[]
+  leadFormSubmissions   LeadFormSubmission[]
 
   @@index([slug])
   @@index([industry])
@@ -826,6 +834,8 @@ model Appointment {
   reminders      Json              @default("[]")
   confirmationSentAt DateTime?
   reminderSentAt     DateTime?
+  recurrenceRule     String?
+  recurrenceParentId String?   @db.Uuid
   metadata       Json              @default("{}")
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -834,10 +844,13 @@ model Appointment {
   contact        Contact?     @relation(fields: [contactId], references: [id])
   employee       Employee?    @relation(fields: [employeeId], references: [id])
   service        Service?     @relation(fields: [serviceId], references: [id])
+  recurrenceChildren Appointment[] @relation("RecurrenceParent")
+  recurrenceParent   Appointment?  @relation("RecurrenceParent", fields: [recurrenceParentId], references: [id])
 
   @@index([organizationId])
   @@index([organizationId, startTime])
   @@index([employeeId, startTime])
+  @@index([recurrenceParentId])
   @@map("appointments")
 }
 
@@ -2045,4 +2058,227 @@ model RevenueForecast {
 
   @@index([organizationId])
   @@map("revenue_forecasts")
+}
+
+// ============================================================
+// CALL LOGS (phone receptionist dashboard)
+// ============================================================
+
+model CallLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String?  @db.Uuid
+  direction      String   @default("inbound")
+  fromNumber     String
+  toNumber       String
+  status         String   @default("completed")
+  duration       Int?
+  recordingUrl   String?
+  transcription  String?  @db.Text
+  summary        String?  @db.Text
+  sentiment      String?
+  callSid        String?  @unique
+  missedAt       DateTime?
+  autoSmsAt      DateTime?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, direction])
+  @@index([callSid])
+  @@map("call_logs")
+}
+
+// ============================================================
+// CLIENT PORTAL AUTH
+// ============================================================
+
+model PortalSession {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String   @db.Uuid
+  token          String   @unique @default(dbgenerated("gen_random_uuid()::text"))
+  otpCode        String?
+  otpExpiresAt   DateTime?
+  verifiedAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([token])
+  @@map("portal_sessions")
+}
+
+// ============================================================
+// TEAM INBOX / EMAIL THREADS
+// ============================================================
+
+model EmailThread {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String?  @db.Uuid
+  assignedToId   String?  @db.Uuid
+  subject        String
+  fromAddress    String
+  toAddress      String
+  status         String   @default("open")
+  isRead         Boolean  @default(false)
+  snippet        String?
+  labels         String[] @default([])
+  externalId     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  emailMessages  EmailMessage[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([assignedToId])
+  @@map("email_threads")
+}
+
+model EmailMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  threadId       String   @db.Uuid
+  fromAddress    String
+  toAddress      String
+  subject        String
+  body           String   @db.Text
+  htmlBody       String?  @db.Text
+  direction      String   @default("inbound")
+  attachments    Json     @default("[]")
+  sentAt         DateTime @default(now())
+  externalId     String?
+
+  thread         EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("email_messages")
+}
+
+// ============================================================
+// AI CONTENT CALENDAR
+// ============================================================
+
+model ContentPost {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  title          String
+  body           String   @db.Text
+  aiDraft        String?  @db.Text
+  platform       String
+  status         String   @default("draft")
+  mediaUrl       String?
+  hashtags       String[] @default([])
+  scheduledAt    DateTime?
+  publishedAt    DateTime?
+  externalId     String?
+  engagementData Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, platform])
+  @@index([organizationId, scheduledAt])
+  @@map("content_posts")
+}
+
+// ============================================================
+// COMMISSION TRACKING
+// ============================================================
+
+model CommissionRule {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  employeeId     String?  @db.Uuid
+  name           String
+  type           String   @default("percentage")
+  rate           Decimal  @db.Decimal(8, 4)
+  minAmount      Decimal? @db.Decimal(10, 2)
+  serviceIds     String[] @default([])
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payouts        CommissionPayout[]
+
+  @@index([organizationId])
+  @@index([employeeId])
+  @@map("commission_rules")
+}
+
+model CommissionPayout {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  employeeId     String   @db.Uuid
+  ruleId         String?  @db.Uuid
+  periodStart    DateTime @db.Date
+  periodEnd      DateTime @db.Date
+  grossRevenue   Decimal  @db.Decimal(12, 2)
+  commissionAmount Decimal @db.Decimal(10, 2)
+  status         String   @default("pending")
+  paidAt         DateTime?
+  notes          String?
+  breakdown      Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rule           CommissionRule? @relation(fields: [ruleId], references: [id])
+
+  @@index([organizationId])
+  @@index([employeeId])
+  @@index([organizationId, periodStart])
+  @@map("commission_payouts")
+}
+
+// ============================================================
+// FORM BUILDER
+// ============================================================
+
+model LeadForm {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  description    String?
+  fields         Json     @default("[]")
+  settings       Json     @default("{}")
+  isActive       Boolean  @default(true)
+  embedCode      String?
+  submissionCount Int     @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submissions    LeadFormSubmission[]
+
+  @@index([organizationId])
+  @@map("lead_forms")
+}
+
+model LeadFormSubmission {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  formId         String   @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String?  @db.Uuid
+  data           Json
+  ipAddress      String?
+  userAgent      String?
+  referrer       String?
+  createdAt      DateTime @default(now())
+
+  form           LeadForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([organizationId])
+  @@map("lead_form_submissions")
 }
