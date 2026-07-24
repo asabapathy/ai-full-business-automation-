@@ -155,10 +155,51 @@ export class VoiceService {
   getTwilioWebhookUrls(orgSlug: string): Record<string, string> {
     const apiBase = process.env['API_URL'] ?? 'http://localhost:4000/api/v1'
     return {
-      voiceUrl: `${apiBase}/voice/${orgSlug}/inbound`,
-      voiceStatusCallback: `${apiBase}/voice/${orgSlug}/status`,
-      voicemailAction: `${apiBase}/voice/${orgSlug}/voicemail`,
+      inbound: `${apiBase}/voice/${orgSlug}/inbound`,
+      respond: `${apiBase}/voice/${orgSlug}/respond`,
+      voicemail: `${apiBase}/voice/${orgSlug}/voicemail`,
+      status: `${apiBase}/voice/${orgSlug}/status`,
     }
+  }
+
+  async getSettings(organizationId: string): Promise<Record<string, unknown>> {
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { slug: true, settings: true },
+    })
+    if (!org) return {}
+    const settings = (org.settings as Record<string, unknown>) ?? {}
+    const voiceSettings = (settings['voice'] as Record<string, unknown>) ?? {}
+    return {
+      slug: org.slug,
+      config: {
+        twilioAccountSid: voiceSettings['twilioAccountSid'] ?? '',
+        twilioPhoneNumber: voiceSettings['twilioPhoneNumber'] ?? '',
+        elevenLabsVoiceId: voiceSettings['elevenLabsVoiceId'] ?? 'Rachel',
+        useElevenLabs: voiceSettings['useElevenLabs'] ?? false,
+      },
+    }
+  }
+
+  async saveSettings(organizationId: string, config: Record<string, unknown>): Promise<void> {
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    })
+    const current = (org?.settings as Record<string, unknown>) ?? {}
+    const safeConfig: Record<string, unknown> = {
+      twilioAccountSid: config['twilioAccountSid'],
+      twilioPhoneNumber: config['twilioPhoneNumber'],
+      elevenLabsVoiceId: config['elevenLabsVoiceId'],
+      useElevenLabs: config['useElevenLabs'],
+    }
+    if (config['twilioAuthToken']) safeConfig['twilioAuthToken'] = config['twilioAuthToken']
+    if (config['elevenLabsApiKey']) safeConfig['elevenLabsApiKey'] = config['elevenLabsApiKey']
+
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { settings: { ...current, voice: safeConfig } },
+    })
   }
 }
 

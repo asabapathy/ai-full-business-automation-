@@ -1,13 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Globe, Plus, Zap, FileText, ExternalLink, Search, BookOpen, BarChart2, RefreshCw } from 'lucide-react'
+import { Globe, Plus, Zap, FileText, ExternalLink, Search, BookOpen, RefreshCw, X, ChevronRight, Palette, Users, Briefcase } from 'lucide-react'
 import { Button } from '../../../../../components/ui/button'
 import { Input } from '../../../../../components/ui/input'
 import { Badge } from '../../../../../components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../../components/ui/card'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
+
+interface GenerateWizardProps {
+  onClose: () => void
+  onGenerated: (site: Website) => void
+}
 
 interface Website {
   id: string
@@ -34,11 +39,254 @@ const STATUS_COLORS: Record<string, string> = {
   ARCHIVED: 'outline',
 }
 
+const INDUSTRIES = ['HVAC', 'Plumbing', 'Electrical', 'Roofing', 'Landscaping', 'Auto Repair', 'Restaurant', 'Salon', 'Gym', 'Law Firm', 'Medical Practice', 'Dental Clinic', 'Real Estate', 'Consulting', 'Retail', 'Other']
+const COLOR_SCHEMES = [
+  { name: 'Ocean Blue', primary: '#2563eb', accent: '#0ea5e9' },
+  { name: 'Forest Green', primary: '#16a34a', accent: '#65a30d' },
+  { name: 'Crimson Red', primary: '#dc2626', accent: '#ea580c' },
+  { name: 'Royal Purple', primary: '#7c3aed', accent: '#a21caf' },
+  { name: 'Slate Gray', primary: '#475569', accent: '#64748b' },
+]
+
+function GenerateWizardModal({ onClose, onGenerated }: GenerateWizardProps) {
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({
+    businessName: '',
+    industry: '',
+    description: '',
+    phone: '',
+    email: '',
+    address: '',
+    services: '',
+    targetAudience: '',
+    colorScheme: COLOR_SCHEMES[0]!,
+    includesBlog: true,
+    includesBooking: true,
+  })
+  const [generating, setGenerating] = useState(false)
+  const [progress, setProgress] = useState(0)
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    setProgress(0)
+    const interval = setInterval(() => setProgress(p => Math.min(p + 8, 90)), 400)
+    try {
+      const result = await api.post<{ website: Website }>('/website/generate', {
+        businessName: form.businessName,
+        industry: form.industry,
+        description: form.description,
+        phone: form.phone,
+        email: form.email,
+        address: form.address,
+        services: form.services.split(',').map(s => s.trim()).filter(Boolean),
+        targetAudience: form.targetAudience,
+        colorScheme: form.colorScheme,
+        businessGoals: [
+          'increase leads',
+          'showcase services',
+          ...(form.includesBlog ? ['seo blog content'] : []),
+          ...(form.includesBooking ? ['online booking'] : []),
+        ],
+      })
+      clearInterval(interval)
+      setProgress(100)
+      setTimeout(() => onGenerated(result.website), 500)
+    } catch {
+      clearInterval(interval)
+      setGenerating(false)
+      setProgress(0)
+    }
+  }
+
+  const canProceed = step === 1
+    ? form.businessName.trim() && form.industry
+    : step === 2
+    ? form.services.trim()
+    : true
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b">
+          <div>
+            <h2 className="text-lg font-semibold">AI Website Generator</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Step {step} of 3</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100">
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
+        </div>
+
+        {generating ? (
+          <div className="p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+              <Zap className="h-8 w-8 text-blue-600 animate-pulse" />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">Building Your Website</h3>
+            <p className="text-sm text-gray-500 mb-6">AI is designing pages, writing copy, and optimizing for SEO…</p>
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+            </div>
+            <p className="text-xs text-gray-400 mt-2">{progress}%</p>
+          </div>
+        ) : (
+          <>
+            <div className="p-6 space-y-4">
+              {step === 1 && (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Briefcase className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-700">Business Info</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Business Name *</label>
+                      <Input placeholder="e.g. Smith's HVAC Services" value={form.businessName} onChange={e => setForm(p => ({ ...p, businessName: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Industry *</label>
+                      <select
+                        value={form.industry}
+                        onChange={e => setForm(p => ({ ...p, industry: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select industry…</option>
+                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Business Description</label>
+                      <textarea
+                        rows={2}
+                        placeholder="What does your business do? What makes you unique?"
+                        value={form.description}
+                        onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+                        <Input placeholder="+1 (555) 123-4567" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                        <Input placeholder="info@yourbiz.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
+                      <Input placeholder="123 Main St, City, State" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {step === 2 && (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-700">Services & Audience</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Services (comma-separated) *</label>
+                      <textarea
+                        rows={3}
+                        placeholder="e.g. AC Installation, Heating Repair, HVAC Maintenance, Duct Cleaning"
+                        value={form.services}
+                        onChange={e => setForm(p => ({ ...p, services: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Target Audience</label>
+                      <Input placeholder="e.g. Homeowners in Austin, TX" value={form.targetAudience} onChange={e => setForm(p => ({ ...p, targetAudience: e.target.value }))} />
+                    </div>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={form.includesBlog} onChange={e => setForm(p => ({ ...p, includesBlog: e.target.checked }))} className="rounded" />
+                        <span className="text-sm text-gray-700">Include Blog</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={form.includesBooking} onChange={e => setForm(p => ({ ...p, includesBooking: e.target.checked }))} className="rounded" />
+                        <span className="text-sm text-gray-700">Booking Page</span>
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {step === 3 && (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Palette className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-700">Design & Style</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Color Scheme</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {COLOR_SCHEMES.map(scheme => (
+                          <button
+                            key={scheme.name}
+                            onClick={() => setForm(p => ({ ...p, colorScheme: scheme }))}
+                            className={`rounded-lg p-2 border-2 transition-all ${form.colorScheme.name === scheme.name ? 'border-blue-500 shadow-sm' : 'border-transparent'}`}
+                            title={scheme.name}
+                          >
+                            <div className="flex gap-1 justify-center">
+                              <div className="w-4 h-4 rounded-full" style={{ background: scheme.primary }} />
+                              <div className="w-4 h-4 rounded-full" style={{ background: scheme.accent }} />
+                            </div>
+                            <p className="text-[10px] text-center mt-1 text-gray-600 leading-tight">{scheme.name.split(' ')[0]}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-4">
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Summary</h4>
+                      <dl className="space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between"><dt className="text-gray-500">Business</dt><dd className="font-medium">{form.businessName}</dd></div>
+                        <div className="flex justify-between"><dt className="text-gray-500">Industry</dt><dd>{form.industry}</dd></div>
+                        <div className="flex justify-between"><dt className="text-gray-500">Services</dt><dd className="text-right max-w-[200px] truncate">{form.services}</dd></div>
+                        <div className="flex justify-between"><dt className="text-gray-500">Extras</dt><dd>{[form.includesBlog && 'Blog', form.includesBooking && 'Booking'].filter(Boolean).join(', ') || 'None'}</dd></div>
+                      </dl>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <button
+                onClick={() => step > 1 ? setStep(s => s - 1) : onClose()}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                {step > 1 ? 'Back' : 'Cancel'}
+              </button>
+              {step < 3 ? (
+                <Button onClick={() => setStep(s => s + 1)} disabled={!canProceed}>
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              ) : (
+                <Button onClick={handleGenerate}>
+                  <Zap className="h-4 w-4 mr-1" />
+                  Generate Website
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function WebsitePage() {
   const [websites, setWebsites] = useState<Website[]>([])
   const [analytics, setAnalytics] = useState<SeoAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [generating, setGenerating] = useState(false)
+  const [showWizard, setShowWizard] = useState(false)
   const [blogTopic, setBlogTopic] = useState('')
   const [generatingBlog, setGeneratingBlog] = useState(false)
   const [blogResult, setBlogResult] = useState('')
@@ -78,21 +326,6 @@ export default function WebsitePage() {
     fetchData()
   }, [])
 
-  const handleGenerateSite = async () => {
-    setGenerating(true)
-    try {
-      const result = await api.post<{ website: Website }>('/website/generate', {
-        businessGoals: ['increase leads', 'showcase services'],
-        targetAudience: 'local homeowners',
-      })
-      setWebsites(prev => [result.website, ...prev])
-    } catch {
-      // silently ignore in demo
-    } finally {
-      setGenerating(false)
-    }
-  }
-
   const handleGenerateBlog = async () => {
     if (!blogTopic.trim() || !websites[0]) return
     setGeneratingBlog(true)
@@ -120,6 +353,13 @@ export default function WebsitePage() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
+      {showWizard && (
+        <GenerateWizardModal
+          onClose={() => setShowWizard(false)}
+          onGenerated={site => { setWebsites(prev => [site, ...prev]); setShowWizard(false) }}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -127,9 +367,9 @@ export default function WebsitePage() {
           <p className="text-muted-foreground text-sm mt-0.5">AI-generated websites and SEO content</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleGenerateSite} disabled={generating}>
-            {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            {generating ? 'Building...' : 'AI Build Site'}
+          <Button variant="outline" onClick={() => setShowWizard(true)}>
+            <Zap className="h-4 w-4" />
+            AI Build Site
           </Button>
           <Button>
             <Plus className="h-4 w-4" />
@@ -182,7 +422,7 @@ export default function WebsitePage() {
                 <Globe className="h-8 w-8 text-muted-foreground/50 mb-3" />
                 <p className="font-medium text-sm">No website yet</p>
                 <p className="text-xs text-muted-foreground mt-1">Let AI build one in seconds.</p>
-                <Button size="sm" className="mt-3" onClick={handleGenerateSite} disabled={generating}>
+                <Button size="sm" className="mt-3" onClick={() => setShowWizard(true)}>
                   <Zap className="h-3 w-3 mr-1" />
                   AI Build Site
                 </Button>

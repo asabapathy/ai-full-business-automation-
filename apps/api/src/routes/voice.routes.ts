@@ -74,3 +74,26 @@ voiceRouter.get('/:slug/webhook-urls', authenticate, async (req, res) => {
   const { slug } = req.params
   res.json(voiceService.getTwilioWebhookUrls(slug))
 })
+
+// Voice settings (Twilio + ElevenLabs credentials stored per org)
+voiceRouter.get('/settings', authenticate, async (req, res) => {
+  try {
+    const orgId = (req as any).user?.organizationId
+    const settings = await voiceService.getSettings(orgId)
+    res.json({ success: true, ...settings })
+  } catch (err) {
+    logger.error(err, 'get voice settings error')
+    res.status(500).json({ success: false, error: 'Failed to fetch settings' })
+  }
+})
+
+voiceRouter.post('/settings', authenticate, async (req, res) => {
+  try {
+    const orgId = (req as any).user?.organizationId
+    await voiceService.saveSettings(orgId, req.body as Record<string, unknown>)
+    res.json({ success: true })
+  } catch (err) {
+    logger.error(err, 'save voice settings error')
+    res.status(500).json({ success: false, error: 'Failed to save settings' })
+  }
+})

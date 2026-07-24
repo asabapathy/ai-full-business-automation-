@@ -76,6 +76,7 @@ import { contractsRouter } from './contracts.routes.js'
 import { goalsRouter } from './goals.routes.js'
 import { emailTemplatesRouter } from './email-templates.routes.js'
 import { onboardingRouter } from './onboarding.routes.js'
+import { businessDoctorRouter } from './business-doctor.routes.js'
 
 export const apiRouter = Router()
 
@@ -156,6 +157,7 @@ apiRouter.use('/contracts', contractsRouter)
 apiRouter.use('/goals', goalsRouter)
 apiRouter.use('/email-templates', emailTemplatesRouter)
 apiRouter.use('/onboarding', onboardingRouter)
+apiRouter.use('/business-doctor', businessDoctorRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

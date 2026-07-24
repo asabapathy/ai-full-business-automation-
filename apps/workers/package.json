@@ -1,0 +1,26 @@
+{
+  "name": "@kanavu/workers",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@kanavu/database": "workspace:*",
+    "@kanavu/types": "workspace:*",
+    "bullmq": "^5.13.2",
+    "ioredis": "^5.4.1",
+    "pino": "^9.4.0",
+    "zod": "^3.23.8",
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}

@@ -360,6 +360,7 @@ model Organization {
   goals                 Goal[]
   emailTemplates        EmailTemplate[]
   onboardingChecklists  OnboardingChecklist[]
+  activities            Activity[]
 
   @@index([slug])
   @@index([industry])
@@ -1304,6 +1305,7 @@ model Vendor {
   updatedAt      DateTime @updatedAt
 
   expenses       Expense[]
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("vendors")
@@ -1394,6 +1396,7 @@ model Tag {
   createdAt      DateTime @default(now())
 
   contactTags    ContactTag[]
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, name, entityType])
   @@index([organizationId])
@@ -1424,6 +1427,8 @@ model CustomField {
   isActive       Boolean  @default(true)
   order          Int      @default(0)
   createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, entityType, name])
   @@index([organizationId])
@@ -2300,7 +2305,8 @@ model LeadFormSubmission {
   referrer       String?
   createdAt      DateTime @default(now())
 
-  form           LeadForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  form           LeadForm     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([formId])
   @@index([organizationId])
@@ -2956,25 +2962,3 @@ model OnboardingItem {
   @@map("onboarding_items")
 }
 
-// ============================================================
-// AUDIT LOG
-// ============================================================
-
-model AuditLog {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String   @db.Uuid
-  userId         String?  @db.Uuid
-  action         String
-  entity         String
-  entityId       String?
-  changes        Json?
-  metadata       Json?
-  ipAddress      String?
-  userAgent      String?
-  createdAt      DateTime @default(now())
-
-  @@index([organizationId])
-  @@index([organizationId, entity])
-  @@index([organizationId, createdAt])
-  @@map("audit_logs")
-}

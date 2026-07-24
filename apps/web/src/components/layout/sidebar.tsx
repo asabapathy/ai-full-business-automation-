@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Brain, LayoutDashboard, Users, TrendingUp, Megaphone,
+  Brain, Stethoscope, LayoutDashboard, Users, TrendingUp, Megaphone,
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
   Star, Package, LogOut, ChevronDown, Building2, Share2,
   Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook,
@@ -21,6 +21,7 @@ import { Button } from '../ui/button'
 
 const navigation = [
   { name: 'Brain', href: '/dashboard/brain', icon: Brain, badge: 'AI' },
+  { name: 'Business Doctor', href: '/dashboard/business-doctor', icon: Stethoscope, badge: 'AI' },
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'CRM', href: '/dashboard/crm', icon: Users },
   { name: 'Sales', href: '/dashboard/sales', icon: TrendingUp },
