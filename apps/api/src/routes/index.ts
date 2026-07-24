@@ -56,6 +56,26 @@ import { loyaltyRouter } from './loyalty.routes.js'
 import { intakeRouter } from './intake.routes.js'
 import { resourceBookingRouter } from './resource-booking.routes.js'
 import { auditLogRouter } from './audit-log.routes.js'
+import { paymentLinksRouter } from './payment-links.routes.js'
+import { emailBroadcastRouter } from './email-broadcast.routes.js'
+import { pushNotificationsRouter } from './push-notifications.routes.js'
+import { whatsappRouter } from './whatsapp.routes.js'
+import { aiEmailWriterRouter } from './ai-email-writer.routes.js'
+import { csatRouter } from './csat.routes.js'
+import { apiKeysRouter } from './api-keys.routes.js'
+import { teamPermissionsRouter } from './team-permissions.routes.js'
+import { calendarSyncRouter } from './calendar-sync.routes.js'
+import { notificationCenterRouter } from './notification-center.routes.js'
+import { expensesRouter } from './expenses.routes.js'
+import { vendorsRouter } from './vendors.routes.js'
+import { inventoryRouter } from './inventory.routes.js'
+import { projectsRouter } from './projects.routes.js'
+import { timeTrackingRouter } from './time-tracking.routes.js'
+import { estimatesRouter } from './estimates.routes.js'
+import { contractsRouter } from './contracts.routes.js'
+import { goalsRouter } from './goals.routes.js'
+import { emailTemplatesRouter } from './email-templates.routes.js'
+import { onboardingRouter } from './onboarding.routes.js'
 
 export const apiRouter = Router()
 
@@ -116,6 +136,26 @@ apiRouter.use('/loyalty', loyaltyRouter)
 apiRouter.use('/intake', intakeRouter)
 apiRouter.use('/resources', resourceBookingRouter)
 apiRouter.use('/audit-log', auditLogRouter)
+apiRouter.use('/payment-links', paymentLinksRouter)
+apiRouter.use('/broadcasts', emailBroadcastRouter)
+apiRouter.use('/push', pushNotificationsRouter)
+apiRouter.use('/whatsapp', whatsappRouter)
+apiRouter.use('/email-writer', aiEmailWriterRouter)
+apiRouter.use('/csat', csatRouter)
+apiRouter.use('/api-keys', apiKeysRouter)
+apiRouter.use('/team-permissions', teamPermissionsRouter)
+apiRouter.use('/calendar-sync', calendarSyncRouter)
+apiRouter.use('/notification-center', notificationCenterRouter)
+apiRouter.use('/expenses', expensesRouter)
+apiRouter.use('/vendors', vendorsRouter)
+apiRouter.use('/inventory', inventoryRouter)
+apiRouter.use('/projects', projectsRouter)
+apiRouter.use('/time-tracking', timeTrackingRouter)
+apiRouter.use('/estimates', estimatesRouter)
+apiRouter.use('/contracts', contractsRouter)
+apiRouter.use('/goals', goalsRouter)
+apiRouter.use('/email-templates', emailTemplatesRouter)
+apiRouter.use('/onboarding', onboardingRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

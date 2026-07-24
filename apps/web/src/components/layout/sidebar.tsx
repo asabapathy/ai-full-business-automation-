@@ -10,7 +10,10 @@ import {
   ClipboardList, MessageSquare, Clock, Wrench, GitBranch, Video, LineChart,
   PhoneCall, UserCircle, RefreshCw, Inbox, CalendarDays, DollarSign,
   Layers, FormInput, Map, BookOpen, MessageCircleDashed, Clock3, Gift,
-  UserPlus, FileSignature, Zap as ZapDrip, Award, ClipboardCheck, Box, ShieldCheck
+  UserPlus, FileSignature, Zap as ZapDrip, Award, ClipboardCheck, Box, ShieldCheck,
+  Link2, Radio, BellRing, MessageCircle as WAIcon, PenTool, ThumbsUp,
+  Key, Shield, CalendarCheck, Bell,
+  Receipt, Truck, Archive, Briefcase, Timer, FileCheck, ScrollText, Target, LayoutTemplate, UserCheck
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -62,6 +65,26 @@ const navigation = [
   { name: 'Intake Forms', href: '/dashboard/intake', icon: ClipboardCheck },
   { name: 'Resources', href: '/dashboard/resources', icon: Box },
   { name: 'Audit Log', href: '/dashboard/audit-log', icon: ShieldCheck },
+  { name: 'Payment Links', href: '/dashboard/payment-links', icon: Link2 },
+  { name: 'Broadcasts', href: '/dashboard/broadcasts', icon: Radio },
+  { name: 'Push Notifications', href: '/dashboard/push-notifications', icon: BellRing },
+  { name: 'WhatsApp', href: '/dashboard/whatsapp', icon: MessageCircle },
+  { name: 'Email Writer', href: '/dashboard/email-writer', icon: PenTool },
+  { name: 'CSAT Surveys', href: '/dashboard/csat', icon: ThumbsUp },
+  { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
+  { name: 'Team Permissions', href: '/dashboard/team-permissions', icon: Shield },
+  { name: 'Calendar Sync', href: '/dashboard/calendar-sync', icon: CalendarCheck },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+  { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+  { name: 'Vendors', href: '/dashboard/vendors', icon: Truck },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Archive },
+  { name: 'Projects', href: '/dashboard/projects', icon: Briefcase },
+  { name: 'Time Tracking', href: '/dashboard/time-tracking', icon: Timer },
+  { name: 'Estimates', href: '/dashboard/estimates', icon: FileCheck },
+  { name: 'Contracts', href: '/dashboard/contracts', icon: ScrollText },
+  { name: 'Goals', href: '/dashboard/goals', icon: Target },
+  { name: 'Email Templates', href: '/dashboard/email-templates', icon: LayoutTemplate },
+  { name: 'Client Onboarding', href: '/dashboard/client-onboarding', icon: UserCheck },
 ]
 
 const bottomNav = [
