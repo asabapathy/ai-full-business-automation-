@@ -5,7 +5,12 @@ import { usePathname } from 'next/navigation'
 import {
   Brain, LayoutDashboard, Users, TrendingUp, Megaphone,
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
-  Star, Package, LogOut, ChevronDown, Building2, Share2
+  Star, Package, LogOut, ChevronDown, Building2, Share2,
+  Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook,
+  ClipboardList, MessageSquare, Clock, Wrench, GitBranch, Video, LineChart,
+  PhoneCall, UserCircle, RefreshCw, Inbox, CalendarDays, DollarSign,
+  Layers, FormInput, Map, BookOpen, MessageCircleDashed, Clock3, Gift,
+  UserPlus, FileSignature, Zap as ZapDrip, Award, ClipboardCheck, Box, ShieldCheck
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -25,6 +30,38 @@ const navigation = [
   { name: 'Operations', href: '/dashboard/operations', icon: Package },
   { name: 'Automations', href: '/dashboard/automations', icon: Zap },
   { name: 'Social', href: '/dashboard/social', icon: Share2 },
+  { name: 'Campaigns', href: '/dashboard/campaigns', icon: Mail },
+  { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
+  { name: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
+  { name: 'Locations', href: '/dashboard/locations', icon: MapPin },
+  { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },
+  { name: 'Proposals', href: '/dashboard/proposals', icon: ClipboardList },
+  { name: 'SMS Inbox', href: '/dashboard/sms', icon: MessageSquare },
+  { name: 'Staff Schedule', href: '/dashboard/staff-schedule', icon: Clock },
+  { name: 'Job Costing', href: '/dashboard/job-costing', icon: Wrench },
+  { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch },
+  { name: 'Testimonials', href: '/dashboard/testimonials', icon: Video },
+  { name: 'Forecasting', href: '/dashboard/forecasting', icon: LineChart },
+  { name: 'Receptionist', href: '/dashboard/receptionist', icon: PhoneCall },
+  { name: 'Client Portal', href: '/dashboard/client-portal', icon: UserCircle },
+  { name: 'Recurring Appts', href: '/dashboard/recurring-appointments', icon: RefreshCw },
+  { name: 'Team Inbox', href: '/dashboard/team-inbox', icon: Inbox },
+  { name: 'Content Calendar', href: '/dashboard/content-calendar', icon: CalendarDays },
+  { name: 'Commissions', href: '/dashboard/commissions', icon: DollarSign },
+  { name: 'Billing', href: '/dashboard/billing', icon: Layers },
+  { name: 'Forms', href: '/dashboard/forms', icon: FormInput },
+  { name: 'Location Reports', href: '/dashboard/location-reports', icon: Map },
+  { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
+  { name: 'Chat Widget', href: '/dashboard/chat-widget', icon: MessageCircleDashed },
+  { name: 'Waitlist', href: '/dashboard/waitlist', icon: Clock3 },
+  { name: 'Gift Cards', href: '/dashboard/gift-cards', icon: Gift },
+  { name: 'Referrals', href: '/dashboard/referrals', icon: UserPlus },
+  { name: 'Documents', href: '/dashboard/documents', icon: FileSignature },
+  { name: 'Drip Campaigns', href: '/dashboard/drip-campaigns', icon: ZapDrip },
+  { name: 'Loyalty', href: '/dashboard/loyalty', icon: Award },
+  { name: 'Intake Forms', href: '/dashboard/intake', icon: ClipboardCheck },
+  { name: 'Resources', href: '/dashboard/resources', icon: Box },
+  { name: 'Audit Log', href: '/dashboard/audit-log', icon: ShieldCheck },
 ]
 
 const bottomNav = [

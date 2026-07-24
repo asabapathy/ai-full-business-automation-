@@ -98,6 +98,11 @@ class APIClient {
     return data.data!
   }
 
+  async put<T>(url: string, body?: unknown): Promise<T> {
+    const { data } = await this.client.put<{ success: boolean; data: T }>(url, body)
+    return data.data!
+  }
+
   async patch<T>(url: string, body?: unknown): Promise<T> {
     const { data } = await this.client.patch<{ success: boolean; data: T }>(url, body)
     return data.data!
@@ -149,3 +154,4 @@ class APIClient {
 }
 
 export const api = new APIClient()
+export const apiClient = api
