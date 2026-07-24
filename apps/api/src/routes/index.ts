@@ -56,6 +56,16 @@ import { loyaltyRouter } from './loyalty.routes.js'
 import { intakeRouter } from './intake.routes.js'
 import { resourceBookingRouter } from './resource-booking.routes.js'
 import { auditLogRouter } from './audit-log.routes.js'
+import { paymentLinksRouter } from './payment-links.routes.js'
+import { emailBroadcastRouter } from './email-broadcast.routes.js'
+import { pushNotificationsRouter } from './push-notifications.routes.js'
+import { whatsappRouter } from './whatsapp.routes.js'
+import { aiEmailWriterRouter } from './ai-email-writer.routes.js'
+import { csatRouter } from './csat.routes.js'
+import { apiKeysRouter } from './api-keys.routes.js'
+import { teamPermissionsRouter } from './team-permissions.routes.js'
+import { calendarSyncRouter } from './calendar-sync.routes.js'
+import { notificationCenterRouter } from './notification-center.routes.js'
 
 export const apiRouter = Router()
 
@@ -116,6 +126,16 @@ apiRouter.use('/loyalty', loyaltyRouter)
 apiRouter.use('/intake', intakeRouter)
 apiRouter.use('/resources', resourceBookingRouter)
 apiRouter.use('/audit-log', auditLogRouter)
+apiRouter.use('/payment-links', paymentLinksRouter)
+apiRouter.use('/broadcasts', emailBroadcastRouter)
+apiRouter.use('/push', pushNotificationsRouter)
+apiRouter.use('/whatsapp', whatsappRouter)
+apiRouter.use('/email-writer', aiEmailWriterRouter)
+apiRouter.use('/csat', csatRouter)
+apiRouter.use('/api-keys', apiKeysRouter)
+apiRouter.use('/team-permissions', teamPermissionsRouter)
+apiRouter.use('/calendar-sync', calendarSyncRouter)
+apiRouter.use('/notification-center', notificationCenterRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

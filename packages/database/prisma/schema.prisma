@@ -346,6 +346,13 @@ model Organization {
   loyaltyAccounts       LoyaltyAccount[]
   intakeForms           IntakeForm[]
   resources             Resource[]
+  paymentLinks          PaymentLink[]
+  emailBroadcasts       EmailBroadcast[]
+  pushSubscriptions     PushSubscriptionRecord[]
+  whatsAppMessages      WhatsAppMessage[]
+  csatSurveys           CsatSurvey[]
+  calendarFeeds         CalendarFeed[]
+  aiEmailDrafts         AiEmailDraft[]
 
   @@index([slug])
   @@index([industry])
@@ -2634,6 +2641,139 @@ model ResourceBooking {
   @@index([resourceId])
   @@index([resourceId, startTime])
   @@map("resource_bookings")
+}
+
+// ============================================================
+// ============================================================
+// BATCH 4 — PAYMENTS, NOTIFICATIONS & INTEGRATIONS
+// ============================================================
+
+model PaymentLink {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  invoiceId      String?  @db.Uuid
+  contactId      String?  @db.Uuid
+  stripeId       String?
+  url            String
+  amount         Float
+  currency       String   @default("USD")
+  description    String?
+  status         String   @default("active")
+  expiresAt      DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+  @@map("payment_links")
+}
+
+model EmailBroadcast {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  subject        String
+  htmlContent    String
+  fromName       String?
+  replyTo        String?
+  status         String   @default("draft")
+  recipientCount Int      @default(0)
+  sentCount      Int      @default(0)
+  openCount      Int      @default(0)
+  tags           String[] @default([])
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+  @@map("email_broadcasts")
+}
+
+model PushSubscriptionRecord {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String?  @db.Uuid
+  endpoint       String
+  p256dh         String
+  auth           String
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, endpoint])
+  @@index([organizationId])
+  @@map("push_subscription_records")
+}
+
+model WhatsAppMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String?  @db.Uuid
+  direction      String
+  from           String
+  to             String
+  body           String
+  mediaUrl       String?
+  status         String   @default("sent")
+  twilioSid      String?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+  @@index([organizationId, contactId])
+  @@map("whatsapp_messages")
+}
+
+model CsatSurvey {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @db.Uuid
+  name           String
+  question       String         @default("How satisfied are you with our service?")
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  responses      CsatResponse[]
+  @@index([organizationId])
+  @@map("csat_surveys")
+}
+
+model CsatResponse {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  surveyId    String     @db.Uuid
+  contactId   String?    @db.Uuid
+  token       String     @unique
+  score       Int?
+  comment     String?
+  submittedAt DateTime?
+  createdAt   DateTime   @default(now())
+  survey      CsatSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  @@index([surveyId])
+  @@map("csat_responses")
+}
+
+model CalendarFeed {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  feedToken      String   @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffUserId    String?  @db.Uuid
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+  @@map("calendar_feeds")
+}
+
+model AiEmailDraft {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  subject        String
+  prompt         String
+  htmlContent    String
+  tone           String   @default("professional")
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+  @@map("ai_email_drafts")
 }
 
 // ============================================================
