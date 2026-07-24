@@ -13,7 +13,8 @@ import {
   UserPlus, FileSignature, Zap as ZapDrip, Award, ClipboardCheck, Box, ShieldCheck,
   Link2, Radio, BellRing, MessageCircle as WAIcon, PenTool, ThumbsUp,
   Key, Shield, CalendarCheck, Bell,
-  Receipt, Truck, Archive, Briefcase, Timer, FileCheck, ScrollText, Target, LayoutTemplate, UserCheck
+  Receipt, Truck, Archive, Briefcase, Timer, FileCheck, ScrollText, Target, LayoutTemplate, UserCheck,
+  BookMarked, Search, Store, FlaskConical
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -86,6 +87,13 @@ const navigation = [
   { name: 'Goals', href: '/dashboard/goals', icon: Target },
   { name: 'Email Templates', href: '/dashboard/email-templates', icon: LayoutTemplate },
   { name: 'Client Onboarding', href: '/dashboard/client-onboarding', icon: UserCheck },
+  { name: 'Blog Writer', href: '/dashboard/blog-writer', icon: BookMarked, badge: 'AI' },
+  { name: 'Google Ads', href: '/dashboard/google-ads', icon: Target },
+  { name: 'Competitors', href: '/dashboard/competitor-intelligence', icon: Search },
+  { name: 'Templates', href: '/dashboard/industry-templates', icon: LayoutTemplate },
+  { name: 'White Label', href: '/dashboard/white-label', icon: Palette },
+  { name: 'Marketplace', href: '/dashboard/marketplace', icon: Store },
+  { name: 'A/B Testing', href: '/dashboard/ab-testing', icon: FlaskConical },
 ]
 
 const bottomNav = [
