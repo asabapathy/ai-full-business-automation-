@@ -336,6 +336,16 @@ model Organization {
   commissionPayouts     CommissionPayout[]
   leadForms             LeadForm[]
   leadFormSubmissions   LeadFormSubmission[]
+  chatWidgets           ChatWidget[]
+  waitlistEntries       WaitlistEntry[]
+  giftCards             GiftCard[]
+  referralPrograms      ReferralProgram[]
+  referrals             Referral[]
+  documentTemplates     DocumentTemplate[]
+  dripCampaigns         DripCampaign[]
+  loyaltyAccounts       LoyaltyAccount[]
+  intakeForms           IntakeForm[]
+  resources             Resource[]
 
   @@index([slug])
   @@index([industry])
@@ -2281,4 +2291,370 @@ model LeadFormSubmission {
   @@index([formId])
   @@index([organizationId])
   @@map("lead_form_submissions")
+}
+
+// ============================================================
+// CHAT WIDGET
+// ============================================================
+
+model ChatWidget {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String   @default("Chat with us")
+  greeting       String   @default("Hi! How can I help you today?")
+  primaryColor   String   @default("#2563eb")
+  position       String   @default("bottom-right")
+  useKnowledgeBase Boolean @default(true)
+  isActive       Boolean  @default(true)
+  allowedDomains String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations  ChatWidgetSession[]
+
+  @@index([organizationId])
+  @@map("chat_widgets")
+}
+
+model ChatWidgetSession {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  widgetId   String   @db.Uuid
+  visitorId  String
+  messages   Json     @default("[]")
+  contactId  String?  @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  widget     ChatWidget @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+
+  @@index([widgetId])
+  @@index([visitorId])
+  @@map("chat_widget_sessions")
+}
+
+// ============================================================
+// WAITING LIST
+// ============================================================
+
+model WaitlistEntry {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @db.Uuid
+  contactId        String   @db.Uuid
+  serviceId        String?  @db.Uuid
+  employeeId       String?  @db.Uuid
+  preferredDate    DateTime?
+  preferredTimeFrom String?
+  preferredTimeTo  String?
+  notes            String?
+  status           String   @default("WAITING")
+  notifiedAt       DateTime?
+  bookedApptId     String?  @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("waitlist_entries")
+}
+
+// ============================================================
+// GIFT CARDS
+// ============================================================
+
+model GiftCard {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  code           String   @unique
+  originalAmount Decimal  @db.Decimal(10, 2)
+  balance        Decimal  @db.Decimal(10, 2)
+  purchasedByContactId String? @db.Uuid
+  purchasedAt    DateTime @default(now())
+  expiresAt      DateTime?
+  status         String   @default("ACTIVE")
+  notes          String?
+  redemptions    Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([code])
+  @@map("gift_cards")
+}
+
+// ============================================================
+// REFERRAL PROGRAM
+// ============================================================
+
+model ReferralProgram {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  rewardType     String   @default("credit")
+  rewardAmount   Decimal  @db.Decimal(10, 2)
+  referredReward Decimal? @db.Decimal(10, 2)
+  isActive       Boolean  @default(true)
+  terms          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  referrals      Referral[]
+
+  @@index([organizationId])
+  @@map("referral_programs")
+}
+
+model Referral {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  programId      String   @db.Uuid
+  referrerContactId String @db.Uuid
+  referredContactId String? @db.Uuid
+  referralCode   String   @unique
+  status         String   @default("PENDING")
+  rewardPaid     Boolean  @default(false)
+  rewardPaidAt   DateTime?
+  convertedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  program        ReferralProgram @relation(fields: [programId], references: [id])
+
+  @@index([organizationId])
+  @@index([referralCode])
+  @@map("referrals")
+}
+
+// ============================================================
+// DOCUMENT TEMPLATES + E-SIGN
+// ============================================================
+
+model DocumentTemplate {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  type           String   @default("agreement")
+  content        String
+  fields         Json     @default("[]")
+  requiresSignature Boolean @default(true)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  signedDocs     SignedDocument[]
+
+  @@index([organizationId])
+  @@map("document_templates")
+}
+
+model SignedDocument {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateId     String   @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String?  @db.Uuid
+  token          String   @unique
+  fieldValues    Json     @default("{}")
+  signatureData  String?
+  signedAt       DateTime?
+  ipAddress      String?
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  template       DocumentTemplate @relation(fields: [templateId], references: [id])
+
+  @@index([organizationId])
+  @@index([token])
+  @@map("signed_documents")
+}
+
+// ============================================================
+// DRIP CAMPAIGNS
+// ============================================================
+
+model DripCampaign {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  trigger        String   @default("manual")
+  triggerValue   String?
+  steps          Json     @default("[]")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments    DripEnrollment[]
+
+  @@index([organizationId])
+  @@map("drip_campaigns")
+}
+
+model DripEnrollment {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId   String   @db.Uuid
+  contactId    String   @db.Uuid
+  currentStep  Int      @default(0)
+  status       String   @default("ACTIVE")
+  nextSendAt   DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaign     DripCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId])
+  @@index([nextSendAt])
+  @@map("drip_enrollments")
+}
+
+// ============================================================
+// LOYALTY POINTS
+// ============================================================
+
+model LoyaltyAccount {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  contactId      String   @db.Uuid
+  points         Int      @default(0)
+  lifetimePoints Int      @default(0)
+  tier           String   @default("bronze")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions   LoyaltyTransaction[]
+
+  @@unique([organizationId, contactId])
+  @@index([organizationId])
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String   @db.Uuid
+  points    Int
+  type      String
+  description String
+  referenceId String?
+  createdAt DateTime @default(now())
+
+  account   LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("loyalty_transactions")
+}
+
+// ============================================================
+// INTAKE FORMS
+// ============================================================
+
+model IntakeForm {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  description    String?
+  serviceId      String?  @db.Uuid
+  fields         Json     @default("[]")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submissions    IntakeSubmission[]
+
+  @@index([organizationId])
+  @@map("intake_forms")
+}
+
+model IntakeSubmission {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  formId        String   @db.Uuid
+  contactId     String?  @db.Uuid
+  appointmentId String?  @db.Uuid
+  token         String   @unique
+  data          Json     @default("{}")
+  completedAt   DateTime?
+  sentAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  form          IntakeForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([token])
+  @@map("intake_submissions")
+}
+
+// ============================================================
+// RESOURCE BOOKING
+// ============================================================
+
+model Resource {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  type           String   @default("room")
+  description    String?
+  capacity       Int      @default(1)
+  isActive       Boolean  @default(true)
+  color          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookings       ResourceBooking[]
+
+  @@index([organizationId])
+  @@map("resources")
+}
+
+model ResourceBooking {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resourceId    String   @db.Uuid
+  organizationId String  @db.Uuid
+  appointmentId String?  @db.Uuid
+  title         String?
+  startTime     DateTime
+  endTime       DateTime
+  bookedBy      String?  @db.Uuid
+  notes         String?
+  status        String   @default("CONFIRMED")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  resource      Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+  @@index([resourceId, startTime])
+  @@map("resource_bookings")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String?  @db.Uuid
+  action         String
+  entity         String
+  entityId       String?
+  changes        Json?
+  metadata       Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, entity])
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
 }

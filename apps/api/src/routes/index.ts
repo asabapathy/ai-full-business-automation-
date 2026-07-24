@@ -46,6 +46,16 @@ import { billingPortalRouter } from './billing-portal.routes.js'
 import { formBuilderRouter } from './form-builder.routes.js'
 import { multiLocationReportRouter } from './multi-location-report.routes.js'
 import { knowledgeBaseRouter } from './knowledge-base.routes.js'
+import { chatWidgetRouter } from './chat-widget.routes.js'
+import { waitlistRouter } from './waitlist.routes.js'
+import { giftCardsRouter } from './gift-cards.routes.js'
+import { referralsRouter } from './referrals.routes.js'
+import { documentTemplatesRouter } from './document-templates.routes.js'
+import { dripCampaignsRouter } from './drip-campaigns.routes.js'
+import { loyaltyRouter } from './loyalty.routes.js'
+import { intakeRouter } from './intake.routes.js'
+import { resourceBookingRouter } from './resource-booking.routes.js'
+import { auditLogRouter } from './audit-log.routes.js'
 
 export const apiRouter = Router()
 
@@ -96,6 +106,16 @@ apiRouter.use('/billing-portal', billingPortalRouter)
 apiRouter.use('/forms', formBuilderRouter)
 apiRouter.use('/location-reports', multiLocationReportRouter)
 apiRouter.use('/knowledge-base', knowledgeBaseRouter)
+apiRouter.use('/chat-widget', chatWidgetRouter)
+apiRouter.use('/waitlist', waitlistRouter)
+apiRouter.use('/gift-cards', giftCardsRouter)
+apiRouter.use('/referrals', referralsRouter)
+apiRouter.use('/documents', documentTemplatesRouter)
+apiRouter.use('/drip-campaigns', dripCampaignsRouter)
+apiRouter.use('/loyalty', loyaltyRouter)
+apiRouter.use('/intake', intakeRouter)
+apiRouter.use('/resources', resourceBookingRouter)
+apiRouter.use('/audit-log', auditLogRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

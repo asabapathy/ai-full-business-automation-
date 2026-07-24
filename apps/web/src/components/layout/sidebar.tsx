@@ -9,7 +9,8 @@ import {
   Mail, CreditCard, BarChart3, MapPin, Palette, Phone, MessageCircle, Webhook,
   ClipboardList, MessageSquare, Clock, Wrench, GitBranch, Video, LineChart,
   PhoneCall, UserCircle, RefreshCw, Inbox, CalendarDays, DollarSign,
-  Layers, FormInput, Map, BookOpen
+  Layers, FormInput, Map, BookOpen, MessageCircleDashed, Clock3, Gift,
+  UserPlus, FileSignature, Zap as ZapDrip, Award, ClipboardCheck, Box, ShieldCheck
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
@@ -51,6 +52,16 @@ const navigation = [
   { name: 'Forms', href: '/dashboard/forms', icon: FormInput },
   { name: 'Location Reports', href: '/dashboard/location-reports', icon: Map },
   { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
+  { name: 'Chat Widget', href: '/dashboard/chat-widget', icon: MessageCircleDashed },
+  { name: 'Waitlist', href: '/dashboard/waitlist', icon: Clock3 },
+  { name: 'Gift Cards', href: '/dashboard/gift-cards', icon: Gift },
+  { name: 'Referrals', href: '/dashboard/referrals', icon: UserPlus },
+  { name: 'Documents', href: '/dashboard/documents', icon: FileSignature },
+  { name: 'Drip Campaigns', href: '/dashboard/drip-campaigns', icon: ZapDrip },
+  { name: 'Loyalty', href: '/dashboard/loyalty', icon: Award },
+  { name: 'Intake Forms', href: '/dashboard/intake', icon: ClipboardCheck },
+  { name: 'Resources', href: '/dashboard/resources', icon: Box },
+  { name: 'Audit Log', href: '/dashboard/audit-log', icon: ShieldCheck },
 ]
 
 const bottomNav = [
