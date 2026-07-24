@@ -66,6 +66,16 @@ import { apiKeysRouter } from './api-keys.routes.js'
 import { teamPermissionsRouter } from './team-permissions.routes.js'
 import { calendarSyncRouter } from './calendar-sync.routes.js'
 import { notificationCenterRouter } from './notification-center.routes.js'
+import { expensesRouter } from './expenses.routes.js'
+import { vendorsRouter } from './vendors.routes.js'
+import { inventoryRouter } from './inventory.routes.js'
+import { projectsRouter } from './projects.routes.js'
+import { timeTrackingRouter } from './time-tracking.routes.js'
+import { estimatesRouter } from './estimates.routes.js'
+import { contractsRouter } from './contracts.routes.js'
+import { goalsRouter } from './goals.routes.js'
+import { emailTemplatesRouter } from './email-templates.routes.js'
+import { onboardingRouter } from './onboarding.routes.js'
 
 export const apiRouter = Router()
 
@@ -136,6 +146,16 @@ apiRouter.use('/api-keys', apiKeysRouter)
 apiRouter.use('/team-permissions', teamPermissionsRouter)
 apiRouter.use('/calendar-sync', calendarSyncRouter)
 apiRouter.use('/notification-center', notificationCenterRouter)
+apiRouter.use('/expenses', expensesRouter)
+apiRouter.use('/vendors', vendorsRouter)
+apiRouter.use('/inventory', inventoryRouter)
+apiRouter.use('/projects', projectsRouter)
+apiRouter.use('/time-tracking', timeTrackingRouter)
+apiRouter.use('/estimates', estimatesRouter)
+apiRouter.use('/contracts', contractsRouter)
+apiRouter.use('/goals', goalsRouter)
+apiRouter.use('/email-templates', emailTemplatesRouter)
+apiRouter.use('/onboarding', onboardingRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

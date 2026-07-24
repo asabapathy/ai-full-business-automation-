@@ -353,6 +353,13 @@ model Organization {
   csatSurveys           CsatSurvey[]
   calendarFeeds         CalendarFeed[]
   aiEmailDrafts         AiEmailDraft[]
+  projects              Project[]
+  timeEntries           TimeEntry[]
+  estimates             Estimate[]
+  contracts             Contract[]
+  goals                 Goal[]
+  emailTemplates        EmailTemplate[]
+  onboardingChecklists  OnboardingChecklist[]
 
   @@index([slug])
   @@index([industry])
@@ -2774,6 +2781,179 @@ model AiEmailDraft {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   @@index([organizationId])
   @@map("ai_email_drafts")
+}
+
+// ============================================================
+// BATCH 5 MODELS
+// ============================================================
+
+model Project {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  status         String        @default("active")
+  startDate      DateTime?
+  endDate        DateTime?
+  contactId      String?       @db.Uuid
+  color          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  tasks          ProjectTask[]
+
+  @@index([organizationId])
+  @@map("projects")
+}
+
+model ProjectTask {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @db.Uuid
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      String   @default("todo")
+  priority    String   @default("medium")
+  assigneeId  String?  @db.Uuid
+  dueDate     DateTime?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@map("project_tasks")
+}
+
+model TimeEntry {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  contactId      String?      @db.Uuid
+  projectId      String?      @db.Uuid
+  description    String?
+  startTime      DateTime
+  endTime        DateTime?
+  duration       Int?
+  billable       Boolean      @default(true)
+  hourlyRate     Decimal?     @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@map("time_entries")
+}
+
+model Estimate {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId      String?      @db.Uuid
+  estimateNumber String
+  status         String       @default("draft")
+  lineItems      Json         @default("[]")
+  subtotal       Decimal      @default(0) @db.Decimal(15, 2)
+  tax            Decimal      @default(0) @db.Decimal(15, 2)
+  total          Decimal      @default(0) @db.Decimal(15, 2)
+  currency       String       @default("USD")
+  notes          String?
+  validUntil     DateTime?
+  sentAt         DateTime?
+  acceptedAt     DateTime?
+  rejectedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("estimates")
+}
+
+model Contract {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId      String?      @db.Uuid
+  title          String
+  content        String       @db.Text
+  status         String       @default("draft")
+  value          Decimal?     @db.Decimal(15, 2)
+  currency       String       @default("USD")
+  startDate      DateTime?
+  endDate        DateTime?
+  signedAt       DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("contracts")
+}
+
+model Goal {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  category       String?
+  targetValue    Decimal      @db.Decimal(15, 2)
+  currentValue   Decimal      @default(0) @db.Decimal(15, 2)
+  unit           String?
+  dueDate        DateTime?
+  status         String       @default("active")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("goals")
+}
+
+model EmailTemplate {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  subject        String
+  htmlContent    String       @db.Text
+  category       String?
+  variables      Json         @default("[]")
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("email_templates")
+}
+
+model OnboardingChecklist {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String            @db.Uuid
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId      String            @db.Uuid
+  title          String
+  status         String            @default("in_progress")
+  items          OnboardingItem[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId])
+  @@map("onboarding_checklists")
+}
+
+model OnboardingItem {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  checklistId  String              @db.Uuid
+  checklist    OnboardingChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  isCompleted  Boolean             @default(false)
+  completedAt  DateTime?
+  order        Int                 @default(0)
+  createdAt    DateTime            @default(now())
+
+  @@index([checklistId])
+  @@map("onboarding_items")
 }
 
 // ============================================================
