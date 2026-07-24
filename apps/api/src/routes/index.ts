@@ -76,6 +76,13 @@ import { contractsRouter } from './contracts.routes.js'
 import { goalsRouter } from './goals.routes.js'
 import { emailTemplatesRouter } from './email-templates.routes.js'
 import { onboardingRouter } from './onboarding.routes.js'
+import { businessDoctorRouter } from './business-doctor.routes.js'
+import { googleAdsRouter } from './google-ads.routes.js'
+import { competitorRouter } from './competitor-intelligence.routes.js'
+import { industryTemplatesRouter } from './industry-templates.routes.js'
+import { whiteLabelRouter } from './white-label.routes.js'
+import { partnerMarketplaceRouter } from './partner-marketplace.routes.js'
+import { abTestingRouter } from './ab-testing.routes.js'
 
 export const apiRouter = Router()
 
@@ -156,6 +163,13 @@ apiRouter.use('/contracts', contractsRouter)
 apiRouter.use('/goals', goalsRouter)
 apiRouter.use('/email-templates', emailTemplatesRouter)
 apiRouter.use('/onboarding', onboardingRouter)
+apiRouter.use('/business-doctor', businessDoctorRouter)
+apiRouter.use('/google-ads', googleAdsRouter)
+apiRouter.use('/competitors', competitorRouter)
+apiRouter.use('/industry-templates', industryTemplatesRouter)
+apiRouter.use('/white-label', whiteLabelRouter)
+apiRouter.use('/marketplace', partnerMarketplaceRouter)
+apiRouter.use('/ab-testing', abTestingRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

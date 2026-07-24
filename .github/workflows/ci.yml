@@ -222,9 +222,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to staging
-        run: echo "Deploy to staging k8s cluster"
-        # In production: use kubectl, helm, or ArgoCD
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+
+      - name: Update image tags in staging overlay
+        run: |
+          cd infrastructure/kubernetes/overlays/staging
+          sed -i "s|newTag:.*|newTag: ${{ github.sha }}|g" kustomization.yaml
+
+      - name: Apply staging manifests
+        run: |
+          kubectl apply -k infrastructure/kubernetes/overlays/staging
+          kubectl rollout status deployment/api -n kanavu-staging --timeout=300s
+          kubectl rollout status deployment/web -n kanavu-staging --timeout=300s
 
   deploy-production:
     name: Deploy to Production
@@ -236,6 +253,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to production
-        run: echo "Deploy to production k8s cluster"
-        # Requires manual approval via GitHub Environments
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+
+      - name: Update image tags in production overlay
+        run: |
+          cd infrastructure/kubernetes/overlays/production
+          sed -i "s|newTag:.*|newTag: ${{ github.sha }}|g" kustomization.yaml
+
+      - name: Apply production manifests
+        run: |
+          kubectl apply -k infrastructure/kubernetes/overlays/production
+          kubectl rollout status deployment/api -n kanavu-production --timeout=300s
+          kubectl rollout status deployment/web -n kanavu-production --timeout=300s
+
+      - name: Run post-deploy smoke test
+        run: |
+          sleep 15
+          curl -f "${{ secrets.PRODUCTION_URL }}/health" || exit 1

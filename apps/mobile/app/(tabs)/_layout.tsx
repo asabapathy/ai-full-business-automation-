@@ -39,6 +39,22 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="crm"
+        options={{
+          title: 'CRM',
+          tabBarLabel: 'CRM',
+          tabBarIcon: ({ color }) => <TabIcon icon="👥" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="invoices"
+        options={{
+          title: 'Invoices',
+          tabBarLabel: 'Invoices',
+          tabBarIcon: ({ color }) => <TabIcon icon="🧾" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           title: 'Notifications',

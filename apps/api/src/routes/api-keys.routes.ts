@@ -45,3 +45,11 @@ apiKeysRouter.delete('/:id', async (req, res) => {
     res.json({ success: true })
   } catch (err) { logger.error(err); res.status(500).json({ error: 'Failed' }) }
 })
+
+apiKeysRouter.get('/:id/usage', async (req, res) => {
+  try {
+    const orgId = (req as any).user.organizationId as string
+    const usage = await apiKeysService.getKeyUsage(orgId, req.params.id)
+    res.json(usage)
+  } catch (err) { logger.error(err); res.status(500).json({ error: 'Failed' }) }
+})

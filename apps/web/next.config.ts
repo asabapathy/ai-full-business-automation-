@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   transpilePackages: ['@kanavu/types'],
   images: {
     remotePatterns: [
@@ -11,7 +12,12 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    serverActions: { allowedOrigins: ['localhost:3000'] },
+    serverActions: {
+      allowedOrigins: [
+        'localhost:3000',
+        process.env.NEXT_PUBLIC_APP_URL ?? '',
+      ].filter(Boolean),
+    },
   },
   async headers() {
     return [
