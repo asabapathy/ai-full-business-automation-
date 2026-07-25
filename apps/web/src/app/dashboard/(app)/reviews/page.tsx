@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Star, MessageSquare, TrendingUp, CheckCircle, Zap } from 'lucide-react'
 
 interface Review {
   id: string
@@ -17,34 +18,38 @@ interface Review {
 
 const DEMO_REVIEWS: Review[] = [
   { id: '1', platform: 'GOOGLE', reviewerName: 'Sarah M.', rating: 5, content: 'Amazing service! The team was professional and delivered exactly what we needed. Highly recommend!', sentiment: 'POSITIVE', publishedAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { id: '2', platform: 'YELP', reviewerName: 'Mike T.', rating: 2, content: 'Waited over an hour and the work wasn\'t what I expected. Very disappointed.', sentiment: 'NEGATIVE', publishedAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+  { id: '2', platform: 'YELP', reviewerName: 'Mike T.', rating: 2, content: "Waited over an hour and the work wasn't what I expected. Very disappointed.", sentiment: 'NEGATIVE', publishedAt: new Date(Date.now() - 5 * 86400000).toISOString() },
   { id: '3', platform: 'FACEBOOK', reviewerName: 'Jessica L.', rating: 4, content: 'Good experience overall. Staff was friendly and helpful. Will come back again.', sentiment: 'POSITIVE', response: 'Thank you Jessica! We look forward to serving you again.', respondedAt: new Date(Date.now() - 3 * 86400000).toISOString(), publishedAt: new Date(Date.now() - 4 * 86400000).toISOString() },
   { id: '4', platform: 'GOOGLE', reviewerName: 'David K.', rating: 3, content: 'Service was okay. Nothing special but nothing terrible either.', sentiment: 'NEUTRAL', publishedAt: new Date(Date.now() - 7 * 86400000).toISOString() },
-  { id: '5', platform: 'GOOGLE', reviewerName: 'Amanda P.', rating: 5, content: 'Best experience I\'ve had! The attention to detail is outstanding.', sentiment: 'POSITIVE', publishedAt: new Date(Date.now() - 10 * 86400000).toISOString() },
+  { id: '5', platform: 'GOOGLE', reviewerName: 'Amanda P.', rating: 5, content: "Best experience I've had! The attention to detail is outstanding.", sentiment: 'POSITIVE', publishedAt: new Date(Date.now() - 10 * 86400000).toISOString() },
 ]
 
 const PLATFORM_COLORS: Record<string, string> = {
   GOOGLE: 'text-blue-400',
   YELP: 'text-red-400',
   FACEBOOK: 'text-indigo-400',
-  TRIPADVISOR: 'text-green-400',
-  OTHER: 'text-gray-400',
+  TRIPADVISOR: 'text-emerald-400',
+  OTHER: 'text-muted-foreground',
 }
 
-const SENTIMENT_COLORS: Record<string, string> = {
-  POSITIVE: 'text-green-400 bg-green-400/10',
-  NEUTRAL: 'text-yellow-400 bg-yellow-400/10',
-  NEGATIVE: 'text-red-400 bg-red-400/10',
+const SENTIMENT_COLORS: Record<string, { text: string; bg: string }> = {
+  POSITIVE: { text: '#34d399', bg: 'rgba(52,211,153,0.1)' },
+  NEUTRAL: { text: '#fbbf24', bg: 'rgba(251,191,36,0.1)' },
+  NEGATIVE: { text: '#f87171', bg: 'rgba(248,113,113,0.1)' },
 }
 
 function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map(s => (
-        <span key={s} className={s <= rating ? 'text-yellow-400' : 'text-gray-600'}>★</span>
+        <Star key={s} className={`h-3.5 w-3.5 ${s <= rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/30'}`} />
       ))}
     </div>
   )
+}
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
 export default function ReviewsPage() {
@@ -110,122 +115,161 @@ export default function ReviewsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-[1200px]">
+      {/* Header */}
+      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold text-white">Reviews & Reputation</h1>
-          <p className="text-gray-400 text-sm mt-1">Monitor and respond to customer reviews with AI</p>
+          <h1 className="text-2xl font-bold text-foreground">Reviews & Reputation</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Monitor and respond to customer reviews with AI</p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-yellow-400">{stats.avgRating.toFixed(1)}</p>
-          <p className="text-xs text-gray-400 mt-1">Avg Rating</p>
-          <StarRating rating={Math.round(stats.avgRating)} />
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-white">{stats.total}</p>
-          <p className="text-xs text-gray-400 mt-1">Total Reviews</p>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-green-400">{stats.responseRate}%</p>
-          <p className="text-xs text-gray-400 mt-1">Response Rate</p>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-purple-400">{stats.positive}</p>
-          <p className="text-xs text-gray-400 mt-1">Positive Reviews</p>
-        </div>
+        {[
+          { label: 'Avg Rating', value: stats.avgRating.toFixed(1), sub: <StarRating rating={Math.round(stats.avgRating)} />, color: 'text-amber-400' },
+          { label: 'Total Reviews', value: stats.total, icon: MessageSquare, color: 'text-primary' },
+          { label: 'Response Rate', value: `${stats.responseRate}%`, icon: TrendingUp, color: 'text-emerald-400' },
+          { label: 'Positive', value: stats.positive, icon: CheckCircle, color: 'text-violet-400' },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="kv-anim rounded-xl border p-4 text-center"
+            style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+          >
+            <p className={`text-3xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+            {stat.sub && <div className="flex justify-center mt-1">{stat.sub}</div>}
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        {['all', 'unresponded', 'POSITIVE', 'NEUTRAL', 'NEGATIVE'].map(f => (
+      <div className="kv-anim flex gap-2 flex-wrap" style={{ animationDelay: '0.39s' }}>
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'unresponded', label: 'Needs Response' },
+          { key: 'POSITIVE', label: 'Positive' },
+          { key: 'NEUTRAL', label: 'Neutral' },
+          { key: 'NEGATIVE', label: 'Negative' },
+        ].map(f => (
           <button
-            key={f}
-            onClick={() => setFilter(f as typeof filter)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize ${filter === f ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+            key={f.key}
+            onClick={() => setFilter(f.key as typeof filter)}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            style={filter === f.key
+              ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+              : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+            }
           >
-            {f === 'unresponded' ? 'Needs Response' : f.toLowerCase()}
+            {f.label}
           </button>
         ))}
       </div>
 
       {/* Review list */}
-      <div className="space-y-4">
-        {filtered.map(review => (
-          <div key={review.id} className="bg-white/5 border border-white/10 rounded-xl p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={`text-sm font-bold ${PLATFORM_COLORS[review.platform] ?? 'text-gray-400'}`}>
-                    {review.platform}
-                  </span>
-                  <StarRating rating={review.rating} />
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SENTIMENT_COLORS[review.sentiment]}`}>
-                    {review.sentiment}
-                  </span>
-                  {review.respondedAt && (
-                    <span className="text-xs text-green-400">✓ Responded</span>
+      <div className="kv-anim space-y-3" style={{ animationDelay: '0.46s' }}>
+        {filtered.map(review => {
+          const sentiment = SENTIMENT_COLORS[review.sentiment]
+          return (
+            <div
+              key={review.id}
+              className="rounded-xl border p-5"
+              style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <span className={`text-sm font-bold ${PLATFORM_COLORS[review.platform] ?? 'text-muted-foreground'}`}>
+                      {review.platform}
+                    </span>
+                    <StarRating rating={review.rating} />
+                    {sentiment && (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ color: sentiment.text, background: sentiment.bg }}
+                      >
+                        {review.sentiment}
+                      </span>
+                    )}
+                    {review.respondedAt && (
+                      <span className="text-xs text-emerald-400 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Responded
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-foreground mb-1">{review.reviewerName ?? 'Anonymous'}</p>
+                  {review.content && (
+                    <p className="text-sm text-muted-foreground leading-relaxed">{review.content}</p>
                   )}
+                  {review.response && (
+                    <div
+                      className="mt-3 pl-3 space-y-1"
+                      style={{ borderLeft: '2px solid rgba(6,182,212,0.4)' }}
+                    >
+                      <p className="text-xs text-primary">Your response:</p>
+                      <p className="text-sm text-muted-foreground">{review.response}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground/60 mt-2">
+                    {new Date(review.publishedAt).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="text-sm font-medium text-white mb-1">{review.reviewerName ?? 'Anonymous'}</p>
-                {review.content && <p className="text-sm text-gray-400 leading-relaxed">{review.content}</p>}
-                {review.response && (
-                  <div className="mt-3 pl-3 border-l-2 border-purple-500/40">
-                    <p className="text-xs text-purple-400 mb-1">Your response:</p>
-                    <p className="text-sm text-gray-300">{review.response}</p>
+
+                {!review.respondedAt && (
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <button
+                      onClick={() => generateAiResponse(review.id)}
+                      disabled={generatingId === review.id}
+                      className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                      style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                    >
+                      <Zap className="h-3 w-3" />
+                      {generatingId === review.id ? 'Generating…' : 'AI Respond'}
+                    </button>
+                    <button
+                      onClick={() => { setRespondingId(review.id); setResponseText('') }}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}
+                    >
+                      Write reply
+                    </button>
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mt-2">{new Date(review.publishedAt).toLocaleDateString()}</p>
               </div>
-              {!review.respondedAt && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => generateAiResponse(review.id)}
-                    disabled={generatingId === review.id}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {generatingId === review.id ? 'Generating...' : '✨ AI Respond'}
-                  </button>
-                  <button
-                    onClick={() => { setRespondingId(review.id); setResponseText('') }}
-                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded-lg transition-colors"
-                  >
-                    Write reply
-                  </button>
+
+              {respondingId === review.id && (
+                <div className="mt-4 space-y-3">
+                  <textarea
+                    value={responseText}
+                    onChange={e => setResponseText(e.target.value)}
+                    rows={3}
+                    placeholder="Write your response…"
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(6,182,212,0.3)' }}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => submitResponse(review.id)}
+                      className="rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-all hover:scale-[1.01]"
+                      style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                    >
+                      Post Response
+                    </button>
+                    <button
+                      onClick={() => { setRespondingId(null); setResponseText('') }}
+                      className="rounded-lg px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-
-            {respondingId === review.id && (
-              <div className="mt-4 space-y-3">
-                <textarea
-                  value={responseText}
-                  onChange={e => setResponseText(e.target.value)}
-                  rows={3}
-                  placeholder="Write your response..."
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => submitResponse(review.id)}
-                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg"
-                  >
-                    Post Response
-                  </button>
-                  <button
-                    onClick={() => { setRespondingId(null); setResponseText('') }}
-                    className="px-4 py-1.5 bg-white/5 text-gray-400 text-sm rounded-lg hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

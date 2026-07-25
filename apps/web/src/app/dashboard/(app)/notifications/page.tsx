@@ -26,11 +26,11 @@ interface NotifPage {
 }
 
 const typeIcon: Record<string, React.ReactNode> = {
-  info: <Info className="h-4 w-4 text-blue-500" />,
-  warning: <AlertCircle className="h-4 w-4 text-yellow-500" />,
-  success: <CheckCircle className="h-4 w-4 text-green-500" />,
-  error: <AlertCircle className="h-4 w-4 text-red-500" />,
-  action: <Zap className="h-4 w-4 text-purple-500" />,
+  info: <Info className="h-4 w-4 text-blue-400" />,
+  warning: <AlertCircle className="h-4 w-4 text-amber-400" />,
+  success: <CheckCircle className="h-4 w-4 text-emerald-400" />,
+  error: <AlertCircle className="h-4 w-4 text-red-400" />,
+  action: <Zap className="h-4 w-4 text-primary" />,
 }
 
 export default function NotificationsPage() {
@@ -80,10 +80,10 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-[900px]">
+      <div className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">Notifications</h1>
+          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
           {data && data.unread > 0 && (
             <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full">
               {data.unread}
@@ -92,7 +92,8 @@ export default function NotificationsPage() {
         </div>
         {data && data.unread > 0 && (
           <button onClick={markAllRead} disabled={markingAll}
-            className="flex items-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted disabled:opacity-50">
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+            style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
             <CheckCheck className="h-4 w-4" />
             {markingAll ? 'Marking…' : 'Mark all read'}
           </button>
@@ -108,10 +109,14 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <>
-          <div className="space-y-2">
+          <div className="kv-anim space-y-2" style={{ animationDelay: '0.11s' }}>
             {data.notifications.map(n => (
               <div key={n.id}
-                className={`bg-card border rounded-xl p-4 flex items-start gap-4 transition-colors ${!n.isRead ? 'border-primary/30 bg-primary/5' : ''}`}>
+                className="rounded-xl p-4 flex items-start gap-4 transition-colors"
+                style={!n.isRead
+                  ? { background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.2)' }
+                  : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+                }>
                 <div className="mt-0.5 shrink-0">
                   {typeIcon[n.type] ?? typeIcon.info}
                 </div>
@@ -151,12 +156,14 @@ export default function NotificationsPage() {
           {data.pages > 1 && (
             <div className="flex items-center justify-center gap-3">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || loading}
-                className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-muted">
+                className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
                 Previous
               </button>
               <span className="text-sm text-muted-foreground">Page {data.page} of {data.pages}</span>
               <button onClick={() => setPage(p => Math.min(data.pages, p + 1))} disabled={page === data.pages || loading}
-                className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-muted">
+                className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
                 Next
               </button>
             </div>
