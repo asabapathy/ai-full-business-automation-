@@ -7,7 +7,7 @@ import { api } from '../lib/api-client'
 
 interface AuthState {
   user: AuthUser | null
-  organization: { id: string; name: string; slug: string } | null
+  organization: { id: string; name: string; slug: string; plan: string; industry: string | null } | null
   isAuthenticated: boolean
   isLoading: boolean
 
@@ -37,11 +37,15 @@ export const useAuthStore = create<AuthState>()(
           const result = await api.post<{
             user: AuthUser
             tokens: { accessToken: string; refreshToken: string }
-            organization: { id: string; name: string; slug: string }
+            organization: { id: string; name: string; slug: string; plan?: string; industry?: string | null }
           }>('/auth/login', { email, password })
 
           api.setTokens(result.tokens.accessToken, result.tokens.refreshToken)
-          set({ user: result.user, organization: result.organization, isAuthenticated: true })
+          set({
+            user: result.user,
+            organization: { ...result.organization, plan: result.organization.plan ?? 'STARTER', industry: result.organization.industry ?? null },
+            isAuthenticated: true,
+          })
         } finally {
           set({ isLoading: false })
         }
@@ -69,8 +73,15 @@ export const useAuthStore = create<AuthState>()(
 
       refreshUser: async () => {
         try {
-          const result = await api.get<{ user: AuthUser }>('/auth/me')
-          set({ user: result.user })
+          const [meResult, orgResult] = await Promise.all([
+            api.get<{ user: AuthUser }>('/auth/me'),
+            api.get<{ organization: { id: string; name: string; slug: string; plan?: string; industry?: string | null } }>('/org').catch(() => ({ organization: get().organization })),
+          ])
+          const org = orgResult.organization
+          set({
+            user: meResult.user,
+            organization: org ? { ...org, plan: (org as any).plan ?? get().organization?.plan ?? 'STARTER', industry: (org as any).industry ?? get().organization?.industry ?? null } : get().organization,
+          })
         } catch {
           get().logout()
         }

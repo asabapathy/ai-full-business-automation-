@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Brain, Stethoscope, LayoutDashboard, Users, TrendingUp, Megaphone,
   Calendar, FileText, Settings, Zap, Globe, ChartBar,
@@ -14,17 +14,21 @@ import {
   Link2, Radio, BellRing, PenTool, ThumbsUp,
   Key, Shield, CalendarCheck, Bell,
   Receipt, Truck, Archive, Briefcase, Timer, FileCheck, ScrollText, Target, LayoutTemplate, UserCheck,
-  BookMarked, Search, Store, FlaskConical, Zap as ZapDrip
+  BookMarked, Search, Store, FlaskConical, Zap as ZapDrip,
+  Lock,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth.store'
 import { Button } from '../ui/button'
+import { type Feature, getOrgFeatures, isHipaaIndustry } from '../../lib/features'
+import { useMemo } from 'react'
 
 type NavItem = {
   name: string
   href: string
   icon: React.ElementType
   badge?: string
+  feature?: Feature
 }
 
 type NavGroup = {
@@ -36,146 +40,160 @@ const navGroups: NavGroup[] = [
   {
     label: 'AI Intelligence',
     items: [
-      { name: 'Brain', href: '/dashboard/brain', icon: Brain, badge: 'AI' },
-      { name: 'Business Doctor', href: '/dashboard/business-doctor', icon: Stethoscope, badge: 'AI' },
-      { name: 'Receptionist', href: '/dashboard/receptionist', icon: PhoneCall, badge: 'AI' },
-      { name: 'Email Writer', href: '/dashboard/email-writer', icon: PenTool, badge: 'AI' },
-      { name: 'Blog Writer', href: '/dashboard/blog-writer', icon: BookMarked, badge: 'AI' },
-      { name: 'Automations', href: '/dashboard/automations', icon: Zap },
+      { name: 'Brain', href: '/dashboard/brain', icon: Brain, badge: 'AI', feature: 'ai:brain' },
+      { name: 'Business Doctor', href: '/dashboard/business-doctor', icon: Stethoscope, badge: 'AI', feature: 'ai:business_doctor' },
+      { name: 'Receptionist', href: '/dashboard/receptionist', icon: PhoneCall, badge: 'AI', feature: 'ai:receptionist' },
+      { name: 'Email Writer', href: '/dashboard/email-writer', icon: PenTool, badge: 'AI', feature: 'ai:email_writer' },
+      { name: 'Blog Writer', href: '/dashboard/blog-writer', icon: BookMarked, badge: 'AI', feature: 'ai:blog_writer' },
+      { name: 'Automations', href: '/dashboard/automations', icon: Zap, feature: 'core:automations' },
     ],
   },
   {
     label: 'Core Business',
     items: [
-      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'CRM', href: '/dashboard/crm', icon: Users },
-      { name: 'Sales', href: '/dashboard/sales', icon: TrendingUp },
-      { name: 'Appointments', href: '/dashboard/appointments', icon: Calendar },
-      { name: 'Invoices', href: '/dashboard/invoices', icon: FileText },
-      { name: 'Proposals', href: '/dashboard/proposals', icon: ClipboardList },
-      { name: 'Estimates', href: '/dashboard/estimates', icon: FileCheck },
-      { name: 'Contracts', href: '/dashboard/contracts', icon: ScrollText },
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, feature: 'core:dashboard' },
+      { name: 'CRM', href: '/dashboard/crm', icon: Users, feature: 'core:crm' },
+      { name: 'Sales', href: '/dashboard/sales', icon: TrendingUp, feature: 'core:sales' },
+      { name: 'Appointments', href: '/dashboard/appointments', icon: Calendar, feature: 'core:appointments' },
+      { name: 'Invoices', href: '/dashboard/invoices', icon: FileText, feature: 'core:invoices' },
+      { name: 'Proposals', href: '/dashboard/proposals', icon: ClipboardList, feature: 'core:proposals' },
+      { name: 'Estimates', href: '/dashboard/estimates', icon: FileCheck, feature: 'core:estimates' },
+      { name: 'Contracts', href: '/dashboard/contracts', icon: ScrollText, feature: 'core:contracts' },
     ],
   },
   {
     label: 'Marketing',
     items: [
-      { name: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
-      { name: 'Campaigns', href: '/dashboard/campaigns', icon: Mail },
-      { name: 'Social', href: '/dashboard/social', icon: Share2 },
-      { name: 'Content Calendar', href: '/dashboard/content-calendar', icon: CalendarDays },
-      { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch },
-      { name: 'Drip Campaigns', href: '/dashboard/drip-campaigns', icon: ZapDrip },
-      { name: 'Broadcasts', href: '/dashboard/broadcasts', icon: Radio },
-      { name: 'Reviews', href: '/dashboard/reviews', icon: Star },
-      { name: 'Testimonials', href: '/dashboard/testimonials', icon: Video },
-      { name: 'Referrals', href: '/dashboard/referrals', icon: UserPlus },
-      { name: 'Loyalty', href: '/dashboard/loyalty', icon: Award },
+      { name: 'Marketing', href: '/dashboard/marketing', icon: Megaphone, feature: 'marketing:hub' },
+      { name: 'Campaigns', href: '/dashboard/campaigns', icon: Mail, feature: 'marketing:campaigns' },
+      { name: 'Social', href: '/dashboard/social', icon: Share2, feature: 'marketing:social' },
+      { name: 'Content Calendar', href: '/dashboard/content-calendar', icon: CalendarDays, feature: 'marketing:content_calendar' },
+      { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch, feature: 'marketing:sequences' },
+      { name: 'Drip Campaigns', href: '/dashboard/drip-campaigns', icon: ZapDrip, feature: 'marketing:drip' },
+      { name: 'Broadcasts', href: '/dashboard/broadcasts', icon: Radio, feature: 'marketing:broadcasts' },
+      { name: 'Reviews', href: '/dashboard/reviews', icon: Star, feature: 'reputation:reviews' },
+      { name: 'Testimonials', href: '/dashboard/testimonials', icon: Video, feature: 'reputation:testimonials' },
+      { name: 'Referrals', href: '/dashboard/referrals', icon: UserPlus, feature: 'reputation:referrals' },
+      { name: 'Loyalty', href: '/dashboard/loyalty', icon: Award, feature: 'reputation:loyalty' },
     ],
   },
   {
     label: 'Communication',
     items: [
-      { name: 'Team Inbox', href: '/dashboard/team-inbox', icon: Inbox },
-      { name: 'SMS Inbox', href: '/dashboard/sms', icon: MessageSquare },
-      { name: 'WhatsApp', href: '/dashboard/whatsapp', icon: MessageCircle },
-      { name: 'Chat Widget', href: '/dashboard/chat-widget', icon: MessageCircleDashed },
-      { name: 'Push Notifications', href: '/dashboard/push-notifications', icon: BellRing },
+      { name: 'Team Inbox', href: '/dashboard/team-inbox', icon: Inbox, feature: 'comm:team_inbox' },
+      { name: 'SMS Inbox', href: '/dashboard/sms', icon: MessageSquare, feature: 'comm:sms' },
+      { name: 'WhatsApp', href: '/dashboard/whatsapp', icon: MessageCircle, feature: 'comm:whatsapp' },
+      { name: 'Chat Widget', href: '/dashboard/chat-widget', icon: MessageCircleDashed, feature: 'comm:chat_widget' },
+      { name: 'Push Notifications', href: '/dashboard/push-notifications', icon: BellRing, feature: 'comm:push' },
     ],
   },
   {
     label: 'Finance',
     items: [
-      { name: 'Billing', href: '/dashboard/billing', icon: Layers },
-      { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
-      { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
-      { name: 'Job Costing', href: '/dashboard/job-costing', icon: Wrench },
-      { name: 'Commissions', href: '/dashboard/commissions', icon: DollarSign },
-      { name: 'Payment Links', href: '/dashboard/payment-links', icon: Link2 },
-      { name: 'Gift Cards', href: '/dashboard/gift-cards', icon: Gift },
+      { name: 'Billing', href: '/dashboard/billing', icon: Layers, feature: 'finance:billing' },
+      { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard, feature: 'finance:subscriptions' },
+      { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt, feature: 'finance:expenses' },
+      { name: 'Job Costing', href: '/dashboard/job-costing', icon: Wrench, feature: 'finance:job_costing' },
+      { name: 'Commissions', href: '/dashboard/commissions', icon: DollarSign, feature: 'finance:commissions' },
+      { name: 'Payment Links', href: '/dashboard/payment-links', icon: Link2, feature: 'finance:payment_links' },
+      { name: 'Gift Cards', href: '/dashboard/gift-cards', icon: Gift, feature: 'finance:gift_cards' },
     ],
   },
   {
     label: 'Operations',
     items: [
-      { name: 'Operations', href: '/dashboard/operations', icon: Package },
-      { name: 'Projects', href: '/dashboard/projects', icon: Briefcase },
-      { name: 'Time Tracking', href: '/dashboard/time-tracking', icon: Timer },
-      { name: 'Staff Schedule', href: '/dashboard/staff-schedule', icon: Clock },
-      { name: 'Inventory', href: '/dashboard/inventory', icon: Archive },
-      { name: 'Vendors', href: '/dashboard/vendors', icon: Truck },
-      { name: 'Resources', href: '/dashboard/resources', icon: Box },
-      { name: 'Documents', href: '/dashboard/documents', icon: FileSignature },
-      { name: 'Forms', href: '/dashboard/forms', icon: FormInput },
+      { name: 'Operations', href: '/dashboard/operations', icon: Package, feature: 'ops:hub' },
+      { name: 'Projects', href: '/dashboard/projects', icon: Briefcase, feature: 'ops:projects' },
+      { name: 'Time Tracking', href: '/dashboard/time-tracking', icon: Timer, feature: 'ops:time_tracking' },
+      { name: 'Staff Schedule', href: '/dashboard/staff-schedule', icon: Clock, feature: 'ops:staff_schedule' },
+      { name: 'Inventory', href: '/dashboard/inventory', icon: Archive, feature: 'ops:inventory' },
+      { name: 'Vendors', href: '/dashboard/vendors', icon: Truck, feature: 'ops:vendors' },
+      { name: 'Resources', href: '/dashboard/resources', icon: Box, feature: 'ops:resources' },
+      { name: 'Documents', href: '/dashboard/documents', icon: FileSignature, feature: 'ops:documents' },
+      { name: 'Forms', href: '/dashboard/forms', icon: FormInput, feature: 'ops:forms' },
     ],
   },
   {
     label: 'Analytics',
     items: [
-      { name: 'Analytics', href: '/dashboard/analytics', icon: ChartBar },
-      { name: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
-      { name: 'Forecasting', href: '/dashboard/forecasting', icon: LineChart },
-      { name: 'Goals', href: '/dashboard/goals', icon: Target },
-      { name: 'CSAT Surveys', href: '/dashboard/csat', icon: ThumbsUp },
-      { name: 'A/B Testing', href: '/dashboard/ab-testing', icon: FlaskConical },
+      { name: 'Analytics', href: '/dashboard/analytics', icon: ChartBar, feature: 'analytics:hub' },
+      { name: 'Reports', href: '/dashboard/reports', icon: BarChart3, feature: 'analytics:reports' },
+      { name: 'Forecasting', href: '/dashboard/forecasting', icon: LineChart, feature: 'analytics:forecasting' },
+      { name: 'Goals', href: '/dashboard/goals', icon: Target, feature: 'analytics:goals' },
+      { name: 'CSAT Surveys', href: '/dashboard/csat', icon: ThumbsUp, feature: 'analytics:csat' },
+      { name: 'A/B Testing', href: '/dashboard/ab-testing', icon: FlaskConical, feature: 'analytics:ab_testing' },
     ],
   },
   {
     label: 'Clients',
     items: [
-      { name: 'Client Portal', href: '/dashboard/client-portal', icon: UserCircle },
-      { name: 'Client Onboarding', href: '/dashboard/client-onboarding', icon: UserCheck },
-      { name: 'Intake Forms', href: '/dashboard/intake', icon: ClipboardCheck },
-      { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
-      { name: 'Waitlist', href: '/dashboard/waitlist', icon: Clock3 },
-      { name: 'Recurring Appts', href: '/dashboard/recurring-appointments', icon: RefreshCw },
+      { name: 'Client Portal', href: '/dashboard/client-portal', icon: UserCircle, feature: 'clients:portal' },
+      { name: 'Client Onboarding', href: '/dashboard/client-onboarding', icon: UserCheck, feature: 'clients:onboarding' },
+      { name: 'Intake Forms', href: '/dashboard/intake', icon: ClipboardCheck, feature: 'clients:intake' },
+      { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen, feature: 'clients:knowledge_base' },
+      { name: 'Waitlist', href: '/dashboard/waitlist', icon: Clock3, feature: 'clients:waitlist' },
+      { name: 'Recurring Appts', href: '/dashboard/recurring-appointments', icon: RefreshCw, feature: 'clients:recurring' },
     ],
   },
   {
     label: 'Platform',
     items: [
-      { name: 'Website', href: '/dashboard/website', icon: Globe },
-      { name: 'Locations', href: '/dashboard/locations', icon: MapPin },
-      { name: 'Marketplace', href: '/dashboard/marketplace', icon: Store },
-      { name: 'White Label', href: '/dashboard/white-label', icon: Palette },
-      { name: 'Competitors', href: '/dashboard/competitor-intelligence', icon: Search },
-      { name: 'Google Ads', href: '/dashboard/google-ads', icon: Target },
+      { name: 'Website', href: '/dashboard/website', icon: Globe, feature: 'platform:website' },
+      { name: 'Locations', href: '/dashboard/locations', icon: MapPin, feature: 'platform:locations' },
+      { name: 'Marketplace', href: '/dashboard/marketplace', icon: Store, feature: 'platform:marketplace' },
+      { name: 'White Label', href: '/dashboard/white-label', icon: Palette, feature: 'platform:white_label' },
+      { name: 'Competitors', href: '/dashboard/competitor-intelligence', icon: Search, feature: 'platform:competitors' },
+      { name: 'Google Ads', href: '/dashboard/google-ads', icon: Target, feature: 'platform:google_ads' },
     ],
   },
 ]
 
 const settingsNav: NavItem[] = [
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-  { name: 'Team', href: '/dashboard/team-permissions', icon: Shield },
-  { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
-  { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },
-  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { name: 'Audit Log', href: '/dashboard/audit-log', icon: ShieldCheck },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings, feature: 'settings:settings' },
+  { name: 'Team', href: '/dashboard/team-permissions', icon: Shield, feature: 'settings:team' },
+  { name: 'API Keys', href: '/dashboard/api-keys', icon: Key, feature: 'settings:api_keys' },
+  { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook, feature: 'settings:webhooks' },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell, feature: 'settings:notifications' },
+  { name: 'Audit Log', href: '/dashboard/audit-log', icon: ShieldCheck, feature: 'settings:audit_log' },
 ]
 
-function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
+function NavLink({ item, isActive, locked, hipaaHidden }: { item: NavItem; isActive: boolean; locked: boolean; hipaaHidden: boolean }) {
+  const router = useRouter()
+
+  if (hipaaHidden) return null
+
+  function handleClick(e: React.MouseEvent) {
+    if (locked) {
+      e.preventDefault()
+      router.push(`/dashboard/upgrade?feature=${encodeURIComponent(item.feature ?? '')}`)
+    }
+  }
+
   return (
     <Link
       href={item.href}
+      onClick={handleClick}
       className={cn(
         'group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150',
-        isActive
+        isActive && !locked
           ? 'bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(6,182,212,0.2)]'
+          : locked
+          ? 'text-sidebar-foreground/30 cursor-pointer'
           : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground',
       )}
     >
-      <item.icon className={cn('h-3.5 w-3.5 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/80')} />
+      <item.icon className={cn('h-3.5 w-3.5 shrink-0 transition-colors', isActive && !locked ? 'text-primary' : locked ? 'text-sidebar-foreground/20' : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/80')} />
       <span className="flex-1 truncate">{item.name}</span>
-      {item.badge && (
+      {locked ? (
+        <Lock className="h-3 w-3 text-sidebar-foreground/20 shrink-0" />
+      ) : item.badge ? (
         <span className={cn(
           'rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide',
-          isActive
-            ? 'bg-primary/25 text-primary'
-            : 'bg-kanavu-900/60 text-kanavu-400',
+          isActive ? 'bg-primary/25 text-primary' : 'bg-kanavu-900/60 text-kanavu-400',
         )}>
           {item.badge}
         </span>
-      )}
+      ) : null}
     </Link>
   )
 }
@@ -184,9 +202,25 @@ export function Sidebar() {
   const pathname = usePathname()
   const { user, organization, logout } = useAuthStore()
 
+  const orgFeatures = useMemo(
+    () => getOrgFeatures(organization?.plan ?? 'STARTER', organization?.industry),
+    [organization?.plan, organization?.industry],
+  )
+  const hipaa = useMemo(() => isHipaaIndustry(organization?.industry), [organization?.industry])
+
   function isActive(item: NavItem) {
     if (item.href === '/dashboard') return pathname === '/dashboard'
     return pathname.startsWith(item.href)
+  }
+
+  function isLocked(item: NavItem): boolean {
+    if (!item.feature) return false
+    return !orgFeatures.has(item.feature)
+  }
+
+  function isHipaaHidden(item: NavItem): boolean {
+    if (!hipaa || !item.feature) return false
+    return !orgFeatures.has(item.feature)
   }
 
   return (
@@ -211,13 +245,26 @@ export function Sidebar() {
             <span className="flex-1 truncate text-left font-medium">{organization.name}</span>
             <ChevronDown className="h-3 w-3 text-sidebar-foreground/30" />
           </button>
+          {/* Plan badge */}
+          <div className="px-2.5 mt-1">
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(6,182,212,0.12)', color: '#06b6d4' }}>
+              {organization.plan?.toUpperCase() ?? 'STARTER'}
+            </span>
+            {hipaa && (
+              <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>
+                HIPAA-safe
+              </span>
+            )}
+          </div>
         </div>
       )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 scrollbar-hide">
         {navGroups.map((group) => {
-          const hasActive = group.items.some(isActive)
+          const visibleItems = group.items.filter(item => !isHipaaHidden(item))
+          if (visibleItems.length === 0) return null
+          const hasActive = visibleItems.some(i => isActive(i) && !isLocked(i))
           return (
             <div key={group.label} className="mb-4">
               <p className={cn(
@@ -227,8 +274,14 @@ export function Sidebar() {
                 {group.label}
               </p>
               <div className="space-y-0.5">
-                {group.items.map(item => (
-                  <NavLink key={item.href} item={item} isActive={isActive(item)} />
+                {visibleItems.map(item => (
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    isActive={isActive(item)}
+                    locked={isLocked(item)}
+                    hipaaHidden={false}
+                  />
                 ))}
               </div>
             </div>
@@ -242,10 +295,26 @@ export function Sidebar() {
           Settings
         </p>
         <div className="space-y-0.5 mb-3">
-          {settingsNav.map(item => (
-            <NavLink key={item.href} item={item} isActive={isActive(item)} />
+          {settingsNav.filter(item => !isHipaaHidden(item)).map(item => (
+            <NavLink key={item.href} item={item} isActive={isActive(item)} locked={isLocked(item)} hipaaHidden={false} />
           ))}
         </div>
+
+        {/* Upgrade prompt if on Starter */}
+        {organization?.plan?.toUpperCase() === 'STARTER' && (
+          <Link href="/pricing" className="flex items-center gap-2 rounded-lg px-2.5 py-2 mb-2 transition-colors hover:bg-sidebar-accent" style={{ border: '1px dashed rgba(6,182,212,0.3)' }}>
+            <Zap className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs text-primary font-medium">Upgrade to Pro</span>
+          </Link>
+        )}
+
+        {/* Super-admin link */}
+        {user?.isSuperAdmin && (
+          <Link href="/admin" className="flex items-center gap-2 rounded-lg px-2.5 py-2 mb-2 transition-colors hover:bg-sidebar-accent" style={{ border: '1px solid rgba(251,191,36,0.3)' }}>
+            <ShieldCheck className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} />
+            <span className="text-xs font-medium" style={{ color: '#fbbf24' }}>Owner Portal</span>
+          </Link>
+        )}
 
         {/* User Profile */}
         <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 bg-sidebar-accent/50">
