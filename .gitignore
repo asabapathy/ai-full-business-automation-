@@ -51,3 +51,5 @@ docker/volumes/
 # Misc
 .cache/
 tmp/
+pnpm-lock.yaml
+packages/database/pnpm-lock.yaml
