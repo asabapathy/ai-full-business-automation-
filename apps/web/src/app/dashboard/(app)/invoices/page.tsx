@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap } from 'lucide-react'
-import { Button } from '../../../../../components/ui/button'
 import { Badge } from '../../../../../components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../../components/ui/card'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
@@ -44,6 +42,10 @@ const STATUS_ICONS: Record<string, React.ElementType> = {
   OVERDUE: AlertTriangle,
 }
 
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
@@ -75,139 +77,175 @@ export default function InvoicesPage() {
   }, [statusFilter])
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold">Finance</h1>
+          <h1 className="text-2xl font-bold text-foreground">Finance</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Invoice automation and financial insights</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <button
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+            style={{ border: '1px solid rgba(6,182,212,0.3)' }}
+          >
             <Zap className="h-4 w-4" />
             AI Analyze
-          </Button>
-          <Button>
+          </button>
+          <button
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
+          >
             <Plus className="h-4 w-4" />
             New Invoice
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Revenue (30d)', value: summary ? `$${(summary.revenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: 'text-green-600' },
-          { label: 'Outstanding', value: summary ? `$${(summary.outstanding / 1000).toFixed(1)}k` : '--', icon: Clock, color: 'text-amber-600' },
-          { label: 'Overdue', value: summary?.overdueInvoices ?? '--', icon: AlertTriangle, color: 'text-red-600' },
-          { label: 'Net Profit', value: summary ? `$${(summary.profit / 1000).toFixed(1)}k` : '--', icon: CheckCircle, color: 'text-blue-600' },
-        ].map(stat => (
-          <Card key={stat.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-              </div>
-              {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className={`text-2xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>}
-            </CardContent>
-          </Card>
+          { label: 'Revenue (30d)', value: summary ? `$${(summary.revenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: 'text-emerald-400' },
+          { label: 'Outstanding', value: summary ? `$${(summary.outstanding / 1000).toFixed(1)}k` : '--', icon: Clock, color: 'text-amber-400' },
+          { label: 'Overdue', value: summary?.overdueInvoices ?? '--', icon: AlertTriangle, color: 'text-red-400' },
+          { label: 'Net Profit', value: summary ? `$${(summary.profit / 1000).toFixed(1)}k` : '--', icon: CheckCircle, color: 'text-primary' },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="kv-anim rounded-xl border p-4"
+            style={{
+              animationDelay: `${0.11 + i * 0.07}s`,
+              background: 'hsl(var(--card))',
+              borderColor: 'hsl(var(--border))',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+            {isLoading
+              ? <Skeleton className="h-8 w-16 mt-1" />
+              : <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+            }
+          </div>
         ))}
       </div>
 
       {/* Cash Flow Health */}
       {summary && (
-        <Card className={`border-l-4 ${summary.cashFlowHealth === 'positive' ? 'border-l-green-500' : 'border-l-red-500'}`}>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className={`h-8 w-8 rounded-full flex items-center justify-center ${summary.cashFlowHealth === 'positive' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-              {summary.cashFlowHealth === 'positive'
-                ? <CheckCircle className="h-4 w-4 text-green-600" />
-                : <AlertTriangle className="h-4 w-4 text-red-600" />
-              }
-            </div>
-            <div>
-              <p className="font-medium text-sm">Cash Flow: {summary.cashFlowHealth === 'positive' ? 'Healthy' : 'Needs Attention'}</p>
-              <p className="text-xs text-muted-foreground">Revenue exceeds expenses by ${(summary.profit / 1000).toFixed(1)}k this month</p>
-            </div>
-            <Button variant="outline" size="sm" className="ml-auto">
-              <Zap className="h-3 w-3 mr-1" />
-              AI Insights
-            </Button>
-          </CardContent>
-        </Card>
+        <div
+          className="kv-anim rounded-xl border p-4 flex items-center gap-3"
+          style={{
+            animationDelay: '0.39s',
+            background: summary.cashFlowHealth === 'positive' ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)',
+            borderColor: summary.cashFlowHealth === 'positive' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
+            borderLeftWidth: 4,
+            borderLeftColor: summary.cashFlowHealth === 'positive' ? '#10b981' : '#ef4444',
+          }}
+        >
+          <div
+            className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+            style={{
+              background: summary.cashFlowHealth === 'positive' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+            }}
+          >
+            {summary.cashFlowHealth === 'positive'
+              ? <CheckCircle className="h-4 w-4 text-emerald-400" />
+              : <AlertTriangle className="h-4 w-4 text-red-400" />
+            }
+          </div>
+          <div>
+            <p className="font-medium text-sm text-foreground">Cash Flow: {summary.cashFlowHealth === 'positive' ? 'Healthy' : 'Needs Attention'}</p>
+            <p className="text-xs text-muted-foreground">Revenue exceeds expenses by ${(summary.profit / 1000).toFixed(1)}k this month</p>
+          </div>
+          <button
+            className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+            style={{ border: '1px solid rgba(6,182,212,0.2)' }}
+          >
+            <Zap className="h-3 w-3" />
+            AI Insights
+          </button>
+        </div>
       )}
 
       {/* Status Filter */}
-      <div className="flex gap-2">
+      <div className="kv-anim flex gap-2" style={{ animationDelay: '0.46s' }}>
         {['', 'DRAFT', 'SENT', 'PAID', 'OVERDUE'].map(status => (
-          <Button
+          <button
             key={status}
-            variant={statusFilter === status ? 'default' : 'outline'}
-            size="sm"
             onClick={() => setStatusFilter(status)}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            style={statusFilter === status
+              ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+              : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+            }
           >
             {status || 'All'}
-          </Button>
+          </button>
         ))}
       </div>
 
       {/* Invoice List */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Invoices
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-4 space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <FileText className="h-10 w-10 text-muted-foreground/50 mb-3" />
-              <p className="font-medium">No invoices yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Create your first invoice or let AI generate one.</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {invoices.map(invoice => {
-                const isOverdue = invoice.status !== 'PAID' && invoice.dueDate && new Date(invoice.dueDate) < new Date()
-                const displayStatus = isOverdue ? 'OVERDUE' : invoice.status
-                const Icon = STATUS_ICONS[displayStatus] ?? FileText
+      <div
+        className="kv-anim rounded-xl border overflow-hidden"
+        style={{ animationDelay: '0.53s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+      >
+        <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+          <FileText className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Invoices</h2>
+        </div>
 
-                return (
-                  <div key={invoice.id} className="flex items-center gap-4 px-6 py-3 hover:bg-muted/50 transition-colors group">
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Icon className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{invoice.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {invoice.invoiceNumber}
-                        {invoice.contact && ` • ${invoice.contact.firstName} ${invoice.contact.lastName ?? ''}`}
-                        {invoice.dueDate && ` • Due ${formatRelativeTime(invoice.dueDate)}`}
-                      </p>
-                    </div>
+        {isLoading ? (
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+            <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
+            <p className="font-medium text-foreground">No invoices yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Create your first invoice or let AI generate one.</p>
+          </div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+            {invoices.map(invoice => {
+              const isOverdue = invoice.status !== 'PAID' && invoice.dueDate && new Date(invoice.dueDate) < new Date()
+              const displayStatus = isOverdue ? 'OVERDUE' : invoice.status
+              const Icon = STATUS_ICONS[displayStatus] ?? FileText
 
-                    <span className="text-sm font-semibold">${invoice.total.toLocaleString()}</span>
-
-                    <Badge variant={(STATUS_COLORS[displayStatus] as never) ?? 'outline'} className="text-xs">
-                      {displayStatus}
-                    </Badge>
-
-                    {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                        Remind
-                      </Button>
-                    )}
+              return (
+                <div key={invoice.id} className="flex items-center gap-4 px-5 py-3 hover:bg-accent/40 transition-colors group">
+                  <div
+                    className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: 'rgba(6,182,212,0.1)' }}
+                  >
+                    <Icon className="h-4 w-4 text-primary" />
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground">{invoice.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {invoice.invoiceNumber}
+                      {invoice.contact && ` • ${invoice.contact.firstName} ${invoice.contact.lastName ?? ''}`}
+                      {invoice.dueDate && ` • Due ${formatRelativeTime(invoice.dueDate)}`}
+                    </p>
+                  </div>
+
+                  <span className="text-sm font-semibold text-foreground tabular">${invoice.total.toLocaleString()}</span>
+
+                  <Badge variant={(STATUS_COLORS[displayStatus] as never) ?? 'outline'} className="text-xs">
+                    {displayStatus}
+                  </Badge>
+
+                  {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
+                    <button className="rounded-lg px-2 py-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10">
+                      Remind
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

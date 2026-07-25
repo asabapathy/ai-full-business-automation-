@@ -40,6 +40,12 @@ const DEMO_PIPELINE = [
   { stage: 'Won', count: 12, value: 198000 },
 ]
 
+const PIPELINE_COLORS = ['#06b6d4', '#0ea5e9', '#38bdf8', '#7dd3fc', '#10b981']
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<OverviewData>(DEMO_OVERVIEW)
   const [revenue, setRevenue] = useState<RevenuePoint[]>(DEMO_REVENUE)
@@ -63,27 +69,32 @@ export default function AnalyticsPage() {
   const maxRevenue = Math.max(...revenue.map(r => r.revenue))
 
   const statCards = [
-    { label: 'Total Revenue', value: `$${(overview.revenue.total / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, color: 'text-green-400' },
-    { label: 'Total Contacts', value: overview.contacts.total.toLocaleString(), sub: `+${overview.contacts.new} this period`, color: 'text-blue-400' },
-    { label: 'Pipeline Value', value: `$${(overview.deals.pipeline / 1000).toFixed(0)}k`, sub: `${overview.deals.total} active deals`, color: 'text-purple-400' },
+    { label: 'Total Revenue', value: `$${(overview.revenue.total / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, color: 'text-emerald-400' },
+    { label: 'Total Contacts', value: overview.contacts.total.toLocaleString(), sub: `+${overview.contacts.new} this period`, color: 'text-primary' },
+    { label: 'Pipeline Value', value: `$${(overview.deals.pipeline / 1000).toFixed(0)}k`, sub: `${overview.deals.total} active deals`, color: 'text-violet-400' },
     { label: 'Outstanding', value: `$${(overview.invoices.outstanding / 1000).toFixed(0)}k`, sub: `$${(overview.invoices.overdue / 1000).toFixed(0)}k overdue`, color: 'text-amber-400' },
-    { label: 'Appointments', value: overview.appointments.upcoming.toString(), sub: `${overview.appointments.total} total booked`, color: 'text-cyan-400' },
+    { label: 'Appointments', value: overview.appointments.upcoming.toString(), sub: `${overview.appointments.total} total booked`, color: 'text-primary' },
     { label: 'Deals Won', value: overview.deals.won.toString(), sub: `of ${overview.deals.total} active`, color: 'text-emerald-400' },
   ]
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-[1400px]">
+      {/* Header */}
+      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold text-white">Analytics</h1>
-          <p className="text-gray-400 text-sm mt-1">Business performance overview</p>
+          <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
+          <p className="text-muted-foreground text-sm mt-1">Business performance overview</p>
         </div>
         <div className="flex gap-2">
           {(['7d', '30d', '90d'] as const).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={period === p
+                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white', boxShadow: '0 0 12px rgba(6,182,212,0.3)' }
+                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+              }
             >
               {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '90 Days'}
             </button>
@@ -93,54 +104,70 @@ export default function AnalyticsPage() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {statCards.map(card => (
-          <div key={card.label} className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-xs text-gray-400 mb-1">{card.label}</p>
-            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
-            <p className="text-xs text-gray-500 mt-1">{card.sub}</p>
+        {statCards.map((card, i) => (
+          <div
+            key={card.label}
+            {...anim(i + 1)}
+            className="kv-anim rounded-xl border p-4"
+            style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', animationDelay: `${0.11 + i * 0.06}s` }}
+          >
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">{card.label}</p>
+            <p className={`text-2xl font-bold tabular ${card.color}`}>{card.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{card.sub}</p>
           </div>
         ))}
       </div>
 
       {/* Revenue chart */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-        <h2 className="text-white font-semibold mb-4">Revenue Over Time</h2>
-        <div className="flex items-end gap-1 h-48">
+      <div
+        className="kv-anim rounded-xl border p-6"
+        style={{ animationDelay: '0.53s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+      >
+        <h2 className="text-sm font-semibold text-foreground mb-4">Revenue Over Time</h2>
+        <div className="flex items-end gap-1" style={{ height: 192 }}>
           {revenue.slice(-20).map((point, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
               <div
-                className="w-full bg-gradient-to-t from-purple-600 to-purple-400 rounded-t opacity-80 hover:opacity-100 transition-opacity"
-                style={{ height: `${(point.revenue / maxRevenue) * 100}%` }}
+                className="w-full rounded-t transition-all duration-300 hover:opacity-100 opacity-75"
+                style={{
+                  height: `${(point.revenue / maxRevenue) * 100}%`,
+                  background: 'linear-gradient(to top, #06b6d4, #0ea5e9)',
+                  minHeight: 2,
+                }}
                 title={`${point.date}: $${point.revenue.toLocaleString()}`}
               />
             </div>
           ))}
         </div>
-        <div className="flex justify-between mt-2 text-xs text-gray-500">
+        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
           <span>{revenue[revenue.length - 20]?.date}</span>
           <span>{revenue[revenue.length - 1]?.date}</span>
         </div>
       </div>
 
-      {/* Pipeline funnel */}
+      {/* Pipeline funnel + Top Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <h2 className="text-white font-semibold mb-4">Sales Pipeline Funnel</h2>
+        <div
+          className="kv-anim rounded-xl border p-6"
+          style={{ animationDelay: '0.60s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+        >
+          <h2 className="text-sm font-semibold text-foreground mb-4">Sales Pipeline Funnel</h2>
           <div className="space-y-3">
             {DEMO_PIPELINE.map((stage, i) => {
               const maxCount = DEMO_PIPELINE[0]!.count
               return (
                 <div key={stage.stage}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-300">{stage.stage}</span>
-                    <span className="text-gray-400">{stage.count} deals · ${(stage.value / 1000).toFixed(0)}k</span>
+                    <span className="text-foreground/80">{stage.stage}</span>
+                    <span className="text-muted-foreground tabular">{stage.count} deals · ${(stage.value / 1000).toFixed(0)}k</span>
                   </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                     <div
-                      className="h-full rounded-full"
+                      className="h-full rounded-full transition-all duration-700"
                       style={{
                         width: `${(stage.count / maxCount) * 100}%`,
-                        background: `hsl(${260 - i * 20}, 70%, 60%)`,
+                        background: PIPELINE_COLORS[i] ?? '#06b6d4',
+                        boxShadow: `0 0 8px ${PIPELINE_COLORS[i] ?? '#06b6d4'}60`,
                       }}
                     />
                   </div>
@@ -150,8 +177,11 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <h2 className="text-white font-semibold mb-4">Top Metrics</h2>
+        <div
+          className="kv-anim rounded-xl border p-6"
+          style={{ animationDelay: '0.67s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+        >
+          <h2 className="text-sm font-semibold text-foreground mb-4">Top Metrics</h2>
           <div className="space-y-4">
             {[
               { label: 'Avg Deal Size', value: `$${Math.round(overview.deals.pipeline / Math.max(overview.deals.total, 1)).toLocaleString()}`, icon: '💰' },
@@ -164,9 +194,9 @@ export default function AnalyticsPage() {
               <div key={metric.label} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{metric.icon}</span>
-                  <span className="text-sm text-gray-400">{metric.label}</span>
+                  <span className="text-sm text-muted-foreground">{metric.label}</span>
                 </div>
-                <span className="text-white font-semibold">{metric.value}</span>
+                <span className="text-sm font-semibold text-foreground tabular">{metric.value}</span>
               </div>
             ))}
           </div>
@@ -174,7 +204,10 @@ export default function AnalyticsPage() {
       </div>
 
       {loading && (
-        <div className="fixed bottom-4 right-4 bg-purple-600 text-white text-sm px-3 py-2 rounded-lg">
+        <div
+          className="fixed bottom-4 right-4 text-white text-sm px-3 py-2 rounded-xl"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+        >
           Refreshing data...
         </div>
       )}

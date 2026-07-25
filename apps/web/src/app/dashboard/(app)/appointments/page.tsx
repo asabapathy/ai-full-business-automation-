@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight, Phone, Zap } from 'lucide-react'
-import { Button } from '../../../../../components/ui/button'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap } from 'lucide-react'
 import { Badge } from '../../../../../components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../../components/ui/card'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 
@@ -37,8 +35,8 @@ function formatTime(isoString: string) {
   return new Date(isoString).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-function formatDate(isoString: string) {
-  return new Date(isoString).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
 export default function AppointmentsPage() {
@@ -85,41 +83,56 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold">AI Receptionist</h1>
+          <h1 className="text-2xl font-bold text-foreground">AI Receptionist</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Appointment scheduling and management</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <button
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+            style={{ border: '1px solid rgba(6,182,212,0.3)' }}
+          >
             <Zap className="h-4 w-4" />
             AI Book
-          </Button>
-          <Button>
+          </button>
+          <button
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
+          >
             <Plus className="h-4 w-4" />
             New Appointment
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'This Month', value: analytics?.totalAppointments ?? '--', icon: Calendar, color: 'text-blue-600' },
-          { label: 'Completed', value: analytics?.completedAppointments ?? '--', icon: CheckCircle, color: 'text-green-600' },
-          { label: 'Show Rate', value: analytics ? `${analytics.showRate}%` : '--', icon: Clock, color: 'text-purple-600' },
-        ].map(stat => (
-          <Card key={stat.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-              </div>
-              {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className={`text-2xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>}
-            </CardContent>
-          </Card>
+          { label: 'This Month', value: analytics?.totalAppointments ?? '--', icon: Calendar, color: 'text-primary' },
+          { label: 'Completed', value: analytics?.completedAppointments ?? '--', icon: CheckCircle, color: 'text-emerald-400' },
+          { label: 'Show Rate', value: analytics ? `${analytics.showRate}%` : '--', icon: Clock, color: 'text-violet-400' },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="kv-anim rounded-xl border p-4"
+            style={{
+              animationDelay: `${0.11 + i * 0.07}s`,
+              background: 'hsl(var(--card))',
+              borderColor: 'hsl(var(--border))',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+            {isLoading
+              ? <Skeleton className="h-8 w-16 mt-1" />
+              : <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+            }
+          </div>
         ))}
       </div>
 
@@ -127,87 +140,107 @@ export default function AppointmentsPage() {
         {/* Day View */}
         <div className="lg:col-span-2 space-y-4">
           {/* Date Navigation */}
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={() => changeDate(-1)}>
+          <div className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.32s' }}>
+            <button
+              onClick={() => changeDate(-1)}
+              className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"
+            >
               <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h2 className="font-semibold">{new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
-            <Button variant="ghost" size="icon" onClick={() => changeDate(1)}>
+            </button>
+            <h2 className="font-semibold text-sm text-foreground">
+              {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </h2>
+            <button
+              onClick={() => changeDate(1)}
+              className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"
+            >
               <ChevronRight className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Schedule — {appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-4 space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
-                </div>
-              ) : appointments.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                  <Calendar className="h-8 w-8 text-muted-foreground/50 mb-3" />
-                  <p className="font-medium text-sm">No appointments today</p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {appointments.map(appt => (
-                    <div key={appt.id} className="flex items-start gap-4 px-6 py-4 hover:bg-muted/50 transition-colors">
-                      <div className="text-center shrink-0 w-14">
-                        <p className="text-sm font-bold">{formatTime(appt.startTime)}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{appt.duration}m</p>
-                      </div>
+          <div
+            className="kv-anim rounded-xl border overflow-hidden"
+            style={{ animationDelay: '0.39s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+          >
+            <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+              <h3 className="text-sm font-semibold text-foreground">
+                Schedule — {appointments.length} appointment{appointments.length !== 1 ? 's' : ''}
+              </h3>
+            </div>
 
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{appt.title}</p>
-                        {appt.contact && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {appt.contact.firstName} {appt.contact.lastName}
-                            {appt.contact.phone && (
-                              <span className="ml-2 inline-flex items-center gap-0.5">
-                                <Phone className="h-2.5 w-2.5" />
-                                {appt.contact.phone}
-                              </span>
-                            )}
-                          </p>
-                        )}
-                        {appt.service && <p className="text-xs text-muted-foreground">{appt.service.name}{appt.service.price ? ` — $${appt.service.price}` : ''}</p>}
-                      </div>
-
-                      <Badge variant={(STATUS_COLORS[appt.status] as never) ?? 'outline'} className="text-xs">
-                        {appt.status}
-                      </Badge>
+            {isLoading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+              </div>
+            ) : appointments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <Calendar className="h-8 w-8 text-muted-foreground/30 mb-3" />
+                <p className="font-medium text-sm text-foreground">No appointments today</p>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+                {appointments.map(appt => (
+                  <div key={appt.id} className="flex items-start gap-4 px-5 py-4 hover:bg-accent/40 transition-colors">
+                    <div className="text-center shrink-0 w-14">
+                      <p className="text-sm font-bold text-foreground tabular">{formatTime(appt.startTime)}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{appt.duration}m</p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-foreground">{appt.title}</p>
+                      {appt.contact && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {appt.contact.firstName} {appt.contact.lastName}
+                          {appt.contact.phone && (
+                            <span className="ml-2 inline-flex items-center gap-0.5">
+                              <Phone className="h-2.5 w-2.5" />
+                              {appt.contact.phone}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      {appt.service && (
+                        <p className="text-xs text-muted-foreground">
+                          {appt.service.name}{appt.service.price ? ` — $${appt.service.price}` : ''}
+                        </p>
+                      )}
+                    </div>
+
+                    <Badge variant={(STATUS_COLORS[appt.status] as never) ?? 'outline'} className="text-xs">
+                      {appt.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Availability */}
-        <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Available Slots</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)
-              ) : slots.filter(s => s.available).slice(0, 6).map((slot, i) => (
+        {/* Available Slots */}
+        <div
+          className="kv-anim rounded-xl border overflow-hidden"
+          style={{ animationDelay: '0.46s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+        >
+          <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+            <h3 className="text-sm font-semibold text-foreground">Available Slots</h3>
+          </div>
+          <div className="p-4 space-y-2">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)
+            ) : (
+              slots.filter(s => s.available).slice(0, 6).map((slot, i) => (
                 <button
                   key={i}
-                  className="w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all hover:bg-primary/10"
+                  style={{ border: '1px solid hsl(var(--border))' }}
                 >
-                  <span className="font-medium">{formatTime(slot.startTime)}</span>
+                  <span className="font-medium text-foreground tabular">{formatTime(slot.startTime)}</span>
                   <span className="text-xs text-muted-foreground">1h</span>
-                  <span className="text-xs text-green-600 font-medium">Book</span>
+                  <span className="text-xs text-primary font-medium">Book</span>
                 </button>
-              ))}
-            </CardContent>
-          </Card>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
