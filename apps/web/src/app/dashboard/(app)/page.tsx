@@ -3,17 +3,13 @@
 import { useEffect, useState } from 'react'
 import {
   Users, DollarSign, TrendingUp, Calendar, Zap,
-  Brain, ArrowRight, Clock, CheckCircle2
+  Brain, ArrowRight, CheckCircle2, Clock, Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
 import { StatCard } from '../../../components/dashboard/stat-card'
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Button } from '../../../components/ui/button'
-import { Badge } from '../../../components/ui/badge'
-import { Skeleton } from '../../../components/ui/skeleton'
 import { useAuthStore } from '../../../stores/auth.store'
 import { api } from '../../../lib/api-client'
-import { formatRelativeTime } from '../../../lib/utils'
 
 interface OverviewData {
   contacts: { total: number; new30Days: number }
@@ -24,12 +20,39 @@ interface OverviewData {
   upcomingAppointments: number
 }
 
+const DEMO_SPARKLINES = {
+  revenue: [18200, 21000, 19400, 23100, 22500, 24000, 24800],
+  pipeline: [72000, 79000, 84000, 81500, 87000, 88200, 89500],
+  contacts: [189, 201, 215, 221, 233, 240, 247],
+  appointments: [3, 5, 4, 6, 5, 4, 5],
+}
+
 const recentTasks = [
-  { id: '1', title: 'Send follow-up emails to 12 leads', status: 'completed', agent: 'Sales', time: '2 hours ago' },
-  { id: '2', title: 'Post on Facebook & Instagram', status: 'completed', agent: 'Marketing', time: '3 hours ago' },
-  { id: '3', title: 'Update website hero section', status: 'in_progress', agent: 'Website', time: 'Running now' },
-  { id: '4', title: 'Analyze Q4 revenue trends', status: 'pending', agent: 'Finance', time: 'Scheduled' },
+  { id: '1', title: 'Send follow-up emails to 12 leads', status: 'completed', agent: 'Sales Agent', time: '2h ago' },
+  { id: '2', title: 'Post on Facebook & Instagram', status: 'completed', agent: 'Marketing Agent', time: '3h ago' },
+  { id: '3', title: 'Update website hero section copy', status: 'in_progress', agent: 'Website Agent', time: 'Running' },
+  { id: '4', title: 'Analyze Q4 revenue trends', status: 'pending', agent: 'Finance Agent', time: 'Scheduled' },
+  { id: '5', title: 'Follow up on overdue invoices', status: 'pending', agent: 'Sales Agent', time: 'Queued' },
 ]
+
+const quickActions = [
+  { label: 'Add contact', href: '/dashboard/crm', icon: Users },
+  { label: 'Schedule appointment', href: '/dashboard/appointments', icon: Calendar },
+  { label: 'Create invoice', href: '/dashboard/invoices', icon: DollarSign },
+  { label: 'Launch campaign', href: '/dashboard/marketing', icon: TrendingUp },
+  { label: 'Build automation', href: '/dashboard/automations', icon: Zap },
+  { label: 'Ask the AI', href: '/dashboard/brain', icon: Brain, highlight: true },
+]
+
+const miniMetrics = [
+  { label: 'Deals won (30d)', value: '8', delta: '+3 vs prior' },
+  { label: 'Active tasks', value: '12', delta: '4 running now' },
+  { label: 'Avg response time', value: '4m', delta: '↓ 22% faster' },
+]
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
 
 export default function DashboardPage() {
   const { user, organization } = useAuthStore()
@@ -42,7 +65,6 @@ export default function DashboardPage() {
         const data = await api.get<OverviewData>('/org/analytics/overview')
         setOverview(data)
       } catch {
-        // Use placeholder data in dev
         setOverview({
           contacts: { total: 247, new30Days: 34 },
           pipeline: { value: 89500 },
@@ -62,152 +84,245 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <div className="p-6 space-y-6 max-w-[1400px]">
+      {/* Greeting */}
+      <div {...anim(0)} className={`kv-anim flex items-start justify-between gap-4`} style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold">
-            {greeting}, {user?.firstName} 👋
+          <h1 className="text-2xl font-bold text-foreground leading-tight">
+            {greeting}, {user?.firstName}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Here's what's happening at {organization?.name ?? 'your business'} today.
+          <p className="text-sm text-muted-foreground mt-1">
+            Here&apos;s what&apos;s happening at{' '}
+            <span className="text-foreground/80 font-medium">{organization?.name ?? 'your business'}</span> today.
           </p>
         </div>
         <Link href="/dashboard/brain">
-          <Button variant="ai">
+          <button
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%)',
+              boxShadow: '0 0 20px rgba(6,182,212,0.35)',
+            }}
+          >
             <Brain className="h-4 w-4" />
             Ask AI
-          </Button>
+          </button>
         </Link>
       </div>
 
       {/* AI Alert */}
-      <div className="rounded-xl border border-kanavu-200 bg-kanavu-50 dark:border-kanavu-900/50 dark:bg-kanavu-950/30 p-4 flex items-start gap-3">
-        <div className="h-8 w-8 rounded-full bg-kanavu-100 dark:bg-kanavu-900/50 flex items-center justify-center shrink-0">
-          <Brain className="h-4 w-4 text-kanavu-600 dark:text-kanavu-400" />
+      <div
+        className="kv-anim kv-glow-pulse relative overflow-hidden rounded-xl border p-4 flex items-start gap-3"
+        style={{
+          animationDelay: '0.11s',
+          background: 'linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(14,165,233,0.04) 100%)',
+          borderColor: 'rgba(6,182,212,0.25)',
+        }}
+      >
+        {/* Shimmer overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 kv-shimmer"
+          style={{ mixBlendMode: 'screen' }}
+        />
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full shrink-0"
+          style={{ background: 'rgba(6,182,212,0.15)', boxShadow: '0 0 12px rgba(6,182,212,0.2)' }}
+        >
+          <Sparkles className="h-4 w-4 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-kanavu-900 dark:text-kanavu-100">AI Business Insight</p>
-          <p className="text-sm text-kanavu-700 dark:text-kanavu-300 mt-0.5">
-            3 leads haven't been contacted in 7+ days. I'm sending follow-ups now.
-            Your conversion rate is up 12% this month — great progress!
+          <p className="text-sm font-semibold text-foreground">AI Business Insight</p>
+          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
+            3 leads haven&apos;t been contacted in 7+ days — I&apos;m sending follow-ups now.
+            Your conversion rate is <span className="text-emerald-400 font-medium">up 12%</span> this month.
           </p>
         </div>
-        <Link href="/dashboard/brain">
-          <Button variant="ghost" size="sm" className="text-kanavu-600 hover:text-kanavu-700 shrink-0">
-            Details <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
+        <Link href="/dashboard/brain" className="shrink-0">
+          <button className="flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+            Details <ArrowRight className="h-3 w-3" />
+          </button>
         </Link>
       </div>
 
-      {/* Stats */}
+      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" />
+            <div
+              key={i}
+              className="rounded-xl border h-36 animate-pulse"
+              style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            />
           ))
         ) : (
           <>
-            <StatCard
-              title="Revenue (30d)"
-              value={overview?.revenue.last30Days ?? 0}
-              format="currency"
-              change={18}
-              icon={DollarSign}
-              iconColor="text-green-600"
-            />
-            <StatCard
-              title="Pipeline Value"
-              value={overview?.pipeline.value ?? 0}
-              format="currency"
-              change={5}
-              icon={TrendingUp}
-              iconColor="text-blue-600"
-            />
-            <StatCard
-              title="Total Contacts"
-              value={overview?.contacts.total ?? 0}
-              format="number"
-              change={12}
-              description={`+${overview?.contacts.new30Days ?? 0} this month`}
-              icon={Users}
-              iconColor="text-purple-600"
-            />
-            <StatCard
-              title="Appointments"
-              value={overview?.upcomingAppointments ?? 0}
-              format="number"
-              description="upcoming this week"
-              icon={Calendar}
-              iconColor="text-orange-600"
-            />
+            <div {...anim(2)}>
+              <StatCard
+                title="Revenue (30d)"
+                value={overview?.revenue.last30Days ?? 0}
+                format="currency"
+                change={18}
+                icon={DollarSign}
+                iconColor="text-emerald-400"
+                sparkline={DEMO_SPARKLINES.revenue}
+                sparkColor="#10b981"
+              />
+            </div>
+            <div {...anim(3)}>
+              <StatCard
+                title="Pipeline Value"
+                value={overview?.pipeline.value ?? 0}
+                format="currency"
+                change={5}
+                icon={TrendingUp}
+                iconColor="text-primary"
+                sparkline={DEMO_SPARKLINES.pipeline}
+                sparkColor="#06b6d4"
+              />
+            </div>
+            <div {...anim(4)}>
+              <StatCard
+                title="Total Contacts"
+                value={overview?.contacts.total ?? 0}
+                format="number"
+                change={12}
+                description={`+${overview?.contacts.new30Days ?? 0} this month`}
+                icon={Users}
+                iconColor="text-violet-400"
+                sparkline={DEMO_SPARKLINES.contacts}
+                sparkColor="#7c3aed"
+              />
+            </div>
+            <div {...anim(5)}>
+              <StatCard
+                title="Appointments"
+                value={overview?.upcomingAppointments ?? 0}
+                format="number"
+                description="upcoming this week"
+                icon={Calendar}
+                iconColor="text-amber-400"
+                sparkline={DEMO_SPARKLINES.appointments}
+                sparkColor="#f59e0b"
+              />
+            </div>
           </>
         )}
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* AI Tasks */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">AI Activity</CardTitle>
+      {/* Main 2-col layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* AI Activity feed */}
+        <div
+          {...anim(6)}
+          className="kv-anim lg:col-span-2 rounded-xl border overflow-hidden"
+          style={{
+            animationDelay: '0.46s',
+            background: 'hsl(var(--card))',
+            borderColor: 'hsl(var(--border))',
+          }}
+        >
+          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-foreground">AI Activity</h2>
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                {recentTasks.filter(t => t.status === 'in_progress').length} running
+              </span>
+            </div>
             <Link href="/dashboard/automations">
-              <Button variant="ghost" size="sm" className="text-xs">
+              <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 View all <ArrowRight className="h-3 w-3" />
-              </Button>
+              </button>
             </Link>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </div>
+          <div className="divide-y" style={{ divideColor: 'hsl(var(--border))' }}>
             {recentTasks.map(task => (
-              <div key={task.id} className="flex items-center gap-3 rounded-lg border p-3 text-sm">
-                <div className={`h-2 w-2 rounded-full shrink-0 ${
-                  task.status === 'completed' ? 'bg-green-500' :
-                  task.status === 'in_progress' ? 'bg-blue-500 animate-pulse' :
-                  'bg-muted-foreground'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{task.title}</p>
-                  <p className="text-muted-foreground text-xs">{task.agent} Agent</p>
+              <div key={task.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent/40 transition-colors">
+                <div className="shrink-0">
+                  {task.status === 'completed' ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  ) : task.status === 'in_progress' ? (
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary kv-dot-live" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-muted-foreground/40" />
+                  )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={
-                    task.status === 'completed' ? 'success' :
-                    task.status === 'in_progress' ? 'info' : 'outline'
-                  } className="text-xs">
-                    {task.status === 'in_progress' ? 'Running' :
-                     task.status === 'completed' ? 'Done' : 'Pending'}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{task.time}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                  <p className="text-xs text-muted-foreground">{task.agent}</p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    task.status === 'completed'
+                      ? 'bg-emerald-500/12 text-emerald-400'
+                      : task.status === 'in_progress'
+                      ? 'bg-primary/12 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {task.status === 'in_progress' ? 'Running' : task.status === 'completed' ? 'Done' : 'Pending'}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground tabular">{task.time}</span>
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {[
-              { label: 'Add a contact', href: '/dashboard/crm', icon: Users },
-              { label: 'Schedule appointment', href: '/dashboard/appointments', icon: Calendar },
-              { label: 'Create invoice', href: '/dashboard/invoices', icon: DollarSign },
-              { label: 'Launch campaign', href: '/dashboard/marketing', icon: TrendingUp },
-              { label: 'Build automation', href: '/dashboard/automations', icon: Zap },
-              { label: 'Ask the AI', href: '/dashboard/brain', icon: Brain },
-            ].map(action => (
+        {/* Quick actions */}
+        <div
+          {...anim(7)}
+          className="kv-anim rounded-xl border overflow-hidden"
+          style={{
+            animationDelay: '0.53s',
+            background: 'hsl(var(--card))',
+            borderColor: 'hsl(var(--border))',
+          }}
+        >
+          <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+            <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
+          </div>
+          <div className="p-2">
+            {quickActions.map(action => (
               <Link key={action.label} href={action.href}>
-                <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-accent transition-colors cursor-pointer">
-                  <action.icon className="h-4 w-4 text-muted-foreground" />
-                  {action.label}
-                  <ArrowRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
+                <div
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-150 cursor-pointer group ${
+                    action.highlight
+                      ? 'bg-primary/10 hover:bg-primary/18'
+                      : 'hover:bg-accent/60'
+                  }`}
+                >
+                  <action.icon
+                    className={`h-4 w-4 shrink-0 ${
+                      action.highlight ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+                    }`}
+                  />
+                  <span className={action.highlight ? 'font-medium text-primary' : 'text-foreground/80 group-hover:text-foreground'}>
+                    {action.label}
+                  </span>
+                  <ArrowRight className={`h-3.5 w-3.5 ml-auto ${action.highlight ? 'text-primary/60' : 'text-muted-foreground/40 group-hover:text-muted-foreground'}`} />
                 </div>
               </Link>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Mini metrics row */}
+      <div className="grid grid-cols-3 gap-4">
+        {miniMetrics.map((m, i) => (
+          <div
+            key={m.label}
+            className="kv-anim rounded-xl border px-5 py-4"
+            style={{
+              animationDelay: `${0.60 + i * 0.07}s`,
+              background: 'hsl(var(--card))',
+              borderColor: 'hsl(var(--border))',
+            }}
+          >
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{m.label}</p>
+            <p className="mt-1 text-2xl font-bold text-foreground tabular">{m.value}</p>
+            <p className="mt-1 text-xs text-primary/80">{m.delta}</p>
+          </div>
+        ))}
       </div>
     </div>
   )
