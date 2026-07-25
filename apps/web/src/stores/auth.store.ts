@@ -13,6 +13,7 @@ interface OrgState {
   industry: string | null
   trialEndsAt: string | null
   subscriptionStatus: string | null
+  onboardingDone: boolean
 }
 
 interface AuthState {
@@ -65,6 +66,7 @@ export const useAuthStore = create<AuthState>()(
               industry: result.organization.industry ?? null,
               trialEndsAt: null,
               subscriptionStatus: null,
+              onboardingDone: false,
             },
             isAuthenticated: true,
             isImpersonating: false,
@@ -99,7 +101,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const [meResult, orgResult] = await Promise.all([
             api.get<{ user: AuthUser }>('/auth/me'),
-            api.get<{ organization: { id: string; name: string; slug: string; subscription?: { plan?: string; status?: string; trialEndsAt?: string | null }; industry?: string | null } }>('/org').catch(() => ({ organization: null })),
+            api.get<{ organization: { id: string; name: string; slug: string; onboardingDone?: boolean; subscription?: { plan?: string; status?: string; trialEndsAt?: string | null }; industry?: string | null } }>('/org').catch(() => ({ organization: null })),
           ])
           const org = orgResult.organization
           const sub = (org as any)?.subscription
@@ -113,6 +115,7 @@ export const useAuthStore = create<AuthState>()(
               industry: (org as any).industry ?? get().organization?.industry ?? null,
               trialEndsAt: sub?.trialEndsAt ?? get().organization?.trialEndsAt ?? null,
               subscriptionStatus: sub?.status ?? get().organization?.subscriptionStatus ?? null,
+              onboardingDone: (org as any).onboardingDone ?? get().organization?.onboardingDone ?? false,
             } : get().organization,
           })
         } catch {
@@ -133,6 +136,7 @@ export const useAuthStore = create<AuthState>()(
             industry: null,
             trialEndsAt: null,
             subscriptionStatus: 'ACTIVE',
+            onboardingDone: true,
           },
         })
       },

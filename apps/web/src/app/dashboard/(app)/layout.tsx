@@ -10,14 +10,14 @@ import { TrialBanner } from '../../../components/layout/trial-banner'
 import { ImpersonateBanner } from '../../../components/layout/impersonate-banner'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, user } = useAuthStore()
+  const { isAuthenticated, isLoading, user, organization } = useAuthStore()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, isLoading, router])
+    if (isLoading) return
+    if (!isAuthenticated) { router.push('/login'); return }
+    if (organization && organization.onboardingDone === false) { router.push('/onboarding') }
+  }, [isAuthenticated, isLoading, organization?.onboardingDone, router])
 
   if (!isAuthenticated) {
     return (

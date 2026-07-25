@@ -168,14 +168,24 @@ export class StripeService {
     const organizationId = orgId ?? (stripeSub.metadata['organizationId'] as string)
     if (!organizationId) return
 
+    const priceId = stripeSub.items.data[0]?.price.id ?? ''
+
+    // Map env-configured price IDs → plan names, with legacy fallback keys
     const planMap: Record<string, string> = {
+      // Env-configured Stripe price IDs
+      ...(config.STRIPE_PRICE_STARTER ? { [config.STRIPE_PRICE_STARTER]: 'STARTER' } : {}),
+      ...(config.STRIPE_PRICE_PRO ? { [config.STRIPE_PRICE_PRO]: 'PRO' } : {}),
+      ...(config.STRIPE_PRICE_BUSINESS ? { [config.STRIPE_PRICE_BUSINESS]: 'BUSINESS' } : {}),
+      // Fallback substring matching for legacy/dev price IDs
       price_starter: 'STARTER',
       price_pro: 'PRO',
+      price_business: 'BUSINESS',
       price_enterprise: 'ENTERPRISE',
     }
 
-    const priceId = stripeSub.items.data[0]?.price.id ?? ''
-    const plan = Object.entries(planMap).find(([k]) => priceId.includes(k))?.[1] ?? 'STARTER'
+    const plan = planMap[priceId]
+      ?? Object.entries(planMap).find(([k]) => priceId.toLowerCase().includes(k.toLowerCase()))?.[1]
+      ?? 'STARTER'
 
     const statusMap: Record<string, string> = {
       active: 'ACTIVE',
