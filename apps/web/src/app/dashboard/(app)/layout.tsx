@@ -19,21 +19,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!isAuthenticated) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin h-8 w-8 rounded-full border-2 border-primary border-t-transparent" />
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div
+          className="h-8 w-8 rounded-full border-2 border-t-transparent"
+          style={{ borderColor: 'rgba(6,182,212,0.4)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }}
+        />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background gradient-mesh">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 shrink-0 bg-background/80 backdrop-blur-sm">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Topbar */}
+        <header
+          className="h-14 flex items-center justify-between px-6 shrink-0 border-b"
+          style={{
+            background: 'rgba(9,15,28,0.8)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderColor: 'rgba(28,56,96,0.4)',
+          }}
+        >
           <GlobalSearch />
           <div className="flex items-center gap-3">
             <NotificationBell />
-            <div className="w-8 h-8 bg-purple-600/30 rounded-full flex items-center justify-center text-purple-300 text-sm font-bold">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white shrink-0"
+              style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 12px rgba(6,182,212,0.3)' }}
+            >
               {user?.firstName?.[0] ?? '?'}
             </div>
           </div>
