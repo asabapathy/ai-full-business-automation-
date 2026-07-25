@@ -40,8 +40,8 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterForm) => {
     try {
       await registerUser(data)
-      router.push('/dashboard')
-      toast.success('Welcome to Kanavu AI! Your AI is getting to work.')
+      router.push('/onboarding')
+      toast.success('Welcome to Kanavu AI! Let\'s set up your workspace.')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed'
       toast.error(msg)

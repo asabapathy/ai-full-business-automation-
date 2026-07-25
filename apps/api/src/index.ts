@@ -3,12 +3,15 @@ import { config } from './config/index.js'
 import { connectDatabase, disconnectDatabase } from './services/database.js'
 import { connectRedis, disconnectRedis } from './services/redis.js'
 import { logger } from './utils/logger.js'
+import { startTrialExpiryWorker } from './workers/trial-expiry.js'
 
 async function bootstrap(): Promise<void> {
   logger.info({ env: config.NODE_ENV }, 'Starting Kanavu AI API...')
 
   await connectDatabase()
   await connectRedis()
+
+  const trialWorker = startTrialExpiryWorker()
 
   const app = createApp()
 
@@ -19,6 +22,7 @@ async function bootstrap(): Promise<void> {
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, 'Shutting down...')
+    clearInterval(trialWorker)
     server.close(async () => {
       await disconnectDatabase()
       await disconnectRedis()

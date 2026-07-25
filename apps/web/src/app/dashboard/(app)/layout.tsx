@@ -6,6 +6,8 @@ import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
 import { NotificationBell } from '../../../components/ui/NotificationBell'
+import { TrialBanner } from '../../../components/layout/trial-banner'
+import { ImpersonateBanner } from '../../../components/layout/impersonate-banner'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuthStore()
@@ -32,6 +34,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex h-screen overflow-hidden bg-background gradient-mesh">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <ImpersonateBanner />
+        <TrialBanner />
         {/* Topbar */}
         <header
           className="h-14 flex items-center justify-between px-6 shrink-0 border-b"

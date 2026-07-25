@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, UserCheck, Ban, Sparkles, ShieldCheck, ChevronDown, Check, AlertCircle } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { INDUSTRY_LABELS, PLAN_META, getOrgFeatures, isHipaaIndustry, type Feature } from '../../../../lib/features'
+import { useAuthStore } from '../../../../stores/auth.store'
 
 interface OrgDetail {
   id: string
@@ -58,6 +59,7 @@ export default function AdminBusinessDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [org, setOrg] = useState<OrgDetail>(DEMO_ORG)
+  const { impersonate } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [planChanging, setPlanChanging] = useState(false)
   const [newPlan, setNewPlan] = useState('')
@@ -101,12 +103,12 @@ export default function AdminBusinessDetailPage() {
     } catch { flash('Action failed') } finally { setSuspending(false) }
   }
 
-  async function impersonate() {
+  async function handleImpersonate() {
     setImpersonating(true)
     try {
-      const res = await apiClient.post<{ token: string; redirectUrl: string }>(`/admin/organizations/${id}/impersonate`, {})
-      if (res.redirectUrl) window.location.href = res.redirectUrl
-      else flash('Impersonation token issued')
+      const res = await apiClient.post<{ tokens: { accessToken: string; refreshToken: string }; organization: { id: string; name: string; slug: string } }>(`/admin/organizations/${id}/impersonate`, {})
+      impersonate(res.tokens, res.organization)
+      router.push('/dashboard')
     } catch { flash('Failed to impersonate') } finally { setImpersonating(false) }
   }
 
@@ -205,7 +207,7 @@ export default function AdminBusinessDetailPage() {
           <h2 className="text-sm font-semibold text-foreground">Actions</h2>
 
           <button
-            onClick={impersonate}
+            onClick={handleImpersonate}
             disabled={impersonating}
             className="w-full flex items-center gap-3 rounded-xl p-3 text-sm font-medium transition-all hover:scale-[1.01] disabled:opacity-50"
             style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.2)', color: '#06b6d4' }}

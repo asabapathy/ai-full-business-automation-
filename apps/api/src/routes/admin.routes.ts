@@ -7,6 +7,7 @@ import { requireSuperAdmin } from '../middleware/super-admin.js'
 import { validate } from '../middleware/validate.js'
 import { NotFoundError } from '../utils/errors.js'
 import { config } from '../config/index.js'
+import { expireTrials } from '../workers/trial-expiry.js'
 
 export const adminRouter = Router()
 adminRouter.use(authenticate)
@@ -238,6 +239,13 @@ adminRouter.post('/organizations/:id/impersonate', async (req, res) => {
       organization: { id: org.id, name: org.name, slug: org.slug },
     },
   })
+})
+
+// ── Trigger trial expiry manually ───────────────────────────────────────────
+
+adminRouter.post('/trials/expire', async (_req, res) => {
+  await expireTrials()
+  res.json({ success: true, message: 'Trial expiry check complete' })
 })
 
 // ── Feature flag overrides ───────────────────────────────────────────────────

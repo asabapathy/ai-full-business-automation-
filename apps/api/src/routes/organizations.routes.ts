@@ -79,6 +79,24 @@ orgRouter.delete('/members/:userId', requireRole('ADMIN', 'SUPER_ADMIN'), async 
   res.json({ success: true, message: 'Member removed' })
 })
 
+// PATCH /org/onboarding — mark onboarding done and save industry
+orgRouter.patch('/onboarding', async (req, res) => {
+  const { industry, onboardingStep, onboardingDone } = req.body as {
+    industry?: string
+    onboardingStep?: number
+    onboardingDone?: boolean
+  }
+  const org = await prisma.organization.update({
+    where: { id: req.organizationId! },
+    data: {
+      ...(industry ? { industry: industry as any } : {}),
+      ...(onboardingStep !== undefined ? { onboardingStep } : {}),
+      ...(onboardingDone !== undefined ? { onboardingDone } : {}),
+    },
+  })
+  res.json({ success: true, data: { organization: org } })
+})
+
 // Dashboard analytics
 orgRouter.get('/analytics/overview', async (req, res) => {
   const orgId = req.organizationId!
