@@ -52,14 +52,14 @@ const DEMO_WORKFLOWS: Workflow[] = [
 ]
 
 const STEP_TYPES = [
-  { type: 'SEND_EMAIL', label: 'Send Email', icon: '📧', color: 'bg-blue-500/20 border-blue-500/30 text-blue-300' },
-  { type: 'SEND_SMS', label: 'Send SMS', icon: '💬', color: 'bg-green-500/20 border-green-500/30 text-green-300' },
-  { type: 'WAIT_DELAY', label: 'Wait / Delay', icon: '⏱', color: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300' },
-  { type: 'NOTIFY_TEAM', label: 'Notify Team', icon: '🔔', color: 'bg-purple-500/20 border-purple-500/30 text-purple-300' },
-  { type: 'UPDATE_CRM', label: 'Update CRM', icon: '📋', color: 'bg-orange-500/20 border-orange-500/30 text-orange-300' },
-  { type: 'AI_ACTION', label: 'AI Action', icon: '🤖', color: 'bg-pink-500/20 border-pink-500/30 text-pink-300' },
-  { type: 'MAKE_CALL', label: 'Make Call', icon: '📞', color: 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300' },
-  { type: 'CONDITION_BRANCH', label: 'Condition', icon: '⚡', color: 'bg-red-500/20 border-red-500/30 text-red-300' },
+  { type: 'SEND_EMAIL',       label: 'Send Email',    icon: '📧', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.25)',  text: '#38bdf8' },
+  { type: 'SEND_SMS',         label: 'Send SMS',      icon: '💬', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.25)',  text: '#34d399' },
+  { type: 'WAIT_DELAY',       label: 'Wait / Delay',  icon: '⏱',  bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.25)',  text: '#fbbf24' },
+  { type: 'NOTIFY_TEAM',      label: 'Notify Team',   icon: '🔔', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.25)', text: '#a78bfa' },
+  { type: 'UPDATE_CRM',       label: 'Update CRM',    icon: '📋', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.25)',  text: '#fb923c' },
+  { type: 'AI_ACTION',        label: 'AI Action',     icon: '🤖', bg: 'rgba(6,182,212,0.12)',   border: 'rgba(6,182,212,0.25)',   text: '#06b6d4' },
+  { type: 'MAKE_CALL',        label: 'Make Call',     icon: '📞', bg: 'rgba(14,165,233,0.12)',  border: 'rgba(14,165,233,0.25)',  text: '#0ea5e9' },
+  { type: 'CONDITION_BRANCH', label: 'Condition',     icon: '⚡', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.25)', text: '#f87171' },
 ]
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -73,8 +73,14 @@ const TRIGGER_LABELS: Record<string, string> = {
 }
 
 function getStepMeta(type: string) {
-  return STEP_TYPES.find(s => s.type === type) ?? { type, label: type, icon: '▸', color: 'bg-white/5 border-white/10 text-gray-300' }
+  return STEP_TYPES.find(s => s.type === type) ?? { type, label: type, icon: '▸', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', text: 'hsl(var(--muted-foreground))' }
 }
+
+const inputBase = {
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.1)',
+}
+const inputFocusCls = 'w-full rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 
 interface StepConfigProps {
   step: WorkflowStep
@@ -83,31 +89,30 @@ interface StepConfigProps {
 
 function StepConfig({ step, onChange }: StepConfigProps) {
   const cfg = step.config ?? {}
-
   const update = (key: string, val: string) => onChange(step.id, { ...cfg, [key]: val })
 
   if (step.type === 'SEND_EMAIL') return (
     <div className="space-y-2 pt-2">
       <input placeholder="Subject line" value={cfg['subject'] ?? ''} onChange={e => update('subject', e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500" />
+        className={inputFocusCls} style={inputBase} />
       <textarea rows={2} placeholder="Email body (use {{name}}, {{email}}, etc.)" value={cfg['body'] ?? ''} onChange={e => update('body', e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none" />
+        className={`${inputFocusCls} resize-none`} style={inputBase} />
     </div>
   )
 
   if (step.type === 'SEND_SMS') return (
     <div className="pt-2">
       <textarea rows={2} placeholder="SMS message (use {{name}}, etc.)" value={cfg['message'] ?? ''} onChange={e => update('message', e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none" />
+        className={`${inputFocusCls} resize-none`} style={inputBase} />
     </div>
   )
 
   if (step.type === 'WAIT_DELAY') return (
     <div className="flex gap-2 pt-2">
       <input type="number" min="1" placeholder="Duration" value={cfg['duration'] ?? '1'} onChange={e => update('duration', e.target.value)}
-        className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+        className={`w-20 ${inputFocusCls}`} style={inputBase} />
       <select value={cfg['unit'] ?? 'hours'} onChange={e => update('unit', e.target.value)}
-        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500">
+        className={`flex-1 ${inputFocusCls}`} style={inputBase}>
         <option value="minutes">Minutes</option>
         <option value="hours">Hours</option>
         <option value="days">Days</option>
@@ -118,14 +123,14 @@ function StepConfig({ step, onChange }: StepConfigProps) {
   if (step.type === 'NOTIFY_TEAM') return (
     <div className="pt-2">
       <input placeholder="Notification message" value={cfg['message'] ?? ''} onChange={e => update('message', e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500" />
+        className={inputFocusCls} style={inputBase} />
     </div>
   )
 
   if (step.type === 'AI_ACTION') return (
     <div className="pt-2">
-      <textarea rows={2} placeholder="Describe what the AI should do..." value={cfg['prompt'] ?? ''} onChange={e => update('prompt', e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none" />
+      <textarea rows={2} placeholder="Describe what the AI should do…" value={cfg['prompt'] ?? ''} onChange={e => update('prompt', e.target.value)}
+        className={`${inputFocusCls} resize-none`} style={inputBase} />
     </div>
   )
 
@@ -145,20 +150,12 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
   const dragIdx = useRef<number | null>(null)
 
   const updateStepConfig = (stepId: string, config: Record<string, string>) => {
-    setWf(prev => ({
-      ...prev,
-      steps: prev.steps.map(s => s.id === stepId ? { ...s, config } : s),
-    }))
+    setWf(prev => ({ ...prev, steps: prev.steps.map(s => s.id === stepId ? { ...s, config } : s) }))
   }
 
   const addStep = (type: string) => {
     const meta = getStepMeta(type)
-    const newStep: WorkflowStep = {
-      id: `step-${Date.now()}`,
-      type,
-      name: meta.label,
-      order: wf.steps.length + 1,
-    }
+    const newStep: WorkflowStep = { id: `step-${Date.now()}`, type, name: meta.label, order: wf.steps.length + 1 }
     setWf(prev => ({ ...prev, steps: [...prev.steps, newStep] }))
     setShowPalette(false)
     setExpandedId(newStep.id)
@@ -170,7 +167,6 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
   }
 
   const onDragStart = (idx: number) => { dragIdx.current = idx }
-
   const onDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault()
     if (dragIdx.current === null || dragIdx.current === idx) return
@@ -180,27 +176,36 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
     dragIdx.current = idx
     setWf(prev => ({ ...prev, steps: steps.map((s, i) => ({ ...s, order: i + 1 })) }))
   }
-
   const onDragEnd = () => { dragIdx.current = null }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex">
-      <div className="w-full max-w-2xl ml-auto h-full bg-[#0f0f1a] border-l border-white/10 flex flex-col">
+    <div className="fixed inset-0 z-50 flex" style={{ background: 'rgba(0,0,0,0.6)' }}>
+      <div
+        className="w-full max-w-2xl ml-auto h-full flex flex-col"
+        style={{ background: 'hsl(var(--sidebar))', borderLeft: '1px solid hsl(var(--border))' }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
           <div className="flex-1 mr-4">
             <input
               value={wf.name}
               onChange={e => setWf(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full bg-transparent text-white font-semibold text-lg focus:outline-none focus:border-b focus:border-purple-500"
+              className="w-full bg-transparent text-foreground font-semibold text-lg focus:outline-none"
+              style={{ borderBottom: '1px solid transparent' }}
+              onFocus={e => (e.target.style.borderBottomColor = 'rgba(6,182,212,0.5)')}
+              onBlur={e => (e.target.style.borderBottomColor = 'transparent')}
             />
-            <p className="text-xs text-gray-400 mt-0.5">Trigger: {TRIGGER_LABELS[wf.triggerType] ?? wf.triggerType}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Trigger: {TRIGGER_LABELS[wf.triggerType] ?? wf.triggerType}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => onSave(wf)} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors">
+            <button
+              onClick={() => onSave(wf)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+              style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+            >
               Save
             </button>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 text-gray-400">
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent/60 text-muted-foreground">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -210,11 +215,14 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
         <div className="flex-1 overflow-y-auto p-6 space-y-0">
           {/* Trigger node */}
           <div className="flex flex-col items-center">
-            <div className="w-full rounded-xl border border-purple-500/40 bg-purple-500/10 px-4 py-3 text-center">
-              <p className="text-xs text-purple-400 font-medium uppercase tracking-wide">Trigger</p>
-              <p className="text-sm text-white font-medium mt-0.5">⚡ {TRIGGER_LABELS[wf.triggerType] ?? wf.triggerType}</p>
+            <div
+              className="w-full rounded-xl px-4 py-3 text-center"
+              style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)' }}
+            >
+              <p className="text-xs text-primary font-medium uppercase tracking-wide">Trigger</p>
+              <p className="text-sm text-foreground font-medium mt-0.5">⚡ {TRIGGER_LABELS[wf.triggerType] ?? wf.triggerType}</p>
             </div>
-            {wf.steps.length > 0 && <div className="w-0.5 h-6 bg-white/20 my-1" />}
+            {wf.steps.length > 0 && <div className="w-0.5 h-6 bg-muted-foreground/20 my-1" />}
           </div>
 
           {/* Step nodes */}
@@ -224,35 +232,36 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
             return (
               <div key={step.id} className="flex flex-col items-center">
                 <div
-                  className={`w-full rounded-xl border ${meta.color} cursor-move select-none`}
+                  className="w-full rounded-xl cursor-move select-none"
+                  style={{ background: meta.bg, border: `1px solid ${meta.border}` }}
                   draggable
                   onDragStart={() => onDragStart(idx)}
                   onDragOver={e => onDragOver(e, idx)}
                   onDragEnd={onDragEnd}
                 >
                   <div className="flex items-center gap-3 px-4 py-3">
-                    <GripVertical className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
                     <span className="text-base">{meta.icon}</span>
                     <div className="flex-1 min-w-0">
                       <input
                         value={step.name}
                         onChange={e => setWf(prev => ({ ...prev, steps: prev.steps.map(s => s.id === step.id ? { ...s, name: e.target.value } : s) }))}
                         onClick={e => e.stopPropagation()}
-                        className="w-full bg-transparent text-sm text-white font-medium focus:outline-none"
+                        className="w-full bg-transparent text-sm text-foreground font-medium focus:outline-none"
                       />
-                      <p className="text-xs text-gray-500">{meta.label}</p>
+                      <p className="text-xs text-muted-foreground">{meta.label}</p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : step.id)}
-                        className="p-1 rounded hover:bg-white/10 text-gray-400"
+                        className="p-1 rounded hover:bg-white/10 text-muted-foreground"
                       >
                         <Settings className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => removeStep(step.id)} className="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400">
+                      <button onClick={() => removeStep(step.id)} className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => setExpandedId(isExpanded ? null : step.id)} className="p-1 rounded hover:bg-white/10 text-gray-400">
+                      <button onClick={() => setExpandedId(isExpanded ? null : step.id)} className="p-1 rounded hover:bg-white/10 text-muted-foreground">
                         {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       </button>
                     </div>
@@ -263,30 +272,36 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
                     </div>
                   )}
                 </div>
-                {idx < wf.steps.length - 1 && <div className="w-0.5 h-6 bg-white/20 my-1" />}
+                {idx < wf.steps.length - 1 && <div className="w-0.5 h-6 bg-muted-foreground/20 my-1" />}
               </div>
             )
           })}
 
           {/* Add step */}
           <div className="flex flex-col items-center mt-2">
-            {wf.steps.length > 0 && <div className="w-0.5 h-4 bg-white/20 mb-1" />}
+            {wf.steps.length > 0 && <div className="w-0.5 h-4 bg-muted-foreground/20 mb-1" />}
             <div className="relative">
               <button
                 onClick={() => setShowPalette(!showPalette)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-white/20 text-gray-400 hover:border-purple-500 hover:text-purple-400 text-sm transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm text-muted-foreground transition-all hover:text-primary"
+                style={{ border: '2px dashed rgba(255,255,255,0.15)' }}
               >
                 <Plus className="h-4 w-4" />
                 Add Step
               </button>
               {showPalette && (
-                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
-                  <p className="text-xs text-gray-500 px-3 py-2 border-b border-white/10">Choose step type</p>
+                <div
+                  className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 rounded-xl z-10 overflow-hidden shadow-2xl"
+                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                >
+                  <p className="text-xs text-muted-foreground px-3 py-2" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                    Choose step type
+                  </p>
                   {STEP_TYPES.map(st => (
                     <button
                       key={st.type}
                       onClick={() => addStep(st.type)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 text-left text-sm text-gray-300 hover:text-white transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                     >
                       <span>{st.icon}</span>
                       {st.label}
@@ -300,6 +315,10 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
       </div>
     </div>
   )
+}
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
 export default function AutomationsPage() {
@@ -357,7 +376,7 @@ export default function AutomationsPage() {
         setGoal('')
       }
     } catch {
-      const mockWorkflow: Workflow = {
+      const mock: Workflow = {
         id: `demo-${Date.now()}`,
         name: `AI: ${goal.slice(0, 40)}`,
         description: `Auto-generated workflow for: ${goal}`,
@@ -370,7 +389,7 @@ export default function AutomationsPage() {
           { id: 'ai3', type: 'NOTIFY_TEAM', name: 'Alert team', order: 3 },
         ],
       }
-      setWorkflows(prev => [mockWorkflow, ...prev])
+      setWorkflows(prev => [mock, ...prev])
       setShowGenerator(false)
       setGoal('')
     }
@@ -390,7 +409,7 @@ export default function AutomationsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-[1200px]">
       {editingWorkflow && (
         <StepCanvas
           workflow={editingWorkflow}
@@ -399,14 +418,16 @@ export default function AutomationsPage() {
         />
       )}
 
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold text-white">Automations</h1>
-          <p className="text-gray-400 text-sm mt-1">AI-powered workflow automation engine</p>
+          <h1 className="text-2xl font-bold text-foreground">Automations</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">AI-powered workflow automation engine</p>
         </div>
         <button
           onClick={() => setShowGenerator(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
         >
           <Zap className="h-4 w-4" />
           Generate with AI
@@ -415,48 +436,56 @@ export default function AutomationsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-white">{stats.total}</p>
-          <p className="text-xs text-gray-400 mt-1">Total Workflows</p>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-green-400">{stats.active}</p>
-          <p className="text-xs text-gray-400 mt-1">Active</p>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-blue-400">{stats.totalRuns}</p>
-          <p className="text-xs text-gray-400 mt-1">Total Runs</p>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className={`text-3xl font-bold ${stats.recentFailures > 0 ? 'text-red-400' : 'text-green-400'}`}>{stats.recentFailures}</p>
-          <p className="text-xs text-gray-400 mt-1">Failures (7d)</p>
-        </div>
+        {[
+          { label: 'Total Workflows', value: stats.total, color: 'text-primary' },
+          { label: 'Active', value: stats.active, color: 'text-emerald-400' },
+          { label: 'Total Runs', value: stats.totalRuns, color: 'text-primary' },
+          { label: 'Failures (7d)', value: stats.recentFailures, color: stats.recentFailures > 0 ? 'text-red-400' : 'text-emerald-400' },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="kv-anim rounded-xl border p-4 text-center"
+            style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+          >
+            <p className={`text-3xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+          </div>
+        ))}
       </div>
 
-      {/* AI generator modal */}
+      {/* AI Generator modal */}
       {showGenerator && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-lg space-y-4">
-            <h3 className="text-lg font-bold text-white">Generate Automation with AI</h3>
-            <p className="text-sm text-gray-400">Describe what you want to automate and our AI will build the workflow.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div
+            className="w-full max-w-lg rounded-2xl p-6 space-y-4"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-bold text-foreground">Generate Automation with AI</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">Describe what you want to automate and our AI will build the workflow.</p>
             <textarea
               value={goal}
               onChange={e => setGoal(e.target.value)}
               rows={3}
               placeholder="e.g. When a new lead signs up, send a welcome email immediately, wait 2 hours, then send a follow-up SMS with a special offer"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+              className="w-full rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+              style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
             />
             <div className="flex gap-3">
               <button
                 onClick={generateWorkflow}
                 disabled={generating || !goal.trim()}
-                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium text-sm disabled:opacity-50 transition-colors"
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
               >
-                {generating ? 'Generating...' : '✨ Generate Workflow'}
+                {generating ? 'Generating…' : '✨ Generate Workflow'}
               </button>
               <button
                 onClick={() => { setShowGenerator(false); setGoal('') }}
-                className="px-4 py-2.5 bg-white/5 text-gray-400 rounded-xl text-sm hover:text-white"
+                className="px-4 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors hover:text-foreground"
+                style={{ border: '1px solid hsl(var(--border))' }}
               >
                 Cancel
               </button>
@@ -466,75 +495,95 @@ export default function AutomationsPage() {
       )}
 
       {/* Workflow list */}
-      <div className="space-y-4">
-        {workflows.map(wf => {
-          return (
-            <div key={wf.id} className="bg-white/5 border border-white/10 rounded-xl p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-1">
-                    <h3 className="text-white font-semibold truncate">{wf.name}</h3>
-                    <span className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-full ${wf.isActive ? 'bg-green-400/10 text-green-400' : 'bg-gray-400/10 text-gray-400'}`}>
-                      {wf.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                  {wf.description && <p className="text-sm text-gray-400 mb-3">{wf.description}</p>}
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
-                      ⚡ {TRIGGER_LABELS[wf.triggerType] ?? wf.triggerType}
-                    </span>
-                    <span className="text-xs text-gray-500">{wf.runCount} runs</span>
-                    {wf.lastRunAt && <span className="text-xs text-gray-500">Last: {new Date(wf.lastRunAt).toLocaleDateString()}</span>}
-                  </div>
-                  {/* Steps preview */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {wf.steps.map((step, i) => {
-                      const meta = getStepMeta(step.type)
-                      return (
-                        <div key={step.id} className="flex items-center gap-1">
-                          <span className={`text-xs border rounded-lg px-2 py-1 ${meta.color}`}>
-                            {meta.icon} {step.name}
-                          </span>
-                          {i < wf.steps.length - 1 && <span className="text-gray-600 text-xs">→</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
+      <div className="kv-anim space-y-4" style={{ animationDelay: '0.39s' }}>
+        {workflows.map(wf => (
+          <div
+            key={wf.id}
+            className="rounded-xl border p-5"
+            style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-1 flex-wrap">
+                  <h3 className="text-foreground font-semibold truncate">{wf.name}</h3>
+                  <span
+                    className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={wf.isActive
+                      ? { background: 'rgba(52,211,153,0.1)', color: '#34d399' }
+                      : { background: 'rgba(255,255,255,0.05)', color: 'hsl(var(--muted-foreground))' }
+                    }
+                  >
+                    {wf.isActive ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
-                <div className="flex flex-col gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => setEditingWorkflow(wf)}
-                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded-lg transition-colors"
+                {wf.description && <p className="text-sm text-muted-foreground mb-3">{wf.description}</p>}
+                <div className="flex items-center gap-2 flex-wrap mb-3">
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full text-primary font-medium"
+                    style={{ background: 'rgba(6,182,212,0.1)' }}
                   >
-                    Edit Canvas
-                  </button>
-                  <button
-                    onClick={() => toggleWorkflow(wf.id, wf.isActive)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${wf.isActive ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'}`}
-                  >
-                    {wf.isActive ? <><Pause className="h-3 w-3" /> Pause</> : <><Play className="h-3 w-3" /> Activate</>}
-                  </button>
-                  <button
-                    onClick={() => executeWorkflow(wf.id)}
-                    disabled={executingId === wf.id}
-                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {executingId === wf.id ? 'Running...' : '▶ Run now'}
-                  </button>
+                    ⚡ {TRIGGER_LABELS[wf.triggerType] ?? wf.triggerType}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{wf.runCount} runs</span>
+                  {wf.lastRunAt && <span className="text-xs text-muted-foreground">Last: {new Date(wf.lastRunAt).toLocaleDateString()}</span>}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {wf.steps.map((step, i) => {
+                    const meta = getStepMeta(step.type)
+                    return (
+                      <div key={step.id} className="flex items-center gap-1">
+                        <span
+                          className="text-xs rounded-lg px-2 py-1 font-medium"
+                          style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.text }}
+                        >
+                          {meta.icon} {step.name}
+                        </span>
+                        {i < wf.steps.length - 1 && <span className="text-muted-foreground/40 text-xs">→</span>}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
-            </div>
-          )
-        })}
 
-        {/* New workflow */}
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setEditingWorkflow(wf)}
+                  className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/60"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  Edit Canvas
+                </button>
+                <button
+                  onClick={() => toggleWorkflow(wf.id, wf.isActive)}
+                  className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${wf.isActive
+                    ? 'text-red-400 hover:bg-red-400/10'
+                    : 'text-emerald-400 hover:bg-emerald-400/10'
+                  }`}
+                  style={{ border: `1px solid ${wf.isActive ? 'rgba(248,113,113,0.2)' : 'rgba(52,211,153,0.2)'}` }}
+                >
+                  {wf.isActive ? <><Pause className="h-3 w-3" /> Pause</> : <><Play className="h-3 w-3" /> Activate</>}
+                </button>
+                <button
+                  onClick={() => executeWorkflow(wf.id)}
+                  disabled={executingId === wf.id}
+                  className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/60 disabled:opacity-50"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  {executingId === wf.id ? 'Running…' : '▶ Run now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+
         <button
           onClick={() => {
             const blank: Workflow = { id: `new-${Date.now()}`, name: 'New Workflow', triggerType: 'MANUAL', isActive: false, runCount: 0, steps: [] }
             setWorkflows(prev => [blank, ...prev])
             setEditingWorkflow(blank)
           }}
-          className="w-full border border-dashed border-white/20 rounded-xl py-4 text-gray-500 hover:text-gray-300 hover:border-white/40 transition-colors text-sm flex items-center justify-center gap-2"
+          className="w-full rounded-xl py-4 text-muted-foreground hover:text-foreground transition-colors text-sm flex items-center justify-center gap-2"
+          style={{ border: '2px dashed hsl(var(--border))' }}
         >
           <Plus className="h-4 w-4" />
           New Workflow

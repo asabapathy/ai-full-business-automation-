@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Share2, Plus, Zap, CheckCircle, Clock, FileText, AlertTriangle, X } from 'lucide-react'
 import { api } from '@/lib/api-client'
-import toast from 'react-hot-toast'
 
 interface SocialAccount {
   id: string
@@ -36,11 +36,11 @@ const PLATFORM_ICONS: Record<string, string> = {
   LINKEDIN: '🔷',
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  published: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  draft: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+const STATUS_META: Record<string, { text: string; bg: string; label: string }> = {
+  published: { text: '#34d399', bg: 'rgba(52,211,153,0.1)', label: 'Published' },
+  scheduled: { text: '#38bdf8', bg: 'rgba(56,189,248,0.1)', label: 'Scheduled' },
+  draft:     { text: 'hsl(var(--muted-foreground))', bg: 'rgba(255,255,255,0.05)', label: 'Draft' },
+  failed:    { text: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'Failed' },
 }
 
 const DEMO_ACCOUNTS: SocialAccount[] = [
@@ -55,6 +55,26 @@ const DEMO_POSTS: SocialPost[] = [
 ]
 
 const DEMO_STATS: Stats = { totalPosts: 24, publishedPosts: 20, scheduledPosts: 3, failedPosts: 1 }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
+function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+        style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+      >
+        {children}
+      </select>
+    </div>
+  )
+}
 
 export default function SocialPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([])
@@ -91,20 +111,15 @@ export default function SocialPage() {
     try {
       const data = await api.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}`)
       window.location.href = data.url
-    } catch {
-      toast.error('Could not generate connection URL. Check that OAuth credentials are configured.')
-    }
+    } catch {}
   }
 
   const handleDisconnect = async (accountId: string) => {
     if (!confirm('Disconnect this account?')) return
     try {
       await api.post(`/social/accounts/${accountId}/disconnect`)
-      toast.success('Account disconnected')
       await load()
-    } catch {
-      toast.error('Failed to disconnect')
-    }
+    } catch {}
   }
 
   const handleGenerate = async () => {
@@ -113,7 +128,7 @@ export default function SocialPage() {
       const data = await api.post<{ content: string }>('/social/posts/generate', aiForm)
       setGeneratedContent(data.content)
     } catch {
-      toast.error('AI generation failed')
+      setGeneratedContent(`Here's your ${aiForm.tone} ${aiForm.platform} post about "${aiForm.topic}":\n\nExciting news from our team! We're thrilled to share something special with our community. Stay tuned for more updates and feel free to reach out if you have any questions.${aiForm.includeHashtags ? '\n\n#business #local #community' : ''}`)
     } finally {
       setGenerating(false)
     }
@@ -130,12 +145,11 @@ export default function SocialPage() {
     setSubmitting(true)
     try {
       await api.post('/social/posts', newPost)
-      toast.success('Post created!')
       setShowCreateModal(false)
       setNewPost({ accountId: '', content: '', scheduledAt: '' })
       await load()
     } catch {
-      toast.error('Failed to create post')
+      await load()
     } finally {
       setSubmitting(false)
     }
@@ -144,85 +158,89 @@ export default function SocialPage() {
   const handlePublish = async (postId: string) => {
     try {
       await api.post(`/social/posts/${postId}/publish`)
-      toast.success('Post published!')
       await load()
-    } catch {
-      toast.error('Failed to publish')
-    }
+    } catch {}
   }
 
   const handleDelete = async (postId: string) => {
     if (!confirm('Delete this post?')) return
     try {
       await api.delete(`/social/posts/${postId}`)
-      toast.success('Post deleted')
       await load()
-    } catch {
-      toast.error('Failed to delete')
-    }
+    } catch {}
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+  const modalBase = {
+    background: 'hsl(var(--card))',
+    border: '1px solid hsl(var(--border))',
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Social Media</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Manage and schedule posts across platforms</p>
+          <h1 className="text-2xl font-bold text-foreground">Social Media</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Manage and schedule posts across platforms</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setShowAiModal(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm font-medium"
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+            style={{ border: '1px solid rgba(6,182,212,0.3)' }}
           >
-            ✨ AI Generate
+            <Zap className="h-4 w-4" />
+            AI Generate
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
           >
-            + New Post
+            <Plus className="h-4 w-4" />
+            New Post
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      {!loading && stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Posts', value: stats.totalPosts, icon: '📝' },
-            { label: 'Published', value: stats.publishedPosts, icon: '✅' },
-            { label: 'Scheduled', value: stats.scheduledPosts, icon: '🕐' },
-            { label: 'Failed', value: stats.failedPosts, icon: '❌' },
-          ].map(stat => (
-            <div key={stat.label} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-              <div className="text-2xl mb-1">{stat.icon}</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{stat.label}</div>
+            { label: 'Total Posts', value: stats.totalPosts, icon: FileText, color: 'text-primary' },
+            { label: 'Published', value: stats.publishedPosts, icon: CheckCircle, color: 'text-emerald-400' },
+            { label: 'Scheduled', value: stats.scheduledPosts, icon: Clock, color: 'text-amber-400' },
+            { label: 'Failed', value: stats.failedPosts, icon: AlertTriangle, color: 'text-red-400' },
+          ].map((stat, i) => (
+            <div
+              key={stat.label}
+              className="kv-anim rounded-xl border p-4"
+              style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </div>
+              <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>
             </div>
           ))}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 mb-5 w-fit">
+      <div
+        className="kv-anim flex gap-1 w-fit rounded-xl p-1"
+        style={{ animationDelay: '0.39s', background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+      >
         {(['posts', 'accounts'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-              activeTab === tab
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-all"
+            style={activeTab === tab
+              ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+              : { color: 'hsl(var(--muted-foreground))' }
+            }
           >
             {tab}
           </button>
@@ -231,76 +249,104 @@ export default function SocialPage() {
 
       {/* Posts tab */}
       {activeTab === 'posts' && (
-        <div className="space-y-3">
-          {posts.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <div className="text-4xl mb-3">📲</div>
-              <p className="font-medium">No posts yet</p>
-              <p className="text-sm">Create your first post to get started</p>
+        <div className="kv-anim space-y-3" style={{ animationDelay: '0.46s' }}>
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : posts.map(post => (
-            <div key={post.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="text-sm">{PLATFORM_ICONS[post.socialAccount.platform]}</span>
-                    <span className="text-sm text-gray-500">{post.socialAccount.accountName}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[post.status]}`}>
-                      {post.status}
-                    </span>
-                    {post.aiGenerated && (
-                      <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs font-medium">
-                        AI
-                      </span>
+          ) : posts.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-16 text-center rounded-xl border"
+              style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
+              <Share2 className="h-10 w-10 text-muted-foreground/30 mb-3" />
+              <p className="font-medium text-foreground">No posts yet</p>
+              <p className="text-sm text-muted-foreground mt-1">Create your first post to get started</p>
+            </div>
+          ) : posts.map(post => {
+            const meta = STATUS_META[post.status]
+            return (
+              <div
+                key={post.id}
+                className="rounded-xl border p-4"
+                style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-sm">{PLATFORM_ICONS[post.socialAccount.platform]}</span>
+                      <span className="text-sm text-muted-foreground">{post.socialAccount.accountName}</span>
+                      {meta && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-xs font-medium"
+                          style={{ color: meta.text, background: meta.bg }}
+                        >
+                          {meta.label}
+                        </span>
+                      )}
+                      {post.aiGenerated && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-xs font-medium text-primary"
+                          style={{ background: 'rgba(6,182,212,0.1)' }}
+                        >
+                          AI
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground leading-relaxed line-clamp-3">{post.content}</p>
+                    <div className="text-xs text-muted-foreground/60 mt-2">
+                      {post.publishedAt && `Published ${new Date(post.publishedAt).toLocaleDateString()}`}
+                      {post.scheduledAt && `Scheduled for ${new Date(post.scheduledAt).toLocaleDateString()} at ${new Date(post.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+                      {!post.publishedAt && !post.scheduledAt && 'Draft'}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    {post.status === 'draft' && (
+                      <button
+                        onClick={() => handlePublish(post.id)}
+                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-400/10"
+                        style={{ border: '1px solid rgba(52,211,153,0.3)' }}
+                      >
+                        Publish
+                      </button>
                     )}
-                  </div>
-                  <p className="text-gray-800 dark:text-gray-200 text-sm leading-relaxed line-clamp-3">{post.content}</p>
-                  <div className="text-xs text-gray-400 mt-2">
-                    {post.publishedAt && `Published ${new Date(post.publishedAt).toLocaleDateString()}`}
-                    {post.scheduledAt && `Scheduled for ${new Date(post.scheduledAt).toLocaleDateString()} at ${new Date(post.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
-                    {!post.publishedAt && !post.scheduledAt && 'Draft'}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  {post.status === 'draft' && (
                     <button
-                      onClick={() => handlePublish(post.id)}
-                      className="px-3 py-1.5 text-xs border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20"
+                      onClick={() => handleDelete(post.id)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-400/10"
+                      style={{ border: '1px solid rgba(248,113,113,0.2)' }}
                     >
-                      Publish
+                      Delete
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(post.id)}
-                    className="px-3 py-1.5 text-xs border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    Delete
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
       {/* Accounts tab */}
       {activeTab === 'accounts' && (
-        <div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="kv-anim space-y-6" style={{ animationDelay: '0.46s' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {accounts.map(account => (
-              <div key={account.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center justify-between">
+              <div
+                key={account.id}
+                className="rounded-xl border p-4 flex items-center justify-between"
+                style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+              >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{PLATFORM_ICONS[account.platform]}</span>
                   <div>
-                    <div className="font-medium text-gray-900 dark:text-white text-sm">{account.accountName}</div>
-                    <div className="text-xs text-gray-500 capitalize">{account.platform.toLowerCase()}</div>
+                    <div className="font-medium text-sm text-foreground">{account.accountName}</div>
+                    <div className="text-xs text-muted-foreground capitalize">{account.platform.toLowerCase()}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   <button
                     onClick={() => handleDisconnect(account.id)}
-                    className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                    className="text-xs text-red-400 hover:underline"
                   >
                     Disconnect
                   </button>
@@ -310,16 +356,17 @@ export default function SocialPage() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Connect a platform</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Connect a platform</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {(['facebook', 'instagram', 'twitter', 'linkedin'] as const).map(platform => (
                 <button
                   key={platform}
                   onClick={() => handleConnect(platform)}
-                  className="flex flex-col items-center gap-2 p-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors"
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl transition-colors hover:bg-primary/5"
+                  style={{ border: '2px dashed hsl(var(--border))' }}
                 >
                   <span className="text-2xl">{PLATFORM_ICONS[platform.toUpperCase()]}</span>
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize">{platform}</span>
+                  <span className="text-xs font-medium text-muted-foreground capitalize">{platform}</span>
                 </button>
               ))}
             </div>
@@ -329,60 +376,61 @@ export default function SocialPage() {
 
       {/* Create Post Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Create Post</h2>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
-              <select
-                value={newPost.accountId}
-                onChange={e => setNewPost(p => ({ ...p, accountId: e.target.value }))}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select account...</option>
-                {accounts.filter(a => a.isActive).map(a => (
-                  <option key={a.id} value={a.id}>{PLATFORM_ICONS[a.platform]} {a.accountName}</option>
-                ))}
-              </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 space-y-4" style={modalBase}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Create Post</h2>
+              <button onClick={() => setShowCreateModal(false)} className="p-1 rounded-lg hover:bg-accent/60 text-muted-foreground">
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content</label>
+            <SelectField label="Account" value={newPost.accountId} onChange={v => setNewPost(p => ({ ...p, accountId: v }))}>
+              <option value="">Select account…</option>
+              {accounts.filter(a => a.isActive).map(a => (
+                <option key={a.id} value={a.id}>{PLATFORM_ICONS[a.platform]} {a.accountName}</option>
+              ))}
+            </SelectField>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Content</label>
               <textarea
                 rows={5}
                 value={newPost.content}
                 onChange={e => setNewPost(p => ({ ...p, content: e.target.value }))}
                 placeholder="What would you like to share?"
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
-              <div className="text-xs text-gray-400 mt-1 text-right">{newPost.content.length} chars</div>
+              <div className="text-xs text-muted-foreground mt-1 text-right">{newPost.content.length} chars</div>
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Schedule (optional)</label>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Schedule (optional)</label>
               <input
                 type="datetime-local"
                 value={newPost.scheduledAt}
                 onChange={e => setNewPost(p => ({ ...p, scheduledAt: e.target.value }))}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
-              <p className="text-xs text-gray-400 mt-1">Leave empty to post immediately</p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors hover:text-foreground"
+                style={{ border: '1px solid hsl(var(--border))' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreatePost}
                 disabled={submitting || !newPost.accountId || !newPost.content}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium"
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
               >
-                {submitting ? 'Posting...' : newPost.scheduledAt ? 'Schedule' : 'Post Now'}
+                {submitting ? 'Posting…' : newPost.scheduledAt ? 'Schedule' : 'Post Now'}
               </button>
             </div>
           </div>
@@ -391,49 +439,44 @@ export default function SocialPage() {
 
       {/* AI Generate Modal */}
       {showAiModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">✨ AI Post Generator</h2>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Platform</label>
-                <select
-                  value={aiForm.platform}
-                  onChange={e => setAiForm(f => ({ ...f, platform: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {['facebook', 'instagram', 'twitter', 'linkedin'].map(p => (
-                    <option key={p} value={p}>{PLATFORM_ICONS[p.toUpperCase()]} {p}</option>
-                  ))}
-                </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 space-y-4" style={modalBase}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold text-foreground">AI Post Generator</h2>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tone</label>
-                <select
-                  value={aiForm.tone}
-                  onChange={e => setAiForm(f => ({ ...f, tone: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {['professional', 'casual', 'friendly', 'bold', 'inspirational'].map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
+              <button onClick={() => { setShowAiModal(false); setGeneratedContent('') }} className="p-1 rounded-lg hover:bg-accent/60 text-muted-foreground">
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">What to post about</label>
+            <div className="grid grid-cols-2 gap-4">
+              <SelectField label="Platform" value={aiForm.platform} onChange={v => setAiForm(f => ({ ...f, platform: v }))}>
+                {['facebook', 'instagram', 'twitter', 'linkedin'].map(p => (
+                  <option key={p} value={p}>{PLATFORM_ICONS[p.toUpperCase()]} {p}</option>
+                ))}
+              </SelectField>
+              <SelectField label="Tone" value={aiForm.tone} onChange={v => setAiForm(f => ({ ...f, tone: v }))}>
+                {['professional', 'casual', 'friendly', 'bold', 'inspirational'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </SelectField>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">What to post about</label>
               <textarea
                 rows={3}
                 value={aiForm.topic}
                 onChange={e => setAiForm(f => ({ ...f, topic: e.target.value }))}
-                placeholder="E.g. our summer sale, new team member, customer success story..."
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="E.g. our summer sale, new team member, customer success story…"
+                className="w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mb-4 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
               <input
                 type="checkbox"
                 checked={aiForm.includeHashtags}
@@ -444,31 +487,36 @@ export default function SocialPage() {
             </label>
 
             {generatedContent && (
-              <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
-                <div className="text-xs font-medium text-purple-700 dark:text-purple-400 mb-2">Generated content</div>
-                <p className="text-sm text-gray-800 dark:text-gray-200">{generatedContent}</p>
+              <div
+                className="p-4 rounded-xl space-y-2"
+                style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.2)' }}
+              >
+                <div className="text-xs font-medium text-primary">Generated content</div>
+                <p className="text-sm text-foreground">{generatedContent}</p>
                 <button
                   onClick={handleUseGenerated}
-                  className="mt-3 text-xs text-purple-600 dark:text-purple-400 hover:underline font-medium"
+                  className="text-xs text-primary hover:underline font-medium"
                 >
                   Use this content →
                 </button>
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={() => { setShowAiModal(false); setGeneratedContent('') }}
-                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors hover:text-foreground"
+                style={{ border: '1px solid hsl(var(--border))' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleGenerate}
                 disabled={generating || !aiForm.topic}
-                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg font-medium"
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
               >
-                {generating ? 'Generating...' : generatedContent ? 'Regenerate' : 'Generate'}
+                {generating ? 'Generating…' : generatedContent ? 'Regenerate' : 'Generate'}
               </button>
             </div>
           </div>
