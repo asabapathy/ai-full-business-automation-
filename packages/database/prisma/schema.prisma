@@ -12,7 +12,6 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  shadowDatabaseUrl = env("DATABASE_SHADOW_URL")
   extensions = [pgvector(map: "vector"), uuid_ossp(map: "uuid-ossp"), pg_trgm]
 }
 
