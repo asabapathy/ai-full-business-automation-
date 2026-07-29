@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap } from 'lucide-react'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X } from 'lucide-react'
 import { Badge } from '../../../../../components/ui/badge'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
@@ -46,11 +46,25 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({
+    title: '',
+    clientName: '',
+    description: '',
+    quantity: '1',
+    unitPrice: '',
+    dueDate: '',
+    notes: '',
+  })
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,6 +90,31 @@ export default function InvoicesPage() {
     fetchData()
   }, [statusFilter])
 
+  async function createInvoice() {
+    if (!form.title.trim() || !form.unitPrice) return
+    setCreating(true)
+    try {
+      const res = await api.post<{ data: { invoice: Invoice } }>('/finance/invoices', {
+        title: form.title,
+        lineItems: [{
+          description: form.description || form.title,
+          quantity: parseFloat(form.quantity) || 1,
+          unitPrice: parseFloat(form.unitPrice),
+        }],
+        dueDate: form.dueDate || undefined,
+        notes: form.notes || undefined,
+      }) as any
+      const inv = res?.data?.invoice ?? res?.invoice
+      if (inv) setInvoices(prev => [inv, ...prev])
+      setShowCreate(false)
+      setForm({ title: '', clientName: '', description: '', quantity: '1', unitPrice: '', dueDate: '', notes: '' })
+    } catch {
+      alert('Failed to create invoice. Please try again.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
@@ -93,6 +132,7 @@ export default function InvoicesPage() {
             AI Analyze
           </button>
           <button
+            onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
           >
@@ -246,6 +286,82 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
+
+      {/* Create invoice modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 space-y-5" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">New Invoice</h2>
+              <button onClick={() => setShowCreate(false)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Invoice Title *</label>
+                <input type="text" className={inputCls} style={inputStyle} placeholder="e.g. HVAC Installation — Johnson Residence"
+                  value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Service Description</label>
+                  <input type="text" className={inputCls} style={inputStyle} placeholder="Service details"
+                    value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Quantity</label>
+                  <input type="number" min="0.01" step="0.01" className={inputCls} style={inputStyle} placeholder="1"
+                    value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Unit Price ($) *</label>
+                  <input type="number" min="0" step="0.01" className={inputCls} style={inputStyle} placeholder="0.00"
+                    value={form.unitPrice} onChange={e => setForm(f => ({ ...f, unitPrice: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Due Date</label>
+                  <input type="date" className={inputCls} style={inputStyle}
+                    value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Notes</label>
+                <textarea rows={2} className={inputCls + ' resize-none'} style={inputStyle} placeholder="Additional notes for the client"
+                  value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+
+              {form.unitPrice && (
+                <div className="rounded-xl p-3 text-right" style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.15)' }}>
+                  <span className="text-xs text-muted-foreground">Total: </span>
+                  <span className="font-bold text-foreground tabular">
+                    ${(parseFloat(form.unitPrice || '0') * parseFloat(form.quantity || '1')).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowCreate(false)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={createInvoice} disabled={creating || !form.title.trim() || !form.unitPrice}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
+                {creating ? 'Creating…' : 'Create Invoice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

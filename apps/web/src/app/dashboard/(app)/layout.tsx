@@ -8,6 +8,7 @@ import { GlobalSearch } from '../../../components/ui/GlobalSearch'
 import { NotificationBell } from '../../../components/ui/NotificationBell'
 import { TrialBanner } from '../../../components/layout/trial-banner'
 import { ImpersonateBanner } from '../../../components/layout/impersonate-banner'
+import { TrialExpiredGate } from '../../../components/layout/trial-expired-gate'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user, organization } = useAuthStore()
@@ -58,7 +59,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">
-          {children}
+          <TrialExpiredGate>
+            {children}
+          </TrialExpiredGate>
         </main>
       </div>
     </div>

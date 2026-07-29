@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, DollarSign, Users, Globe, Trash2, Building2, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, Plus, DollarSign, Users, Globe, Trash2, Building2, ChevronRight, X, LogIn } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { useAuthStore } from '../../../../../stores/auth.store'
 import { PLAN_META } from '../../../../../lib/features'
@@ -45,7 +45,9 @@ export default function SubAccountsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [impersonating, setImpersonating] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', plan: 'STARTER', industry: '' })
+  const { impersonate } = useAuthStore()
 
   const isBusinessPlan = ['BUSINESS', 'ENTERPRISE', 'CUSTOM'].includes((organization?.plan ?? '').toUpperCase())
 
@@ -72,6 +74,21 @@ export default function SubAccountsPage() {
       alert('Failed to create sub-account. Please try again.')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function loginAsAccount(id: string, name: string) {
+    setImpersonating(id)
+    try {
+      const res = await apiClient.post<{ data: { tokens: { accessToken: string; refreshToken: string }; organization: { id: string; name: string; slug: string } } }>(`/white-label/accounts/${id}/impersonate`, {}) as any
+      const data = res?.data ?? res
+      if (!data?.tokens?.accessToken) throw new Error('No tokens returned')
+      impersonate(data.tokens, data.organization)
+      router.push('/dashboard')
+    } catch {
+      alert('Could not log in as this account. Make sure it has at least one admin user.')
+    } finally {
+      setImpersonating(null)
     }
   }
 
@@ -199,7 +216,17 @@ export default function SubAccountsPage() {
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button
+                          onClick={() => loginAsAccount(acc.id, acc.name)}
+                          disabled={impersonating === acc.id}
+                          title="Log in as this account"
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                          style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}
+                        >
+                          <LogIn className="h-3 w-3" />
+                          {impersonating === acc.id ? '…' : 'Login as'}
+                        </button>
                         <button
                           onClick={() => deleteAccount(acc.id)}
                           disabled={deleting === acc.id}

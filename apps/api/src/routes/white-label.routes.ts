@@ -1,10 +1,12 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
+import jwt from 'jsonwebtoken'
 import { whiteLabelService } from '../services/white-label.service.js'
 import { authenticate } from '../middleware/auth.middleware.js'
 import { prisma } from '../services/database.js'
 import { logger } from '../utils/logger.js'
+import { config } from '../config/index.js'
 
 export const whiteLabelRouter = Router()
 whiteLabelRouter.use(authenticate)
@@ -134,6 +136,46 @@ whiteLabelRouter.post('/accounts', async (req, res) => {
   } catch (err: any) {
     logger.error(err)
     res.status(400).json({ success: false, error: err.message ?? 'Failed to create account' })
+  }
+})
+
+// POST /white-label/accounts/:id/impersonate — get tokens to log in as sub-account admin
+whiteLabelRouter.post('/accounts/:id/impersonate', async (req, res) => {
+  try {
+    const parentOrgId = (req as any).user.organizationId as string
+    const org = await prisma.organization.findFirst({
+      where: { id: req.params.id, parentOrganizationId: parentOrgId },
+      include: {
+        members: {
+          where: { role: 'ADMIN' },
+          include: { user: true },
+          take: 1,
+        },
+      },
+    })
+    if (!org) return res.status(404).json({ success: false, error: 'Sub-account not found' })
+
+    const adminMember = org.members[0]
+    if (!adminMember) {
+      return res.status(400).json({ success: false, error: 'This sub-account has no admin user yet' })
+    }
+
+    const { user } = adminMember
+    const payload = { sub: user.id, email: user.email, organizationId: org.id, role: adminMember.role, type: 'access' }
+    const refreshPayload = { ...payload, type: 'refresh' }
+    const accessToken = jwt.sign(payload, config.JWT_SECRET, { expiresIn: config.JWT_EXPIRES_IN } as jwt.SignOptions)
+    const refreshToken = jwt.sign(refreshPayload, config.JWT_REFRESH_SECRET, { expiresIn: config.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions)
+
+    res.json({
+      success: true,
+      data: {
+        tokens: { accessToken, refreshToken },
+        organization: { id: org.id, name: org.name, slug: org.slug },
+      },
+    })
+  } catch (err) {
+    logger.error(err)
+    res.status(500).json({ success: false, error: 'Failed to impersonate sub-account' })
   }
 })
 

@@ -18,6 +18,7 @@ const updateOrgSchema = z.object({
   timezone: z.string().optional(),
   locale: z.string().optional(),
   currency: z.string().optional(),
+  onboardingDone: z.boolean().optional(),
   address: z.record(z.unknown()).optional(),
   businessHours: z.record(z.unknown()).optional(),
   aiPersonality: z.record(z.unknown()).optional(),

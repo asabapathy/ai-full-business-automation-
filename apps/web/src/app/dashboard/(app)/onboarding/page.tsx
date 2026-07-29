@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiClient } from '../../../../lib/api-client'
 import { useAuthStore } from '../../../../stores/auth.store'
 
 const INDUSTRIES = [
@@ -45,7 +46,7 @@ export default function OnboardingPage() {
   const [businessName, setBusinessName] = useState('')
   const [saving, setSaving] = useState(false)
   const router = useRouter()
-  const { organization } = useAuthStore()
+  const { organization, refreshUser } = useAuthStore()
 
   function toggleGoal(goal: string) {
     setSelectedGoals(prev =>
@@ -56,15 +57,12 @@ export default function OnboardingPage() {
   async function finish() {
     setSaving(true)
     try {
-      await fetch('/api/org', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: businessName || organization?.name,
-          industry,
-          onboardingDone: true,
-        }),
+      await apiClient.patch('/org', {
+        name: businessName || organization?.name,
+        industry,
+        onboardingDone: true,
       })
+      await refreshUser()
     } catch {}
     router.push('/dashboard')
   }

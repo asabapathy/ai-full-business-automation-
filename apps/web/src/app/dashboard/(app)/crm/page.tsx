@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Mail, Phone, MoreHorizontal } from 'lucide-react'
+import { Search, Plus, Users, Mail, Phone, MoreHorizontal, X } from 'lucide-react'
 import { Badge } from '../../../../components/ui/badge'
 import { Skeleton } from '../../../../components/ui/skeleton'
 import { api } from '../../../../lib/api-client'
@@ -33,12 +33,18 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
 export default function CRMPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
 
   useEffect(() => {
     const fetchContacts = async () => {
@@ -67,6 +73,31 @@ export default function CRMPage() {
     return () => clearTimeout(timer)
   }, [search, statusFilter])
 
+  async function createContact() {
+    if (!form.firstName.trim()) return
+    setCreating(true)
+    try {
+      const res = await api.post<{ data: { contact: Contact } }>('/crm/contacts', {
+        firstName: form.firstName,
+        lastName: form.lastName || undefined,
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        type: form.type,
+      }) as any
+      const contact = res?.data?.contact ?? res?.contact
+      if (contact) {
+        setContacts(prev => [contact, ...prev])
+        setTotal(t => t + 1)
+      }
+      setShowCreate(false)
+      setForm({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
+    } catch {
+      alert('Failed to create contact. Please try again.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
@@ -76,6 +107,7 @@ export default function CRMPage() {
           <p className="text-muted-foreground text-sm mt-0.5">{total.toLocaleString()} contacts total</p>
         </div>
         <button
+          onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
           style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
         >
@@ -209,6 +241,67 @@ export default function CRMPage() {
           </div>
         )}
       </div>
+
+      {/* Create contact modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">New Contact</h2>
+              <button onClick={() => setShowCreate(false)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">First Name *</label>
+                  <input type="text" className={inputCls} style={inputStyle} placeholder="Jane"
+                    value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Last Name</label>
+                  <input type="text" className={inputCls} style={inputStyle} placeholder="Smith"
+                    value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Email</label>
+                <input type="email" className={inputCls} style={inputStyle} placeholder="jane@example.com"
+                  value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Phone</label>
+                <input type="tel" className={inputCls} style={inputStyle} placeholder="555-0100"
+                  value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Type</label>
+                <select className={inputCls} style={inputStyle}
+                  value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                  {['LEAD', 'PROSPECT', 'CUSTOMER', 'PARTNER', 'VENDOR'].map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowCreate(false)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={createContact} disabled={creating || !form.firstName.trim()}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
+                {creating ? 'Adding…' : 'Add Contact'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
