@@ -6,6 +6,7 @@ import { Badge } from '../../../../../components/ui/badge'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
+import { toast } from '../../../../../lib/toast'
 
 interface Invoice {
   id: string
@@ -105,11 +106,14 @@ export default function InvoicesPage() {
         notes: form.notes || undefined,
       }) as any
       const inv = res?.data?.invoice ?? res?.invoice
-      if (inv) setInvoices(prev => [inv, ...prev])
+      if (inv) {
+        setInvoices(prev => [inv, ...prev])
+        toast('Invoice created', 'success')
+      }
       setShowCreate(false)
       setForm({ title: '', clientName: '', description: '', quantity: '1', unitPrice: '', dueDate: '', notes: '' })
     } catch {
-      alert('Failed to create invoice. Please try again.')
+      toast('Failed to create invoice. Please try again.', 'error')
     } finally {
       setCreating(false)
     }

@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, DollarSign, Users, Globe, Trash2, Building2, ChevronRi
 import { apiClient } from '../../../../../lib/api-client'
 import { useAuthStore } from '../../../../../stores/auth.store'
 import { PLAN_META } from '../../../../../lib/features'
+import { toast } from '../../../../../lib/toast'
 
 interface SubAccount {
   id: string
@@ -68,10 +69,11 @@ export default function SubAccountsPage() {
     try {
       const res = await apiClient.post<SubAccount>('/white-label/accounts', form) as any
       setAccounts(prev => [res.account ?? res, ...prev])
+      toast('Sub-account created', 'success')
       setShowCreate(false)
       setForm({ name: '', plan: 'STARTER', industry: '' })
     } catch {
-      alert('Failed to create sub-account. Please try again.')
+      toast('Failed to create sub-account. Please try again.', 'error')
     } finally {
       setCreating(false)
     }
@@ -86,20 +88,20 @@ export default function SubAccountsPage() {
       impersonate(data.tokens, data.organization)
       router.push('/dashboard')
     } catch {
-      alert('Could not log in as this account. Make sure it has at least one admin user.')
+      toast('Could not log in as this account. Make sure it has at least one admin user.', 'error')
     } finally {
       setImpersonating(null)
     }
   }
 
   async function deleteAccount(id: string) {
-    if (!confirm('Remove this sub-account? Their data will be retained but they will lose access.')) return
     setDeleting(id)
     try {
       await apiClient.delete(`/white-label/accounts/${id}`)
       setAccounts(prev => prev.filter(a => a.id !== id))
+      toast('Sub-account removed', 'success')
     } catch {
-      alert('Failed to remove account.')
+      toast('Failed to remove account.', 'error')
     } finally {
       setDeleting(null)
     }

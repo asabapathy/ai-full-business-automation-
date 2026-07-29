@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { TrendingUp, Plus, DollarSign, Target, CheckCircle, LayoutList, LayoutGrid, ChevronRight, Zap, X } from 'lucide-react'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
+import { toast } from '../../../../../lib/toast'
 
 interface Deal {
   id: string
@@ -99,10 +100,11 @@ export default function SalesPage() {
         stage: form.stage, updatedAt: new Date().toISOString(),
       }
       setDeals(prev => [deal, ...prev])
+      toast('Deal created', 'success')
       setShowCreate(false)
       setForm({ title: '', value: '', stage: 'NEW', contactName: '' })
     } catch {
-      alert('Failed to create deal.')
+      toast('Failed to create deal.', 'error')
     } finally {
       setCreating(false)
     }

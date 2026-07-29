@@ -6,6 +6,7 @@ import { Badge } from '../../../../components/ui/badge'
 import { Skeleton } from '../../../../components/ui/skeleton'
 import { api } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
+import { toast } from '../../../../lib/toast'
 
 interface Contact {
   id: string
@@ -88,11 +89,12 @@ export default function CRMPage() {
       if (contact) {
         setContacts(prev => [contact, ...prev])
         setTotal(t => t + 1)
+        toast('Contact added', 'success')
       }
       setShowCreate(false)
       setForm({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
     } catch {
-      alert('Failed to create contact. Please try again.')
+      toast('Failed to create contact. Please try again.', 'error')
     } finally {
       setCreating(false)
     }

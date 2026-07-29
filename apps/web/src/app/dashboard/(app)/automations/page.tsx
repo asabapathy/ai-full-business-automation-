@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Play, Pause, Zap, GripVertical, Trash2, ChevronDown, ChevronUp, Settings, X } from 'lucide-react'
+import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 
 interface WorkflowStep {
   id: string
@@ -332,9 +334,9 @@ export default function AutomationsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/automations').then(r => r.json()).catch(() => null),
-      fetch('/api/automations/stats').then(r => r.json()).catch(() => null),
-    ]).then(([wf, st]) => {
+      (apiClient as any).get('/automations').catch(() => null),
+      (apiClient as any).get('/automations/stats').catch(() => null),
+    ]).then(([wf, st]: any[]) => {
       if (wf?.workflows?.length) setWorkflows(wf.workflows)
       if (st?.total !== undefined) setStats(st)
     })
@@ -342,11 +344,7 @@ export default function AutomationsPage() {
 
   async function toggleWorkflow(id: string, isActive: boolean) {
     try {
-      await fetch(`/api/automations/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !isActive }),
-      })
+      await (apiClient as any).patch(`/automations/${id}`, { isActive: !isActive })
     } catch {}
     setWorkflows(prev => prev.map(w => w.id === id ? { ...w, isActive: !isActive } : w))
   }
@@ -354,9 +352,12 @@ export default function AutomationsPage() {
   async function executeWorkflow(id: string) {
     setExecutingId(id)
     try {
-      await fetch(`/api/automations/${id}/execute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      await (apiClient as any).post(`/automations/${id}/execute`, {})
       setWorkflows(prev => prev.map(w => w.id === id ? { ...w, runCount: w.runCount + 1, lastRunAt: new Date().toISOString() } : w))
-    } catch {}
+      toast('Workflow executed', 'success')
+    } catch {
+      toast('Failed to execute workflow', 'error')
+    }
     setExecutingId(null)
   }
 
@@ -364,16 +365,12 @@ export default function AutomationsPage() {
     if (!goal.trim()) return
     setGenerating(true)
     try {
-      const res = await fetch('/api/automations/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal }),
-      })
-      const data = await res.json()
+      const data = await (apiClient as any).post('/automations/generate', { goal }) as any
       if (data.workflow) {
         setWorkflows(prev => [data.workflow, ...prev])
         setShowGenerator(false)
         setGoal('')
+        return
       }
     } catch {
       const mock: Workflow = {
@@ -398,12 +395,11 @@ export default function AutomationsPage() {
 
   const handleSaveWorkflow = async (updated: Workflow) => {
     try {
-      await fetch(`/api/automations/${updated.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: updated.name, steps: updated.steps }),
-      })
-    } catch {}
+      await (apiClient as any).patch(`/automations/${updated.id}`, { name: updated.name, steps: updated.steps })
+      toast('Workflow saved', 'success')
+    } catch {
+      toast('Could not save to server — changes applied locally', 'info')
+    }
     setWorkflows(prev => prev.map(w => w.id === updated.id ? updated : w))
     setEditingWorkflow(null)
   }
