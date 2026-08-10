@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { FileText, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { FileText, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign, MapPin } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -30,7 +30,18 @@ function anim(i: number) {
 }
 
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }
 const fmt = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 0 })}`
+
+const LOCATIONS = [
+  { id: 'all', name: 'All Locations', color: '#06b6d4' },
+  { id: 'downtown', name: 'Downtown', color: '#34d399' },
+  { id: 'northside', name: 'Northside', color: '#a78bfa' },
+  { id: 'westend', name: 'West End', color: '#fbbf24' },
+]
+
+// Deterministic share of totals per location
+const LOCATION_SHARE: Record<string, number> = { all: 1, downtown: 0.45, northside: 0.32, westend: 0.23 }
 
 const DEMO_DATA: Record<Period, ReportData> = {
   '7d': {
@@ -145,6 +156,7 @@ function downloadCSV(report: ReportData, period: Period) {
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState<Period>('30d')
+  const [location, setLocation] = useState('all')
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [emailing, setEmailing] = useState(false)
@@ -156,6 +168,26 @@ export default function ReportsPage() {
       .catch(() => setReport(DEMO_DATA[period]))
       .finally(() => setLoading(false))
   }, [period])
+
+  // Scale the report to the selected location's deterministic share
+  const displayReport = useMemo<ReportData | null>(() => {
+    if (!report || location === 'all') return report
+    const f = LOCATION_SHARE[location] ?? 1
+    const sc = (n: number) => Math.round(n * f)
+    return {
+      ...report,
+      revenue: sc(report.revenue),
+      newContacts: sc(report.newContacts),
+      appointments: sc(report.appointments),
+      dealsWon: sc(report.dealsWon),
+      totalReviews: sc(report.totalReviews),
+      topContacts: report.topContacts.map(c => ({ ...c, revenue: sc(c.revenue) })),
+      pipeline: report.pipeline.map(p => ({ ...p, count: Math.max(1, sc(p.count)), value: sc(p.value) })),
+      revenueBreakdown: report.revenueBreakdown.map(r => ({ ...r, amount: sc(r.amount) })),
+    }
+  }, [report, location])
+
+  const selectedLocation = LOCATIONS.find(l => l.id === location) ?? LOCATIONS[0]
 
   const handleEmail = async () => {
     setEmailing(true)
@@ -170,18 +202,18 @@ export default function ReportsPage() {
   }
 
   const handleDownloadCSV = () => {
-    if (!report) return
-    downloadCSV(report, period)
+    if (!displayReport) return
+    downloadCSV(displayReport, period)
     toast('CSV downloaded', 'success')
   }
 
-  const stats = report ? [
-    { label: 'Revenue', value: fmt(report.revenue), icon: DollarSign, color: '#34d399' },
-    { label: 'New Contacts', value: report.newContacts, icon: Users, color: '#06b6d4' },
-    { label: 'Appointments', value: report.appointments, icon: Calendar, color: '#a855f7' },
-    { label: 'Deals Won', value: report.dealsWon, icon: TrendingUp, color: '#f59e0b' },
-    { label: 'Avg Rating', value: `${report.avgReviewRating}★`, icon: Star, color: '#fbbf24' },
-    { label: 'Reviews', value: report.totalReviews, icon: Star, color: '#f97316' },
+  const stats = displayReport ? [
+    { label: 'Revenue', value: fmt(displayReport.revenue), icon: DollarSign, color: '#34d399' },
+    { label: 'New Contacts', value: displayReport.newContacts, icon: Users, color: '#06b6d4' },
+    { label: 'Appointments', value: displayReport.appointments, icon: Calendar, color: '#a855f7' },
+    { label: 'Deals Won', value: displayReport.dealsWon, icon: TrendingUp, color: '#f59e0b' },
+    { label: 'Avg Rating', value: `${displayReport.avgReviewRating}★`, icon: Star, color: '#fbbf24' },
+    { label: 'Reviews', value: displayReport.totalReviews, icon: Star, color: '#f97316' },
   ] : []
 
   return (
@@ -191,8 +223,27 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Business Reports</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{PERIOD_LABELS[period]} performance overview</p>
+          {location !== 'all' && (
+            <p className="text-xs mt-1 flex items-center gap-1" style={{ color: selectedLocation.color }}>
+              <MapPin className="h-3 w-3" />
+              Filtered to {selectedLocation.name}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Location filter */}
+          <select
+            value={location}
+            onChange={e => setLocation(e.target.value)}
+            className="px-3 py-2 rounded-lg text-xs font-medium outline-none"
+            style={inputStyle}
+            aria-label="Filter by location"
+          >
+            {LOCATIONS.map(l => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+
           {/* Period picker */}
           <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
             {(['7d', '30d', '90d'] as Period[]).map(p => (
@@ -248,7 +299,7 @@ export default function ReportsPage() {
         }
       </div>
 
-      {!loading && report && (
+      {!loading && displayReport && (
         <>
           {/* Revenue breakdown */}
           <div
@@ -261,7 +312,7 @@ export default function ReportsPage() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="p-5 space-y-4">
-              {report.revenueBreakdown.map((item, i) => (
+              {displayReport.revenueBreakdown.map((item, i) => (
                 <div key={i}>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-sm text-foreground">{item.label}</p>
@@ -292,11 +343,11 @@ export default function ReportsPage() {
                 <h2 className="text-sm font-semibold text-foreground">Top Customers by Revenue</h2>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </div>
-              {report.topContacts.length === 0 ? (
+              {displayReport.topContacts.length === 0 ? (
                 <p className="px-5 py-8 text-sm text-muted-foreground text-center">No paid invoices this period.</p>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-                  {report.topContacts.map((c, i) => (
+                  {displayReport.topContacts.map((c, i) => (
                     <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-white/[0.02] transition-colors">
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-semibold text-muted-foreground tabular w-4">{i + 1}</span>

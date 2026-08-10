@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Wrench, AlertTriangle, TrendingUp, Package, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Wrench, AlertTriangle, TrendingUp, Package, Plus, Camera, Upload, Trash2, X } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 
 interface InventoryItem {
   id: string
@@ -23,11 +24,56 @@ interface ProfitSummary {
   itemCount: number
 }
 
-type Tab = 'inventory' | 'alerts' | 'summary'
+interface JobPhoto {
+  id: string
+  label: 'before' | 'after'
+  dataUrl: string
+  jobName: string
+  createdAt: string
+}
+
+type Tab = 'inventory' | 'alerts' | 'summary' | 'trends' | 'photos'
 
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground bg-background focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { border: '1px solid hsl(var(--border))' }
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+
+const MONTHLY_PROFIT = [
+  { month: 'Mar', revenue: 18400, labor: 6200, materials: 4100 },
+  { month: 'Apr', revenue: 21200, labor: 7100, materials: 4800 },
+  { month: 'May', revenue: 19800, labor: 6800, materials: 4300 },
+  { month: 'Jun', revenue: 24500, labor: 7900, materials: 5600 },
+  { month: 'Jul', revenue: 26100, labor: 8200, materials: 5900 },
+  { month: 'Aug', revenue: 23400, labor: 7600, materials: 5200 },
+]
+
+const SEED_GRADIENTS = [
+  'linear-gradient(135deg, #06b6d4, #a78bfa)',
+  'linear-gradient(135deg, #a78bfa, #06b6d4)',
+  'linear-gradient(135deg, #34d399, #06b6d4)',
+  'linear-gradient(135deg, #fbbf24, #a78bfa)',
+]
+
+const SEED_PHOTOS: JobPhoto[] = [
+  { id: 'seed-1', label: 'before', dataUrl: '', jobName: 'Kitchen Remodel', createdAt: '2026-07-14T09:00:00Z' },
+  { id: 'seed-2', label: 'after', dataUrl: '', jobName: 'Kitchen Remodel', createdAt: '2026-07-28T16:30:00Z' },
+  { id: 'seed-3', label: 'before', dataUrl: '', jobName: 'Deck Restoration', createdAt: '2026-08-02T08:15:00Z' },
+  { id: 'seed-4', label: 'after', dataUrl: '', jobName: 'Deck Restoration', createdAt: '2026-08-08T17:45:00Z' },
+]
+
+function gradientFor(id: string): string {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return SEED_GRADIENTS[h % SEED_GRADIENTS.length] as string
+}
+
+function marginColor(m: number): string {
+  if (m >= 40) return '#34d399'
+  if (m >= 25) return '#fbbf24'
+  return '#f87171'
+}
+
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
 export default function JobCostingPage() {
   const [tab, setTab] = useState<Tab>('inventory')
@@ -38,7 +84,62 @@ export default function JobCostingPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', sku: '', category: '', quantity: 0, unitCost: 0, unitPrice: 0, reorderPoint: 5 })
 
-  useEffect(() => { fetchAll() }, [])
+  // Job Photos state
+  const [photos, setPhotos] = useState<JobPhoto[]>(SEED_PHOTOS)
+  const [photoFilter, setPhotoFilter] = useState<'all' | 'before' | 'after'>('all')
+  const [lightbox, setLightbox] = useState<JobPhoto | null>(null)
+  const [pendingLabel, setPendingLabel] = useState<'before' | 'after'>('before')
+  const [pendingJobName, setPendingJobName] = useState('Unassigned')
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { fetchAll(); loadPhotos() }, [])
+
+  async function loadPhotos() {
+    try {
+      const data = await apiClient.get<{ photos?: JobPhoto[] } | JobPhoto[]>('/jobs/photos')
+      const remote = Array.isArray(data) ? data : data?.photos ?? []
+      if (remote.length > 0) setPhotos(remote)
+    } catch {
+      // demo mode — keep seeded local photos
+    }
+  }
+
+  function handleFiles(files: FileList | File[]) {
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith('image/')) {
+        toast(`${file.name} is not an image`, 'error')
+        return
+      }
+      if (file.size > MAX_PHOTO_BYTES) {
+        toast(`${file.name} is over the 2MB limit`, 'error')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+        if (!dataUrl) return
+        const photo: JobPhoto = {
+          id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          label: pendingLabel,
+          dataUrl,
+          jobName: pendingJobName.trim() || 'Unassigned',
+          createdAt: new Date().toISOString(),
+        }
+        setPhotos(prev => [photo, ...prev])
+        toast('Photo added', 'success')
+        apiClient.post('/jobs/photos', photo).catch(() => { /* demo mode — local state is source of truth */ })
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function deletePhoto(id: string) {
+    setPhotos(prev => prev.filter(p => p.id !== id))
+    setLightbox(null)
+    toast('Photo removed', 'success')
+    apiClient.delete(`/jobs/photos/${id}`).catch(() => { /* demo mode */ })
+  }
 
   async function fetchAll() {
     try {
@@ -117,7 +218,7 @@ export default function JobCostingPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-        {([['inventory', 'Inventory'], ['alerts', 'Low Stock'], ['summary', 'Summary']] as [Tab, string][]).map(([t, label]) => (
+        {([['inventory', 'Inventory'], ['alerts', 'Low Stock'], ['summary', 'Summary'], ['trends', 'Profit Trends'], ['photos', 'Photos']] as [Tab, string][]).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
