@@ -709,6 +709,166 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* CSV Import modal */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-2xl rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Import Contacts</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {importStep === 'upload' && 'Upload a CSV file with contact data'}
+                  {importStep === 'map' && `${csvRows.length} rows found — map CSV columns to contact fields`}
+                  {importStep === 'preview' && 'Preview first 5 rows before importing'}
+                  {importStep === 'importing' && 'Importing contacts…'}
+                  {importStep === 'done' && 'Import complete'}
+                </p>
+              </div>
+              <button onClick={() => setImportOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Step: upload */}
+            {importStep === 'upload' && (
+              <div className="p-6">
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+                  className="rounded-xl flex flex-col items-center justify-center py-12 text-center cursor-pointer transition-all"
+                  style={{
+                    border: `2px dashed ${dragOver ? '#06b6d4' : 'hsl(var(--border))'}`,
+                    background: dragOver ? 'rgba(6,182,212,0.05)' : 'hsl(var(--background))',
+                  }}
+                  onClick={() => { const el = document.createElement('input'); el.type='file'; el.accept='.csv'; el.onchange=(e:any)=>{ const f=e.target.files?.[0]; if(f) handleFile(f) }; el.click() }}>
+                  <Upload className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="text-sm font-medium text-foreground">Drop a CSV file here, or click to browse</p>
+                  <p className="text-xs text-muted-foreground mt-1">Supports up to 500 rows</p>
+                </div>
+                <div className="mt-4 rounded-lg p-3 text-xs text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
+                  <strong className="text-foreground">Expected columns:</strong> Name, Email, Phone, Company, Status, Value, Notes (order doesn't matter — you'll map them next)
+                </div>
+              </div>
+            )}
+
+            {/* Step: map */}
+            {importStep === 'map' && (
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-3">
+                  {csvHeaders.map(header => (
+                    <div key={header} className="rounded-lg p-3" style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">CSV column: <span className="text-foreground">{header}</span></p>
+                      <select
+                        value={columnMap[header] ?? ''}
+                        onChange={e => setColumnMap(m => ({ ...m, [header]: e.target.value }))}
+                        className={inputCls} style={inputStyle}>
+                        <option value="">— Skip —</option>
+                        {TARGET_FIELDS.map(f => (
+                          <option key={f} value={f}>{FIELD_LABELS[f]}</option>
+                        ))}
+                      </select>
+                      {csvRows[0]?.[csvHeaders.indexOf(header)] && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          e.g. "{csvRows[0][csvHeaders.indexOf(header)]}"
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <button onClick={() => setImportStep('upload')}
+                    className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                    Back
+                  </button>
+                  <button onClick={() => setImportStep('preview')}
+                    disabled={!Object.values(columnMap).includes('name') && !Object.values(columnMap).includes('email')}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                    Preview Import →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step: preview */}
+            {importStep === 'preview' && (
+              <div className="p-6 space-y-4">
+                <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid hsl(var(--border))' }}>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: 'hsl(var(--muted))' }}>
+                        {TARGET_FIELDS.filter(f => Object.values(columnMap).includes(f)).map(f => (
+                          <th key={f} className="text-left px-3 py-2 text-muted-foreground font-medium">{FIELD_LABELS[f]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvRows.slice(0, 5).map((row, ri) => (
+                        <tr key={ri} style={{ borderTop: '1px solid hsl(var(--border))' }}>
+                          {TARGET_FIELDS.filter(f => Object.values(columnMap).includes(f)).map(field => {
+                            const header = Object.entries(columnMap).find(([, v]) => v === field)?.[0]
+                            const idx = header ? csvHeaders.indexOf(header) : -1
+                            return (
+                              <td key={field} className="px-3 py-2 text-foreground">{idx >= 0 ? row[idx] : '—'}</td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground">Showing 5 of {csvRows.length} rows to be imported.</p>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setImportStep('map')}
+                    className="px-4 py-2 rounded-lg text-sm text-muted-foreground"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                    Back
+                  </button>
+                  <button onClick={doImport}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                    style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                    Import {csvRows.length} Contacts
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step: importing */}
+            {importStep === 'importing' && (
+              <div className="p-12 flex flex-col items-center gap-4">
+                <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                <p className="text-sm text-muted-foreground">Importing {csvRows.length} contacts…</p>
+              </div>
+            )}
+
+            {/* Step: done */}
+            {importStep === 'done' && importResult && (
+              <div className="p-8 flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(52,211,153,0.15)' }}>
+                  <Check className="h-7 w-7" style={{ color: '#34d399' }} />
+                </div>
+                <p className="text-lg font-semibold text-foreground">Import complete!</p>
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-semibold" style={{ color: '#34d399' }}>{importResult.success}</span> contacts imported
+                  {importResult.errors > 0 && <>, <span className="font-semibold" style={{ color: '#f87171' }}>{importResult.errors}</span> skipped</>}
+                </p>
+                <button onClick={() => setImportOpen(false)}
+                  className="mt-2 px-6 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Create contact modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
