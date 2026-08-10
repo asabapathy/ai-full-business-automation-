@@ -838,6 +838,100 @@ export default function EstimatesPage() {
         )
       })()}
 
+      {/* Follow-up Settings Modal */}
+      {followUpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" style={cardStyle}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <BellRing className="h-5 w-5" style={{ color: '#fbbf24' }} />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Quote Follow-ups</h2>
+                  <p className="text-xs text-muted-foreground">Clients with unanswered quotes get an automatic reminder.</p>
+                </div>
+              </div>
+              <button onClick={() => setFollowUpOpen(false)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+
+            {/* Enable toggle */}
+            <button onClick={() => setFollowUp(f => ({ ...f, enabled: !f.enabled }))}
+              className="w-full flex items-center justify-between rounded-lg px-3 py-2.5"
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+              <span className="text-sm text-foreground">Automatic follow-ups</span>
+              <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                style={{ background: followUp.enabled ? '#34d399' : 'rgba(255,255,255,0.15)' }}>
+                <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                  style={{ background: 'white', transform: followUp.enabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+              </span>
+            </button>
+
+            {/* Nudge after */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Nudge after</label>
+              <div className="flex gap-2">
+                {[2, 3, 5, 7].map(d => (
+                  <button key={d}
+                    onClick={() => setFollowUp(f => ({ ...f, afterDays: d }))}
+                    className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                    style={followUp.afterDays === d
+                      ? { color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.35)' }
+                      : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                    {d} days
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Max nudges */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Max nudges</label>
+              <div className="flex gap-2">
+                {[1, 2, 3].map(n => (
+                  <button key={n}
+                    onClick={() => setFollowUp(f => ({ ...f, maxNudges: n }))}
+                    className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                    style={followUp.maxNudges === n
+                      ? { color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.35)' }
+                      : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Channel */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Channel</label>
+              <div className="flex gap-2">
+                {(['email', 'sms'] as const).map(c => (
+                  <button key={c}
+                    onClick={() => setFollowUp(f => ({ ...f, channel: c }))}
+                    className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                    style={followUp.channel === c
+                      ? { color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.35)' }
+                      : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                    {c === 'email' ? 'Email' : 'SMS'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setFollowUpOpen(false)}
+                className="flex-1 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={saveFollowUp} disabled={savingFollowUp}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                {savingFollowUp ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal */}
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
