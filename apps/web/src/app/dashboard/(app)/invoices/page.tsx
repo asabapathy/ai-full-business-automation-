@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter, Eye, Printer } from 'lucide-react'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter, Eye, Printer, Repeat } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
@@ -32,6 +32,8 @@ interface Invoice {
   lineItems?: InvoiceLineItem[]
   clientEmail?: string
   description?: string
+  isRecurring?: boolean
+  recurringFrequency?: string
 }
 
 interface FinancialSummary {
@@ -80,6 +82,9 @@ export default function InvoicesPage() {
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null)
   const [filters, setFilters] = useState({ status: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' })
   const [showFilters, setShowFilters] = useState(false)
+  const [recurOpen, setRecurOpen] = useState<Invoice | null>(null)
+  const [recurForm, setRecurForm] = useState({ frequency: 'monthly' as 'weekly' | 'monthly' | 'quarterly' | 'yearly', startDate: '', autoSend: true, endAfter: '' })
+  const [recurSaving, setRecurSaving] = useState(false)
   const [form, setForm] = useState({
     title: '',
     clientName: '',
@@ -152,6 +157,26 @@ export default function InvoicesPage() {
     } finally {
       setRemindingId(null)
     }
+  }
+
+  async function saveRecurring() {
+    if (!recurOpen) return
+    setRecurSaving(true)
+    try {
+      await apiClient.post(`/finance/invoices/${recurOpen.id}/recurring`, {
+        frequency: recurForm.frequency,
+        startDate: recurForm.startDate,
+        autoSend: recurForm.autoSend,
+        endAfter: recurForm.endAfter ? Number(recurForm.endAfter) : undefined,
+      })
+    } catch {
+      // demo mode — apply locally
+    }
+    const recurId = recurOpen.id
+    setInvoices(prev => prev.map(inv => inv.id === recurId ? { ...inv, isRecurring: true, recurringFrequency: recurForm.frequency } : inv))
+    setRecurOpen(null)
+    setRecurSaving(false)
+    toast(`Invoice set to repeat ${recurForm.frequency}`, 'success')
   }
 
   function toggleSelect(id: string) {
@@ -573,6 +598,13 @@ export default function InvoicesPage() {
 
                   <span className="text-sm font-semibold text-foreground tabular">${invoice.total.toLocaleString()}</span>
 
+                  {invoice.isRecurring && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
+                      <Repeat className="h-3 w-3" /> {invoice.recurringFrequency ?? 'monthly'}
+                    </span>
+                  )}
+
                   {(() => {
                     const m = STATUS_META[displayStatus] ?? { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' }
                     return <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ color: m.text, background: m.bg }}>{displayStatus}</span>
@@ -585,6 +617,15 @@ export default function InvoicesPage() {
                     style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
                   >
                     <Eye className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={(e) => { e.stopPropagation?.(); setRecurOpen(invoice); setRecurForm({ frequency: 'monthly', startDate: new Date().toISOString().slice(0, 10), autoSend: true, endAfter: '' }) }}
+                    title="Make recurring"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                  >
+                    <Repeat className="h-4 w-4" />
                   </button>
 
                   {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
@@ -795,6 +836,73 @@ export default function InvoicesPage() {
                 style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
                 {creating ? 'Creating…' : 'Create Invoice'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring invoice modal */}
+      {recurOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-md rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Repeat className="h-4 w-4" style={{ color: '#a78bfa' }} />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Make Recurring</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{recurOpen.invoiceNumber} · ${Number(recurOpen.total ?? 0).toLocaleString()}</p>
+                </div>
+              </div>
+              <button onClick={() => setRecurOpen(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Frequency</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['weekly', 'monthly', 'quarterly', 'yearly'] as const).map(f => (
+                    <button key={f} onClick={() => setRecurForm(r => ({ ...r, frequency: f }))}
+                      className="py-2 rounded-lg text-xs font-medium capitalize transition-all"
+                      style={recurForm.frequency === f
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">First send date</label>
+                <input type="date" value={recurForm.startDate} onChange={e => setRecurForm(r => ({ ...r, startDate: e.target.value }))}
+                  className={inputCls} style={inputStyle} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">End after (occurrences, optional)</label>
+                <input type="number" min="1" value={recurForm.endAfter} onChange={e => setRecurForm(r => ({ ...r, endAfter: e.target.value }))}
+                  placeholder="Never" className={inputCls} style={inputStyle} />
+              </div>
+              <button onClick={() => setRecurForm(r => ({ ...r, autoSend: !r.autoSend }))}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-2.5"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <span className="text-sm text-foreground">Auto-send when generated</span>
+                <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                  style={{ background: recurForm.autoSend ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: recurForm.autoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+              <div className="rounded-lg p-3 text-xs text-muted-foreground" style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)' }}>
+                A copy of this invoice will be generated {recurForm.frequency}{recurForm.autoSend ? ' and sent automatically' : ' as a draft'}.
+              </div>
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setRecurOpen(null)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                <button onClick={saveRecurring} disabled={recurSaving || !recurForm.startDate}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  <Repeat className="h-4 w-4" /> {recurSaving ? 'Saving…' : 'Set Recurring'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
