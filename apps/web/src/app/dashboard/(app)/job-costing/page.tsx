@@ -191,6 +191,57 @@ export default function JobCostingPage() {
     return () => clearInterval(interval)
   }, [activeTimer])
 
+  async function loadPurchaseOrders() {
+    try {
+      const data = await apiClient.get<{ orders?: PurchaseOrder[] } | PurchaseOrder[]>('/jobs/purchase-orders')
+      const remote = Array.isArray(data) ? data : data?.orders ?? []
+      if (remote.length > 0) setPurchaseOrders(remote)
+    } catch {
+      // demo mode — keep seeded local purchase orders
+    }
+  }
+
+  function openReorder(item: InventoryItem) {
+    setReorderForm({
+      qty: item.reorderPoint ? item.reorderPoint * 2 : 10,
+      vendor: '',
+      unitCost: item.unitCost || 0,
+    })
+    setReorderTarget(item)
+  }
+
+  function placeOrder(e: React.FormEvent) {
+    e.preventDefault()
+    if (!reorderTarget) return
+    const po: PurchaseOrder = {
+      id: `po-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      itemName: reorderTarget.name,
+      qty: reorderForm.qty,
+      vendor: reorderForm.vendor.trim() || 'Unspecified vendor',
+      unitCost: reorderForm.unitCost,
+      status: 'ordered',
+      orderedAt: new Date().toISOString(),
+    }
+    setPurchaseOrders(prev => [po, ...prev])
+    apiClient.post('/jobs/purchase-orders', po).catch(() => { /* demo mode — local state is source of truth */ })
+    toast(`Order placed for ${reorderTarget.name}`, 'success')
+    setReorderTarget(null)
+  }
+
+  function markReceived(po: PurchaseOrder) {
+    setPurchaseOrders(prev => prev.map(p => p.id === po.id ? { ...p, status: 'received' as const } : p))
+    setInventory(prev => prev.map(item => item.name === po.itemName ? { ...item, quantity: item.quantity + po.qty } : item))
+    setAlerts(prev => prev
+      .map(item => item.name === po.itemName ? { ...item, quantity: item.quantity + po.qty } : item)
+      .filter(item => item.reorderPoint === undefined || item.quantity <= item.reorderPoint))
+    apiClient.patch(`/jobs/purchase-orders/${po.id}`, { status: 'received' }).catch(() => { /* demo mode */ })
+    toast(`${po.itemName} marked received (+${po.qty})`, 'success')
+  }
+
+  function onOrderQty(itemName: string): number {
+    return purchaseOrders.filter(p => p.status === 'ordered' && p.itemName === itemName).reduce((s, p) => s + p.qty, 0)
+  }
+
   async function loadTimeEntries() {
     try {
       const data = await apiClient.get<{ entries?: TimeEntry[] } | TimeEntry[]>('/jobs/time-entries')
@@ -437,6 +488,7 @@ export default function JobCostingPage() {
       {(tab === 'inventory' || tab === 'alerts' || tab === 'summary') && (loading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : (
+        <div className="space-y-4">
         <div className="rounded-xl overflow-hidden" style={cardStyle}>
           <table className="w-full text-sm">
             <thead style={{ borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted))' }}>
@@ -448,21 +500,31 @@ export default function JobCostingPage() {
                 <th className="text-right px-4 py-3 font-medium text-foreground">Unit Cost</th>
                 <th className="text-right px-4 py-3 font-medium text-foreground">Unit Price</th>
                 <th className="text-right px-4 py-3 font-medium text-foreground">Margin</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
               {(tab === 'alerts' ? alerts : inventory).map(item => {
                 const margin = item.unitCost > 0 ? ((item.unitPrice - item.unitCost) / item.unitPrice) * 100 : 0
                 const isLow = item.reorderPoint !== undefined && item.quantity <= item.reorderPoint
+                const onOrder = onOrderQty(item.name)
                 return (
                   <tr
                     key={item.id}
-                    className="hover:bg-muted/30 transition-colors"
+                    className="group hover:bg-muted/30 transition-colors"
                     style={isLow ? { background: 'rgba(251,191,36,0.07)' } : undefined}
                   >
                     <td className="px-4 py-3 font-medium text-foreground">
                       {item.name}
                       {isLow && <AlertTriangle className="inline h-3 w-3 ml-1" style={{ color: '#fbbf24' }} />}
+                      {onOrder > 0 && (
+                        <span
+                          className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                          style={{ background: 'rgba(6,182,212,0.12)', color: '#06b6d4' }}
+                        >
+                          On order &middot; {onOrder}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.sku ?? '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{item.category ?? '—'}</td>
@@ -472,16 +534,73 @@ export default function JobCostingPage() {
                     <td className="px-4 py-3 text-right font-medium" style={{ color: margin > 30 ? '#34d399' : '#f87171' }}>
                       {margin.toFixed(1)}%
                     </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {isLow && (
+                        <button
+                          type="button"
+                          onClick={() => openReorder(item)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24' }}
+                        >
+                          <ShoppingCart className="h-3.5 w-3.5" />
+                          Reorder
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 )
               })}
               {(tab === 'alerts' ? alerts : inventory).length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                   {tab === 'alerts' ? 'No low-stock alerts.' : 'No inventory items yet.'}
                 </td></tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Purchase orders */}
+        {(tab === 'inventory' || tab === 'alerts') && purchaseOrders.length > 0 && (
+          <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" style={{ color: '#06b6d4' }} />
+              <h2 className="font-semibold text-foreground">Purchase Orders</h2>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+              {purchaseOrders.map(po => (
+                <div key={po.id} className="group flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <span className="truncate">{po.itemName}</span>
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0"
+                        style={po.status === 'ordered'
+                          ? { background: 'rgba(6,182,212,0.12)', color: '#06b6d4' }
+                          : { background: 'rgba(52,211,153,0.15)', color: '#34d399' }}
+                      >
+                        {po.status}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {po.qty} &times; ${po.unitCost.toFixed(2)} = ${(po.qty * po.unitCost).toFixed(2)} &middot; {po.vendor} &middot; {poTimeAgo(po.orderedAt)}
+                    </p>
+                  </div>
+                  {po.status === 'ordered' && (
+                    <button
+                      type="button"
+                      onClick={() => markReceived(po)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)', color: '#34d399' }}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Mark received
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
       ))}
 
@@ -886,6 +1005,76 @@ export default function JobCostingPage() {
           </div>
         )
       })()}
+
+      {/* Reorder modal */}
+      {reorderTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: 'rgba(0,0,0,0.8)' }}
+          onClick={() => setReorderTarget(null)}
+        >
+          <div
+            className="rounded-xl max-w-sm w-full p-6 space-y-4"
+            style={cardStyle}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShoppingCart className="h-5 w-5 flex-shrink-0" style={{ color: '#fbbf24' }} />
+                <h2 className="font-semibold text-foreground truncate">Reorder {reorderTarget.name}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReorderTarget(null)}
+                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={placeOrder} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Quantity</label>
+                <input type="number" min="1" className={inputCls} style={inputStyle} required
+                  value={reorderForm.qty}
+                  onChange={e => setReorderForm(f => ({ ...f, qty: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Vendor</label>
+                <input className={inputCls} style={inputStyle} placeholder="e.g. Home Depot"
+                  value={reorderForm.vendor}
+                  onChange={e => setReorderForm(f => ({ ...f, vendor: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Unit Cost ($)</label>
+                <input type="number" min="0" step="0.01" className={inputCls} style={inputStyle} required
+                  value={reorderForm.unitCost}
+                  onChange={e => setReorderForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <p className="text-sm font-medium" style={{ color: '#06b6d4' }}>
+                {reorderForm.qty} &times; ${reorderForm.unitCost.toFixed(2)} = ${(reorderForm.qty * reorderForm.unitCost).toFixed(2)}
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  Place Order
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReorderTarget(null)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightbox && (
