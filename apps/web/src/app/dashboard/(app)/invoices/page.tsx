@@ -36,6 +36,26 @@ interface Invoice {
   recurringFrequency?: string
 }
 
+interface CatalogItem {
+  id: string
+  name: string
+  description?: string
+  price: number
+  unit: 'flat' | 'hour' | 'unit'
+  active: boolean
+}
+
+const CATALOG_UNIT_SUFFIX: Record<CatalogItem['unit'], string> = { flat: '', hour: '/hr', unit: '/unit' }
+
+const DEMO_CATALOG: CatalogItem[] = [
+  { id: 's1', name: 'HVAC Tune-up', description: 'Full system inspection, filter change, coil cleaning and performance check.', price: 189, unit: 'flat', active: true },
+  { id: 's2', name: 'Drain Cleaning', description: 'Clear clogged drains with professional-grade auger and camera verification.', price: 149, unit: 'flat', active: true },
+  { id: 's3', name: 'Panel Upgrade', description: 'Upgrade electrical panel to 200A service, permits and inspection included.', price: 1850, unit: 'flat', active: true },
+  { id: 's4', name: 'Hourly Labor', description: 'General labor rate for diagnostics, repairs and custom work.', price: 95, unit: 'hour', active: true },
+  { id: 's5', name: 'Emergency Call-out', description: 'After-hours emergency dispatch, includes first 30 minutes on site.', price: 250, unit: 'flat', active: true },
+  { id: 's6', name: 'Deep Clean — per sq ft', description: 'Deep cleaning service billed per square foot of treated area.', price: 0.18, unit: 'unit', active: true },
+]
+
 interface FinancialSummary {
   revenue: number
   expenses: number
@@ -94,6 +114,22 @@ export default function InvoicesPage() {
     dueDate: '',
     notes: '',
   })
+  const [catalog, setCatalog] = useState<CatalogItem[]>(DEMO_CATALOG)
+  const [catalogLoaded, setCatalogLoaded] = useState(false)
+  const [showCatalogPicker, setShowCatalogPicker] = useState(false)
+  const [catalogSearch, setCatalogSearch] = useState('')
+  const [addedItems, setAddedItems] = useState<{ description: string; quantity: number; unitPrice: number }[]>([])
+
+  useEffect(() => {
+    if (!showCreate || catalogLoaded) return
+    setCatalogLoaded(true)
+    apiClient.get('/catalog/items')
+      .then((res: any) => {
+        const list = res?.items ?? res
+        if (Array.isArray(list) && list.length) setCatalog(list)
+      })
+      .catch(() => {})
+  }, [showCreate, catalogLoaded])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -120,16 +156,20 @@ export default function InvoicesPage() {
   }, [statusFilter])
 
   async function createInvoice() {
-    if (!form.title.trim() || !form.unitPrice) return
+    const lineItems = [
+      ...(form.unitPrice ? [{
+        description: form.description || form.title,
+        quantity: parseFloat(form.quantity) || 1,
+        unitPrice: parseFloat(form.unitPrice),
+      }] : []),
+      ...addedItems,
+    ]
+    if (!form.title.trim() || lineItems.length === 0) return
     setCreating(true)
     try {
       const res = await apiClient.post<{ data: { invoice: Invoice } }>('/finance/invoices', {
         title: form.title,
-        lineItems: [{
-          description: form.description || form.title,
-          quantity: parseFloat(form.quantity) || 1,
-          unitPrice: parseFloat(form.unitPrice),
-        }],
+        lineItems,
         dueDate: form.dueDate || undefined,
         notes: form.notes || undefined,
       }) as any
@@ -140,6 +180,9 @@ export default function InvoicesPage() {
       }
       setShowCreate(false)
       setForm({ title: '', clientName: '', description: '', quantity: '1', unitPrice: '', dueDate: '', notes: '' })
+      setAddedItems([])
+      setShowCatalogPicker(false)
+      setCatalogSearch('')
     } catch {
       toast('Failed to create invoice. Please try again.', 'error')
     } finally {
@@ -326,7 +369,7 @@ export default function InvoicesPage() {
             <Download className="h-4 w-4" /> Export
           </button>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => { setAddedItems([]); setShowCatalogPicker(false); setCatalogSearch(''); setShowCreate(true) }}
             className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
           >
@@ -809,17 +852,76 @@ export default function InvoicesPage() {
                 </div>
               </div>
 
+              {/* Add from catalog */}
+              <div className="space-y-2">
+                <button type="button" onClick={() => setShowCatalogPicker(p => !p)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+                  style={{ background: 'rgba(6,182,212,0.08)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.25)' }}>
+                  <Package className="h-3.5 w-3.5" />
+                  Add from catalog
+                </button>
+
+                {showCatalogPicker && (
+                  <div className="rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                    <div className="flex items-center gap-2 p-2" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                      <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)}
+                        placeholder="Search services…" className={inputCls} style={inputStyle} />
+                      <button type="button" onClick={() => setShowCatalogPicker(false)}
+                        className="shrink-0 px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                        Done
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {(() => {
+                        const choices = catalog.filter(item => item.active && item.name.toLowerCase().includes(catalogSearch.toLowerCase()))
+                        return choices.length === 0 ? (
+                          <p className="px-3 py-4 text-center text-xs text-muted-foreground">No services found</p>
+                        ) : choices.map(item => (
+                          <button key={item.id} type="button"
+                            onClick={() => setAddedItems(prev => [...prev, { description: item.name, quantity: 1, unitPrice: item.price }])}
+                            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-accent/40 transition-colors">
+                            <span className="text-sm text-foreground truncate">{item.name}</span>
+                            <span className="shrink-0 text-sm font-semibold tabular" style={{ color: '#06b6d4' }}>
+                              ${item.price.toLocaleString('en-US', { minimumFractionDigits: item.price % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}{CATALOG_UNIT_SUFFIX[item.unit]}
+                            </span>
+                          </button>
+                        ))
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {addedItems.length > 0 && (
+                  <div className="space-y-1">
+                    {addedItems.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-lg px-3 py-2"
+                        style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                        <span className="flex-1 truncate text-sm text-foreground">{item.description}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground tabular">{item.quantity} × ${item.unitPrice.toFixed(2)}</span>
+                        <button type="button" onClick={() => setAddedItems(prev => prev.filter((_, idx) => idx !== i))}
+                          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Notes</label>
                 <textarea rows={2} className={inputCls + ' resize-none'} style={inputStyle} placeholder="Additional notes for the client"
                   value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
 
-              {form.unitPrice && (
+              {(form.unitPrice || addedItems.length > 0) && (
                 <div className="rounded-xl p-3 text-right" style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.15)' }}>
                   <span className="text-xs text-muted-foreground">Total: </span>
                   <span className="font-bold text-foreground tabular">
-                    ${(parseFloat(form.unitPrice || '0') * parseFloat(form.quantity || '1')).toFixed(2)}
+                    ${(
+                      parseFloat(form.unitPrice || '0') * parseFloat(form.quantity || '1')
+                      + addedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+                    ).toFixed(2)}
                   </span>
                 </div>
               )}
@@ -831,7 +933,7 @@ export default function InvoicesPage() {
                 style={{ border: '1px solid hsl(var(--border))' }}>
                 Cancel
               </button>
-              <button onClick={createInvoice} disabled={creating || !form.title.trim() || !form.unitPrice}
+              <button onClick={createInvoice} disabled={creating || !form.title.trim() || (!form.unitPrice && addedItems.length === 0)}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
                 style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
                 {creating ? 'Creating…' : 'Create Invoice'}
