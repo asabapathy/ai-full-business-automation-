@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Share2, Plus, Zap, CheckCircle, Clock, FileText, AlertTriangle, X } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { toast } from '@/lib/toast'
 
 interface SocialAccount {
   id: string
@@ -115,11 +116,13 @@ export default function SocialPage() {
   }
 
   const handleDisconnect = async (accountId: string) => {
-    if (!confirm('Disconnect this account?')) return
     try {
       await api.post(`/social/accounts/${accountId}/disconnect`)
+      toast('Account disconnected', 'success')
       await load()
-    } catch {}
+    } catch {
+      toast('Failed to disconnect account', 'error')
+    }
   }
 
   const handleGenerate = async () => {
@@ -163,11 +166,13 @@ export default function SocialPage() {
   }
 
   const handleDelete = async (postId: string) => {
-    if (!confirm('Delete this post?')) return
     try {
       await api.delete(`/social/posts/${postId}`)
+      toast('Post deleted', 'success')
       await load()
-    } catch {}
+    } catch {
+      toast('Failed to delete post', 'error')
+    }
   }
 
   const modalBase = {
