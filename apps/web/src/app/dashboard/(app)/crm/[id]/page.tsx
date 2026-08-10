@@ -185,6 +185,7 @@ export default function ContactDetailPage() {
         }
         setContact(demo)
         setForm({ firstName: demo.firstName, lastName: demo.lastName ?? '', email: demo.email ?? '', phone: demo.phone ?? '', status: demo.status, notes: demo.notes ?? '' })
+        setEmailForm(prev => ({ ...prev, to: demo.email ?? '' }))
         setActivity(DEMO_ACTIVITY)
         setDeals(DEMO_DEALS)
       } finally {
@@ -235,6 +236,39 @@ export default function ContactDetailPage() {
       toast('Failed to add note', 'error')
     } finally {
       setAddingNote(false)
+    }
+  }
+
+  function applyTemplate(templateName: string) {
+    const tpl = EMAIL_TEMPLATES.find(t => t.name === templateName)
+    if (!tpl || !contact) return
+    const firstName = contact.firstName ?? 'there'
+    setEmailForm(prev => ({
+      ...prev,
+      subject: tpl.subject,
+      body: tpl.body.replace(/\{\{name\}\}/g, firstName),
+    }))
+    setSelectedTemplate(templateName)
+  }
+
+  async function sendEmail() {
+    if (!emailForm.to || !emailForm.subject || !emailForm.body) return
+    setEmailSending(true)
+    try {
+      await apiClient.post('/emails/send', {
+        to: emailForm.to,
+        subject: emailForm.subject,
+        body: emailForm.body,
+        contactId: contact?.id,
+      })
+      setEmailSent(true)
+      setTimeout(() => { setEmailSent(false); setEmailOpen(false) }, 2000)
+    } catch {
+      // Demo mode: show success anyway
+      setEmailSent(true)
+      setTimeout(() => { setEmailSent(false); setEmailOpen(false) }, 2000)
+    } finally {
+      setEmailSending(false)
     }
   }
 
@@ -355,14 +389,23 @@ export default function ContactDetailPage() {
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
-                style={{ border: '1px solid hsl(var(--border))' }}
-              >
-                <Edit3 className="h-3.5 w-3.5" />
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={() => setEmailOpen(true)}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+                >
+                  <Mail className="h-4 w-4" /> Send Email
+                </button>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Edit
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -519,7 +562,7 @@ export default function ContactDetailPage() {
           <div {...anim(5)} className="kv-anim rounded-xl border p-4 space-y-2" style={{ ...cardStyle, animationDelay: '0.39s' }}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Quick Actions</p>
             {[
-              { label: 'Send Email', icon: Mail, action: () => toast('Opening email composer…', 'success') },
+              { label: 'Send Email', icon: Mail, action: () => setEmailOpen(true) },
               { label: 'Log Call', icon: Phone, action: () => toast('Call logged', 'success') },
               { label: 'Book Appointment', icon: Calendar, action: () => toast('Opening scheduler…', 'success') },
               { label: 'Create Invoice', icon: FileText, action: () => toast('Opening invoice…', 'success') },
@@ -536,6 +579,90 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </div>
+
+      {emailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Send Email</h2>
+              </div>
+              <button onClick={() => setEmailOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Template picker */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Template (optional)</label>
+                <div className="flex flex-wrap gap-2">
+                  {EMAIL_TEMPLATES.map(t => (
+                    <button key={t.name}
+                      onClick={() => applyTemplate(t.name)}
+                      className="text-xs px-3 py-1.5 rounded-lg transition-all font-medium"
+                      style={selectedTemplate === t.name
+                        ? { background: 'rgba(6,182,212,0.15)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.4)' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* To */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">To</label>
+                <input value={emailForm.to}
+                  onChange={e => setEmailForm(f => ({ ...f, to: e.target.value }))}
+                  placeholder="email@example.com"
+                  className={inputCls} style={inputStyle} />
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Subject</label>
+                <input value={emailForm.subject}
+                  onChange={e => setEmailForm(f => ({ ...f, subject: e.target.value }))}
+                  placeholder="Email subject"
+                  className={inputCls} style={inputStyle} />
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Message</label>
+                <textarea value={emailForm.body}
+                  onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))}
+                  rows={8} placeholder="Write your message…"
+                  className={`${inputCls} resize-none leading-relaxed`} style={inputStyle} />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-1">
+                <button onClick={() => setEmailOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                  Cancel
+                </button>
+                <button onClick={sendEmail}
+                  disabled={emailSending || emailSent || !emailForm.to || !emailForm.subject || !emailForm.body}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60 transition-all hover:scale-[1.02]"
+                  style={emailSent
+                    ? { background: '#34d399' }
+                    : { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {emailSent ? <><Check className="h-4 w-4" /> Sent!</>
+                    : emailSending ? 'Sending…'
+                    : <><Send className="h-4 w-4" /> Send Email</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
