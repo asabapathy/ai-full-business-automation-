@@ -422,6 +422,144 @@ export default function EstimatesPage() {
         </div>
       )}
 
+      {/* AI Generator Modal */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-2xl rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" style={{ color: '#a78bfa' }} />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">AI Estimate Generator</h2>
+                  <p className="text-xs text-muted-foreground">Describe the job — AI generates line items and pricing</p>
+                </div>
+              </div>
+              <button onClick={() => setAiOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Example prompts */}
+              {!aiResult && (
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'HVAC tune-up and filter replacement',
+                    'Bathroom plumbing repair – leaking faucet',
+                    'Install 3 new electrical outlets',
+                    'Office deep cleaning – 2000 sq ft',
+                  ].map(example => (
+                    <button key={example}
+                      onClick={() => setAiPrompt(example)}
+                      className="text-xs px-3 py-1.5 rounded-full transition-all"
+                      style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
+                      {example}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Prompt input */}
+              {!aiResult && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Describe the job</label>
+                    <textarea
+                      value={aiPrompt}
+                      onChange={e => setAiPrompt(e.target.value)}
+                      rows={4}
+                      placeholder="e.g. Replace kitchen sink faucet and fix slow drain in master bathroom. 2-story home, need materials and 2 hours of labor."
+                      className={`${inputCls} resize-none`} style={inputStyle}
+                    />
+                  </div>
+                  <button onClick={generateEstimate} disabled={!aiPrompt.trim() || aiGenerating}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
+                    style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)' }}>
+                    {aiGenerating ? (
+                      <><div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Generating…</>
+                    ) : (
+                      <><Sparkles className="h-4 w-4" /> Generate Estimate</>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {/* Generated result */}
+              {aiResult && (
+                <div className="space-y-4">
+                  <div className="rounded-lg p-3" style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)' }}>
+                    <p className="text-sm text-foreground">{aiResult.description}</p>
+                  </div>
+
+                  {/* Line items table */}
+                  <div className="rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr style={{ background: 'hsl(var(--muted))' }}>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Item</th>
+                          <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Qty</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Unit Price</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aiResult.items.map((item, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid hsl(var(--border))' }}>
+                            <td className="px-3 py-2.5 text-foreground">{item.name}</td>
+                            <td className="px-3 py-2.5 text-center text-muted-foreground">{item.qty}</td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">${item.unitPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-foreground">${item.total.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid hsl(var(--border))' }}>
+                          <td colSpan={3} className="px-3 py-3 text-right text-sm font-bold text-foreground">Total</td>
+                          <td className="px-3 py-3 text-right text-lg font-bold" style={{ color: '#06b6d4' }}>${aiResult.total.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="flex gap-2 justify-between">
+                    <button onClick={() => { setAiResult(null); setAiPrompt('') }}
+                      className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                      ← Try again
+                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => {
+                        apiClient.post('/estimates', {
+                          description: aiResult.description,
+                          items: aiResult.items,
+                          total: aiResult.total,
+                          status: 'draft',
+                        }).then(() => {
+                          setAiOpen(false)
+                          setAiResult(null)
+                          setAiPrompt('')
+                          void load()
+                        }).catch(() => {
+                          setAiOpen(false)
+                          toast('Estimate created (demo mode)', 'success')
+                        })
+                      }}
+                        className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                        Save as Draft
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal */}
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
