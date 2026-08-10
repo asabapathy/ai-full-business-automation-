@@ -2,6 +2,7 @@
 
 import { apiClient } from '../../../../lib/api-client'
 import { useState, useEffect } from 'react'
+import { Calendar, ChevronDown } from 'lucide-react'
 
 interface OverviewData {
   revenue: { total: number; growth: number }
@@ -45,6 +46,149 @@ const PIPELINE_COLORS = ['#06b6d4', '#0ea5e9', '#38bdf8', '#7dd3fc', '#10b981']
 
 function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
+const RANGES = [
+  { key: '7d', label: 'Last 7 days', days: 7 },
+  { key: '30d', label: 'Last 30 days', days: 30 },
+  { key: '90d', label: 'Last 90 days', days: 90 },
+  { key: 'ytd', label: 'Year to date', days: 0 },
+  { key: 'custom', label: 'Custom', days: -1 },
+] as const
+
+const DATE_RANGE_STORAGE_KEY = 'kv-date-range'
+
+function resolveRange(range: string, customFrom: string, customTo: string) {
+  const now = new Date()
+  if (range === 'ytd') {
+    const fromDate = new Date(now.getFullYear(), 0, 1)
+    return { fromDate, toDate: now, days: Math.max(1, Math.round((now.getTime() - fromDate.getTime()) / 86400000)) }
+  }
+  if (range === 'custom' && customFrom && customTo) {
+    const fromDate = new Date(customFrom)
+    const toDate = new Date(customTo)
+    if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && toDate >= fromDate) {
+      return { fromDate, toDate, days: Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86400000)) }
+    }
+  }
+  const preset = RANGES.find(r => r.key === range)
+  const days = preset && preset.days > 0 ? preset.days : 30
+  return { fromDate: new Date(now.getTime() - days * 86400000), toDate: now, days }
+}
+
+function useDateRange() {
+  const [range, setRange] = useState<string>('30d')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DATE_RANGE_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as { range?: string; customFrom?: string; customTo?: string }
+        if (typeof saved.range === 'string' && RANGES.some(r => r.key === saved.range)) setRange(saved.range)
+        if (typeof saved.customFrom === 'string') setCustomFrom(saved.customFrom)
+        if (typeof saved.customTo === 'string') setCustomTo(saved.customTo)
+      }
+    } catch { /* ignore corrupt storage */ }
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    try {
+      localStorage.setItem(DATE_RANGE_STORAGE_KEY, JSON.stringify({ range, customFrom, customTo }))
+    } catch { /* storage unavailable */ }
+  }, [hydrated, range, customFrom, customTo])
+
+  return { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo }
+}
+
+function DateRangePicker({
+  range, customFrom, customTo, onChange,
+}: {
+  range: string
+  customFrom: string
+  customTo: string
+  onChange: (next: { range: string; customFrom: string; customTo: string }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [draftFrom, setDraftFrom] = useState(customFrom)
+  const [draftTo, setDraftTo] = useState(customTo)
+  const active = RANGES.find(r => r.key === range) ?? RANGES[1]
+  const label = range === 'custom' && customFrom && customTo ? `${customFrom} → ${customTo}` : active.label
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={() => { setDraftFrom(customFrom); setDraftTo(customTo); setOpen(o => !o) }}
+        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+        style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+      >
+        <Calendar className="h-4 w-4" style={{ color: '#06b6d4' }} />
+        <span className="whitespace-nowrap">{label}</span>
+        <ChevronDown className="h-3.5 w-3.5" style={{ color: 'hsl(var(--muted-foreground))' }} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-full mt-2 z-40 w-60 rounded-xl p-1.5"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+          >
+            {RANGES.map(r => (
+              <button
+                key={r.key}
+                onClick={() => {
+                  if (r.key === 'custom') {
+                    onChange({ range: 'custom', customFrom, customTo })
+                  } else {
+                    onChange({ range: r.key, customFrom, customTo })
+                    setOpen(false)
+                  }
+                }}
+                className="w-full text-left rounded-lg px-3 py-2 text-sm transition-colors"
+                style={range === r.key
+                  ? { background: 'rgba(6,182,212,0.1)', color: '#06b6d4', fontWeight: 600 }
+                  : { color: 'hsl(var(--foreground))' }}
+              >
+                {r.label}
+              </button>
+            ))}
+            {range === 'custom' && (
+              <div className="mt-1 space-y-2 border-t px-3 py-3" style={{ borderColor: 'hsl(var(--border))' }}>
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-wide" style={{ color: 'hsl(var(--muted-foreground))' }}>From</span>
+                  <input
+                    type="date" value={draftFrom} onChange={e => setDraftFrom(e.target.value)}
+                    className="mt-1 w-full rounded-lg px-2 py-1.5 text-sm"
+                    style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-wide" style={{ color: 'hsl(var(--muted-foreground))' }}>To</span>
+                  <input
+                    type="date" value={draftTo} onChange={e => setDraftTo(e.target.value)}
+                    className="mt-1 w-full rounded-lg px-2 py-1.5 text-sm"
+                    style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                  />
+                </label>
+                <button
+                  onClick={() => { onChange({ range: 'custom', customFrom: draftFrom, customTo: draftTo }); setOpen(false) }}
+                  disabled={!draftFrom || !draftTo}
+                  className="w-full rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition-all disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function AnalyticsPage() {
