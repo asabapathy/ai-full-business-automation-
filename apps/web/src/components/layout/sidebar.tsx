@@ -91,6 +91,7 @@ const navGroups: NavGroup[] = [
       { name: 'Inbox', href: '/dashboard/inbox', icon: Inbox },
       { name: 'Automations', href: '/dashboard/automations', icon: Zap, feature: 'core:automations' },
       { name: 'Campaigns', href: '/dashboard/campaigns', icon: Mail, feature: 'marketing:campaigns' },
+      { name: 'Templates', href: '/dashboard/templates', icon: FileText },
       { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch, feature: 'marketing:sequences' },
       { name: 'Drip Campaigns', href: '/dashboard/drip-campaigns', icon: ZapDrip, feature: 'marketing:drip' },
       { name: 'Broadcasts', href: '/dashboard/broadcasts', icon: Radio, feature: 'marketing:broadcasts' },

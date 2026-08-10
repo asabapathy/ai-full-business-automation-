@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CreditCard, Loader2, DollarSign, Clock, Receipt, CalendarCheck } from 'lucide-react'
+import { CreditCard, Loader2, DollarSign, Clock, Receipt, CalendarCheck, TrendingUp } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -16,6 +16,8 @@ interface Transaction {
 }
 
 interface Stats { volume: number; pending: number; fees: number }
+
+interface WeekFlow { weekLabel: string; moneyIn: number; moneyOut: number }
 
 const PROVIDERS = [
   { key: 'stripe', name: 'Stripe', description: 'Accept cards, wallets and bank payments worldwide.' },
@@ -50,6 +52,22 @@ const DEMO_TRANSACTIONS: Transaction[] = [
   { id: 't8', type: 'payout', amount: 1960, customer: 'Payout to bank ••6721', method: '—', time: '3d ago', status: 'succeeded' },
 ]
 
+const DEMO_CURRENT_BALANCE = 8400
+
+function buildDemoForecast(): WeekFlow[] {
+  const now = new Date()
+  return Array.from({ length: 8 }, (_, i) => {
+    const d = new Date(now.getTime() + i * 7 * 86400000)
+    return {
+      weekLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      moneyIn: 5200 + Math.round(1800 * Math.sin(i * 1.1)) + i * 150,
+      moneyOut: 3100 + Math.round(900 * Math.cos(i * 0.9)) + i * 80,
+    }
+  })
+}
+
+const DEMO_FORECAST = buildDemoForecast()
+
 const TYPE_COLOR: Record<Transaction['type'], string> = {
   charge: '#34d399',
   refund: '#f87171',
@@ -78,6 +96,7 @@ export default function PaymentsPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>(DEMO_TRANSACTIONS)
   const [cadence, setCadence] = useState('weekly')
+  const [forecast, setForecast] = useState<WeekFlow[]>(DEMO_FORECAST)
 
   const anyConnected = Object.values(connected).some(Boolean)
 
@@ -91,6 +110,9 @@ export default function PaymentsPage() {
     apiClient.get('/payments/transactions?limit=10')
       .then((res: any) => { const list = res?.transactions ?? res; if (Array.isArray(list) && list.length) setTransactions(list) })
       .catch(() => setTransactions(DEMO_TRANSACTIONS))
+    apiClient.get('/payments/cash-flow-forecast')
+      .then((res: any) => { const list = res?.weeks ?? res; if (Array.isArray(list) && list.length) setForecast(list) })
+      .catch(() => {})
   }, [])
 
   const handleConnect = async (key: string, name: string) => {
@@ -125,6 +147,20 @@ export default function PaymentsPage() {
   }
 
   const displayStats: Stats = anyConnected ? (stats ?? DEMO_STATS) : { volume: 0, pending: 0, fees: 0 }
+
+  // Cash flow forecast derived values
+  const currentBalance = DEMO_CURRENT_BALANCE
+  const runningBalances: number[] = []
+  forecast.reduce((bal, w) => {
+    const next = bal + w.moneyIn - w.moneyOut
+    runningBalances.push(next)
+    return next
+  }, currentBalance)
+  const finalBalance = runningBalances[runningBalances.length - 1] ?? currentBalance
+  const tightestIdx = runningBalances.reduce((min, b, i) => (b < runningBalances[min] ? i : min), 0)
+  const tightestBalance = runningBalances[tightestIdx] ?? currentBalance
+  const maxFlow = Math.max(1, ...forecast.flatMap(w => [w.moneyIn, w.moneyOut]))
+  const fmt0 = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(n).toLocaleString('en-US')}`
 
   return (
     <div className="p-6 space-y-6 max-w-[1100px]">
@@ -225,8 +261,102 @@ export default function PaymentsPage() {
         </div>
       </div>
 
+      {/* Cash flow forecast */}
+      <div {...anim(4)} className="rounded-xl p-5" style={cardStyle}>
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4" style={{ color: '#34d399' }} />
+          <h2 className="font-semibold text-foreground text-sm">Cash Flow Forecast</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-4">
+          Next 8 weeks · projected from invoices due, recurring revenue, and expenses
+        </p>
+
+        {/* Headline tiles */}
+        <div className="grid grid-cols-3 gap-4 mb-5">
+          {[
+            { label: 'Current balance', value: fmt0(currentBalance), sub: null as string | null, color: '#06b6d4' },
+            {
+              label: 'Projected in 8 weeks',
+              value: fmt0(finalBalance),
+              sub: null as string | null,
+              color: finalBalance >= currentBalance ? '#34d399' : '#f87171',
+            },
+            {
+              label: 'Tightest week',
+              value: fmt0(tightestBalance),
+              sub: forecast[tightestIdx]?.weekLabel ?? null,
+              color: '#fbbf24',
+            },
+          ].map(tile => (
+            <div key={tile.label} className="rounded-lg p-3" style={{ background: 'hsl(var(--muted))' }}>
+              <p className="text-xs text-muted-foreground mb-1">{tile.label}</p>
+              <p className="text-xl font-bold tabular" style={{ color: tile.color }}>
+                {tile.value}
+                {tile.sub && <span className="ml-2 text-xs font-medium text-muted-foreground">week of {tile.sub}</span>}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 mb-2">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-2 w-2 rounded-full" style={{ background: '#34d399' }} />
+            Money in
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-2 w-2 rounded-full" style={{ background: '#f87171' }} />
+            Money out
+          </span>
+        </div>
+
+        {/* Dual-bar chart */}
+        <div className="grid grid-cols-8 gap-2">
+          {forecast.map((week, i) => (
+            <div key={week.weekLabel + i} className="flex flex-col items-center">
+              <div className="flex items-end justify-center gap-1 w-full" style={{ height: 160 }}>
+                <div
+                  className="w-3 rounded-t-sm"
+                  style={{ background: '#34d399', height: `${Math.max(2, (week.moneyIn / maxFlow) * 100)}%` }}
+                  title={`In ${fmt0(week.moneyIn)}`}
+                />
+                <div
+                  className="w-3 rounded-t-sm"
+                  style={{ background: '#f87171', opacity: 0.75, height: `${Math.max(2, (week.moneyOut / maxFlow) * 100)}%` }}
+                  title={`Out ${fmt0(week.moneyOut)}`}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5 truncate w-full text-center">{week.weekLabel}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Running balance strip */}
+        <div className="grid grid-cols-8 gap-2 mt-2">
+          {runningBalances.map((bal, i) => {
+            const tone = bal < 0
+              ? { text: '#f87171', bg: 'rgba(248,113,113,0.12)' }
+              : bal < currentBalance
+                ? { text: '#fbbf24', bg: 'rgba(251,191,36,0.12)' }
+                : { text: '#34d399', bg: 'rgba(52,211,153,0.12)' }
+            return (
+              <span
+                key={i}
+                className="text-xs px-1.5 py-0.5 rounded-full font-medium tabular text-center truncate"
+                style={{ color: tone.text, background: tone.bg }}
+                title={`Balance after week of ${forecast[i]?.weekLabel ?? ''}`}
+              >
+                {fmt0(bal)}
+              </span>
+            )
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground mt-4">Projection assumes invoices are paid by their due dates.</p>
+      </div>
+
       {/* Recent transactions */}
-      <div {...anim(4)} className="rounded-xl overflow-hidden" style={cardStyle}>
+      <div {...anim(5)} className="rounded-xl overflow-hidden" style={cardStyle}>
         <div className="px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
           <h2 className="font-semibold text-foreground text-sm">Recent Transactions</h2>
         </div>
