@@ -367,6 +367,15 @@ export default function AppointmentsPage() {
                           </span>
                           {active && (
                             <div className="flex gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation?.(); sendReminderNow(appt) }}
+                                disabled={remindingId === appt.id}
+                                title="Send reminder now"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                                style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                              >
+                                <BellRing className="h-4 w-4" style={remindingId === appt.id ? { color: '#fbbf24' } : undefined} />
+                              </button>
                               {appt.status === 'SCHEDULED' && (
                                 <button
                                   onClick={() => updateStatus(appt.id, 'CONFIRMED')}
@@ -567,10 +576,21 @@ export default function AppointmentsPage() {
                               {apt.duration ? ` · ${apt.duration}m` : ''}
                             </p>
                           </div>
-                          <span className="text-xs px-2 py-0.5 rounded-full shrink-0 font-medium"
-                            style={{ background: pill.bg, color: pill.text }}>
-                            {apt.status.replace('_', ' ')}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{ background: pill.bg, color: pill.text }}>
+                              {apt.status.replace('_', ' ')}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation?.(); sendReminderNow(apt) }}
+                              disabled={remindingId === apt.id}
+                              title="Send reminder now"
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                              style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                            >
+                              <BellRing className="h-4 w-4" style={remindingId === apt.id ? { color: '#fbbf24' } : undefined} />
+                            </button>
+                          </div>
                         </div>
                       )
                     })}
@@ -579,6 +599,80 @@ export default function AppointmentsPage() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* Reminder settings modal */}
+      {reminderSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-md rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <BellRing className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Appointment Reminders</h2>
+              </div>
+              <button onClick={() => setReminderSettingsOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Enable toggle */}
+              <button onClick={() => setReminderSettings(s => ({ ...s, enabled: !s.enabled }))}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-3"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-foreground">Automatic reminders</p>
+                  <p className="text-xs text-muted-foreground">Notify clients before their appointment</p>
+                </div>
+                <span className="relative inline-flex h-5 w-9 rounded-full transition-colors shrink-0"
+                  style={{ background: reminderSettings.enabled ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: reminderSettings.enabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+
+              {/* Timing */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Send reminder</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 4, 24, 48].map(h => (
+                    <button key={h} onClick={() => setReminderSettings(s => ({ ...s, hoursBefore: h }))}
+                      className="py-2 rounded-lg text-xs font-medium transition-all"
+                      style={reminderSettings.hoursBefore === h
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {h < 24 ? `${h}h` : `${h / 24}d`} before
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Channel */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Channel</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['email', 'sms', 'both'] as const).map(ch => (
+                    <button key={ch} onClick={() => setReminderSettings(s => ({ ...s, channel: ch }))}
+                      className="py-2 rounded-lg text-xs font-medium capitalize transition-all"
+                      style={reminderSettings.channel === ch
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {ch === 'both' ? 'Email + SMS' : ch.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setReminderSettingsOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                <button onClick={saveReminderSettings} disabled={savingReminders}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {savingReminders ? 'Saving…' : 'Save Settings'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
