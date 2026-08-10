@@ -604,6 +604,126 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {/* Invoice PDF Preview Modal */}
+      {previewInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          style={{ background: 'rgba(0,0,0,0.75)' }}>
+          <div className="w-full max-w-2xl rounded-xl overflow-hidden my-4"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Invoice Preview</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{previewInvoice.invoiceNumber}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={printInvoice}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
+                  <Printer className="h-4 w-4" /> Print / Save PDF
+                </button>
+                <button onClick={() => setPreviewInvoice(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Invoice content (printable area) */}
+            <div id="invoice-print-area" className="p-8 space-y-6" style={{ background: 'white', color: '#111' }}>
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <p style={{ fontSize: 22, fontWeight: 700, color: '#06b6d4' }}>Your Business</p>
+                  <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>business@example.com</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: 28, fontWeight: 300, color: '#666' }}>INVOICE</p>
+                  <p style={{ fontSize: 13, color: '#333', marginTop: 4, fontWeight: 600 }}>{previewInvoice.invoiceNumber}</p>
+                </div>
+              </div>
+
+              {/* Meta grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, padding: '20px 0', borderTop: '1px solid #eee', borderBottom: '1px solid #eee' }}>
+                <div>
+                  <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#999', marginBottom: 6 }}>Bill To</p>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>
+                    {previewInvoice.contact
+                      ? `${previewInvoice.contact.firstName} ${previewInvoice.contact.lastName ?? ''}`.trim()
+                      : previewInvoice.title}
+                  </p>
+                  {previewInvoice.clientEmail && (
+                    <p style={{ fontSize: 13, color: '#666', marginTop: 2 }}>{previewInvoice.clientEmail}</p>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#999', marginBottom: 2 }}>Issue Date</p>
+                    <p style={{ fontSize: 13, color: '#111' }}>{previewInvoice.createdAt ? new Date(previewInvoice.createdAt).toLocaleDateString() : '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#999', marginBottom: 2 }}>Due Date</p>
+                    <p style={{ fontSize: 13, color: '#111' }}>{previewInvoice.dueDate ? new Date(previewInvoice.dueDate).toLocaleDateString() : '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Line items */}
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f9f9f9' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Description</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Qty</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Unit Price</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(previewInvoice.items ?? previewInvoice.lineItems ?? [{ description: previewInvoice.title ?? 'Services', quantity: 1, unitPrice: previewInvoice.total, total: previewInvoice.total }]).map((item, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                      <td style={{ padding: '12px', fontSize: 14, color: '#111' }}>{item.description ?? item.name ?? 'Service'}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontSize: 14, color: '#666' }}>{item.quantity ?? 1}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontSize: 14, color: '#666' }}>${Number(item.unitPrice ?? item.rate ?? 0).toFixed(2)}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#111' }}>${Number(item.total ?? item.amount ?? ((item.quantity ?? 1) * (item.unitPrice ?? item.rate ?? 0))).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ minWidth: 240 }}>
+                  {previewInvoice.subtotal != null && previewInvoice.subtotal !== previewInvoice.total && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14, color: '#666' }}>
+                      <span>Subtotal</span><span>${Number(previewInvoice.subtotal).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {previewInvoice.tax != null && previewInvoice.tax > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14, color: '#666' }}>
+                      <span>Tax</span><span>${Number(previewInvoice.tax).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 8, borderTop: '2px solid #eee', fontSize: 18, fontWeight: 700, color: '#111' }}>
+                    <span>Total</span><span>${Number(previewInvoice.total ?? 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #eee' }}>
+                <span style={{ fontSize: 12, color: '#999' }}>Status</span>
+                <span style={{
+                  display: 'inline-block', padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  background: previewInvoice.status?.toUpperCase() === 'PAID' ? '#d1fae5' : previewInvoice.status?.toUpperCase() === 'OVERDUE' ? '#fee2e2' : '#fef3c7',
+                  color: previewInvoice.status?.toUpperCase() === 'PAID' ? '#065f46' : previewInvoice.status?.toUpperCase() === 'OVERDUE' ? '#991b1b' : '#92400e',
+                }}>
+                  {(previewInvoice.status ?? 'PENDING').toUpperCase()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create invoice modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
