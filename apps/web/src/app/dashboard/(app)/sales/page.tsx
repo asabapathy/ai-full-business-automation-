@@ -111,7 +111,7 @@ export default function SalesPage() {
       byStage.set(key, { total: cur.total + v, weighted: cur.weighted + v * probabilityFor(key), count: cur.count + 1 })
     }
     const stageOrder = STAGES.map(s => s.toLowerCase())
-    const entries = [...byStage.entries()].sort((a, b) => {
+    const entries = Array.from(byStage.entries()).sort((a, b) => {
       const ai = stageOrder.indexOf(a[0])
       const bi = stageOrder.indexOf(b[0])
       return (ai === -1 ? stageOrder.length : ai) - (bi === -1 ? stageOrder.length : bi)
