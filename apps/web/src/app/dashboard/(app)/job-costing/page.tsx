@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Wrench, AlertTriangle, TrendingUp, Package, Plus, Camera, Upload, Trash2, X } from 'lucide-react'
+import { Wrench, AlertTriangle, TrendingUp, Package, Plus, Camera, Upload, Trash2, X, Clock, Play, Square } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -32,7 +32,16 @@ interface JobPhoto {
   createdAt: string
 }
 
-type Tab = 'inventory' | 'alerts' | 'summary' | 'trends' | 'photos'
+interface TimeEntry {
+  id: string
+  staff: string
+  job: string
+  startedAt: string
+  endedAt?: string
+  seconds: number
+}
+
+type Tab = 'inventory' | 'alerts' | 'summary' | 'trends' | 'photos' | 'time'
 
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground bg-background focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { border: '1px solid hsl(var(--border))' }
@@ -75,6 +84,45 @@ function marginColor(m: number): string {
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
+const TIME_STAFF = ['Sarah Chen', 'Mike Rodriguez', 'Jess Taylor']
+const HOURLY_RATE = 95
+
+function fmtDur(s: number): string {
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m ${s % 60}s`
+}
+
+function fmtClock(s: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
+}
+
+function seedTimeEntries(): TimeEntry[] {
+  const mk = (id: string, staff: string, job: string, daysAgo: number, hour: number, seconds: number): TimeEntry => {
+    const start = new Date()
+    start.setDate(start.getDate() - daysAgo)
+    start.setHours(hour, 0, 0, 0)
+    return {
+      id,
+      staff,
+      job,
+      startedAt: start.toISOString(),
+      endedAt: new Date(start.getTime() + seconds * 1000).toISOString(),
+      seconds,
+    }
+  }
+  return [
+    mk('seed-t1', 'Sarah Chen', 'Johnson HVAC install', 0, 8, 3 * 3600 + 15 * 60),
+    mk('seed-t2', 'Mike Rodriguez', 'Meridian office cleaning', 0, 9, 2 * 3600 + 40 * 60),
+    mk('seed-t3', 'Jess Taylor', 'Patel bathroom retile', 1, 8, 5 * 3600 + 30 * 60),
+    mk('seed-t4', 'Sarah Chen', 'Meridian office cleaning', 1, 14, 45 * 60),
+    mk('seed-t5', 'Mike Rodriguez', 'Johnson HVAC install', 2, 7, 6 * 3600),
+    mk('seed-t6', 'Jess Taylor', 'Downtown duct inspection', 2, 13, 1 * 3600 + 50 * 60),
+  ]
+}
+
 export default function JobCostingPage() {
   const [tab, setTab] = useState<Tab>('inventory')
   const [inventory, setInventory] = useState<InventoryItem[]>([])
@@ -93,7 +141,67 @@ export default function JobCostingPage() {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { fetchAll(); loadPhotos() }, [])
+  // Time tracking state
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(seedTimeEntries)
+  const [activeTimer, setActiveTimer] = useState<{ staff: string; job: string; startedAt: number } | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const [timerStaff, setTimerStaff] = useState('Sarah Chen')
+  const [timerJob, setTimerJob] = useState('')
+
+  useEffect(() => { fetchAll(); loadPhotos(); loadTimeEntries() }, [])
+
+  // Live timer tick
+  useEffect(() => {
+    if (!activeTimer) return
+    const tick = () => setElapsed(Math.floor((Date.now() - activeTimer.startedAt) / 1000))
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [activeTimer])
+
+  async function loadTimeEntries() {
+    try {
+      const data = await apiClient.get<{ entries?: TimeEntry[] } | TimeEntry[]>('/jobs/time-entries')
+      const remote = Array.isArray(data) ? data : data?.entries ?? []
+      if (remote.length > 0) setTimeEntries(remote)
+    } catch {
+      // demo mode — keep seeded local entries
+    }
+  }
+
+  function startTimer() {
+    if (!timerJob.trim()) {
+      toast('Enter a job name to start the timer', 'error')
+      return
+    }
+    setElapsed(0)
+    setActiveTimer({ staff: timerStaff, job: timerJob.trim(), startedAt: Date.now() })
+  }
+
+  function stopTimer() {
+    if (!activeTimer) return
+    const seconds = Math.max(1, Math.floor((Date.now() - activeTimer.startedAt) / 1000))
+    const entry: TimeEntry = {
+      id: `time-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      staff: activeTimer.staff,
+      job: activeTimer.job,
+      startedAt: new Date(activeTimer.startedAt).toISOString(),
+      endedAt: new Date().toISOString(),
+      seconds,
+    }
+    setTimeEntries(prev => [entry, ...prev])
+    apiClient.post('/jobs/time-entries', entry).catch(() => { /* demo mode — local state is source of truth */ })
+    toast(`Logged ${fmtDur(seconds)} on ${entry.job}`, 'success')
+    setActiveTimer(null)
+    setElapsed(0)
+    setTimerJob('')
+  }
+
+  function deleteTimeEntry(id: string) {
+    setTimeEntries(prev => prev.filter(e => e.id !== id))
+    toast('Time entry removed', 'success')
+    apiClient.delete(`/jobs/time-entries/${id}`).catch(() => { /* demo mode */ })
+  }
 
   async function loadPhotos() {
     try {
@@ -218,7 +326,7 @@ export default function JobCostingPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-        {([['inventory', 'Inventory'], ['alerts', 'Low Stock'], ['summary', 'Summary'], ['trends', 'Profit Trends'], ['photos', 'Photos']] as [Tab, string][]).map(([t, label]) => (
+        {([['inventory', 'Inventory'], ['alerts', 'Low Stock'], ['summary', 'Summary'], ['trends', 'Profit Trends'], ['photos', 'Photos'], ['time', 'Time']] as [Tab, string][]).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -550,6 +658,202 @@ export default function JobCostingPage() {
           )}
         </div>
       )}
+
+      {/* Time Tracking */}
+      {tab === 'time' && (() => {
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const startOfWeek = new Date(startOfToday)
+        startOfWeek.setDate(startOfWeek.getDate() - 6)
+
+        const todaySeconds = timeEntries
+          .filter(e => new Date(e.startedAt) >= startOfToday)
+          .reduce((s, e) => s + e.seconds, 0)
+        const weekEntries = timeEntries.filter(e => new Date(e.startedAt) >= startOfWeek)
+        const weekSeconds = weekEntries.reduce((s, e) => s + e.seconds, 0)
+        const billable = (weekSeconds / 3600) * HOURLY_RATE
+
+        const perStaff = TIME_STAFF
+          .map(name => ({ name, seconds: weekEntries.filter(e => e.staff === name).reduce((s, e) => s + e.seconds, 0) }))
+          .filter(s => s.seconds > 0)
+
+        const dayLabel = (iso: string) => {
+          const d = new Date(iso)
+          const day = new Date(d)
+          day.setHours(0, 0, 0, 0)
+          const diff = Math.round((startOfToday.getTime() - day.getTime()) / (24 * 3600 * 1000))
+          if (diff === 0) return 'Today'
+          if (diff === 1) return 'Yesterday'
+          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        }
+
+        const sorted = [...timeEntries].sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+
+        return (
+          <div className="space-y-4">
+            {/* Timer card */}
+            <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5" style={{ color: '#06b6d4' }} />
+                <h2 className="font-semibold text-foreground">Time Tracker</h2>
+              </div>
+
+              {!activeTimer ? (
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="min-w-[180px]">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Staff</label>
+                    <select
+                      className={inputCls}
+                      style={inputStyle}
+                      value={timerStaff}
+                      onChange={e => setTimerStaff(e.target.value)}
+                    >
+                      {TIME_STAFF.map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[220px]">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Job</label>
+                    <input
+                      className={inputCls}
+                      style={inputStyle}
+                      value={timerJob}
+                      onChange={e => setTimerJob(e.target.value)}
+                      placeholder="e.g. Johnson HVAC install"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startTimer}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg, #34d399, #059669)', color: 'white' }}
+                  >
+                    <Play className="h-4 w-4" />
+                    Start Timer
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-4xl font-bold font-mono tracking-tight" style={{ color: '#06b6d4' }}>
+                      {fmtClock(elapsed)}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full animate-pulse inline-block" style={{ background: '#34d399' }} />
+                      {activeTimer.staff} &middot; {activeTimer.job}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopTimer}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg, #f87171, #ef4444)', color: 'white' }}
+                  >
+                    <Square className="h-4 w-4" />
+                    Stop
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Summary tiles */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl p-4" style={cardStyle}>
+                <p className="text-xs text-muted-foreground mb-1">Today</p>
+                <p className="text-xl font-bold" style={{ color: '#06b6d4' }}>{fmtDur(todaySeconds)}</p>
+              </div>
+              <div className="rounded-xl p-4" style={cardStyle}>
+                <p className="text-xs text-muted-foreground mb-1">This week</p>
+                <p className="text-xl font-bold" style={{ color: '#34d399' }}>{fmtDur(weekSeconds)}</p>
+              </div>
+              <div className="rounded-xl p-4" style={cardStyle}>
+                <p className="text-xs text-muted-foreground mb-1">Billable value</p>
+                <p className="text-xl font-bold" style={{ color: '#34d399' }}>
+                  ${billable.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{(weekSeconds / 3600).toFixed(1)}h at ${HOURLY_RATE}/hr</p>
+              </div>
+            </div>
+
+            {/* Per-staff week breakdown */}
+            {perStaff.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {perStaff.map(s => (
+                  <span
+                    key={s.name}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-foreground"
+                    style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+                  >
+                    <span
+                      className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                      style={{ background: gradientFor(s.name), color: 'white' }}
+                    >
+                      {s.name.charAt(0)}
+                    </span>
+                    {s.name.split(' ')[0]} &middot; {fmtDur(s.seconds)}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Entries table */}
+            <div className="rounded-xl overflow-hidden" style={cardStyle}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead style={{ borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted))' }}>
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-foreground">Staff</th>
+                      <th className="text-left px-4 py-3 font-medium text-foreground">Job</th>
+                      <th className="text-left px-4 py-3 font-medium text-foreground">Date</th>
+                      <th className="text-right px-4 py-3 font-medium text-foreground">Duration</th>
+                      <th className="text-right px-4 py-3 font-medium text-foreground">Value</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+                    {sorted.map(entry => (
+                      <tr key={entry.id} className="group hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                              style={{ background: gradientFor(entry.staff), color: 'white' }}
+                            >
+                              {entry.staff.charAt(0)}
+                            </span>
+                            <span className="font-medium text-foreground whitespace-nowrap">{entry.staff}</span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-foreground">{entry.job}</td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{dayLabel(entry.startedAt)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap">{fmtDur(entry.seconds)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
+                          ${((entry.seconds / 3600) * HOURLY_RATE).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => deleteTimeEntry(entry.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                            style={{ color: '#f87171' }}
+                            title="Delete entry"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {sorted.length === 0 && (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                        No time entries yet. Start the timer above.
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Lightbox */}
       {lightbox && (
