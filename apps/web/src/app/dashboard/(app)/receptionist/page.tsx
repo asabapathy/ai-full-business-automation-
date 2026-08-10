@@ -392,7 +392,7 @@ export default function ReceptionistPage() {
                   className="relative cursor-pointer w-9 h-5 rounded-full transition-all"
                   style={voiceConfig.useElevenLabs ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' } : { background: 'rgba(255,255,255,0.1)' }}
                 >
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${voiceConfig.useElevenLabs ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform ${voiceConfig.useElevenLabs ? 'translate-x-4' : 'translate-x-0.5'}`} style={{ background: 'white' }} />
                 </div>
               </div>
               {voiceConfig.useElevenLabs && (
@@ -438,7 +438,7 @@ export default function ReceptionistPage() {
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-medium text-muted-foreground">{item.label}</span>
                       <button onClick={() => copyUrl(item.url, item.key)} className="p-0.5 text-muted-foreground hover:text-foreground transition-colors">
-                        {copied === item.key ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied === item.key ? <CheckCircle className="h-3.5 w-3.5" style={{ color: '#34d399' }} /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                     <code className="text-xs font-mono text-primary break-all">{item.url}</code>

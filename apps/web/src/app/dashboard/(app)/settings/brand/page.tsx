@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Palette, Save, Globe, X } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 
 interface BrandConfig {
   brandName: string | null
@@ -60,7 +60,7 @@ export default function BrandSettingsPage() {
   if (loading) {
     return (
       <div className="p-6 space-y-4 max-w-[800px]">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32" />)}
+        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
       </div>
     )
   }
@@ -212,7 +212,8 @@ export default function BrandSettingsPage() {
             style={{ background: config.hideKanavuBranding ? 'linear-gradient(135deg, #06b6d4, #0ea5e9)' : 'hsl(var(--border))' }}
           >
             <span
-              className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all"
+              className="absolute top-1 w-4 h-4 rounded-full transition-all"
+              style={{ background: 'white' }}
               style={{ left: config.hideKanavuBranding ? '1.375rem' : '0.25rem' }}
             />
           </button>

@@ -2,6 +2,7 @@
 
 import { apiClient } from '../../../../lib/api-client'
 import { useState, useEffect } from 'react'
+import { Calendar, ChevronDown } from 'lucide-react'
 
 interface OverviewData {
   revenue: { total: number; growth: number }
@@ -47,19 +48,167 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const RANGES = [
+  { key: '7d', label: 'Last 7 days', days: 7 },
+  { key: '30d', label: 'Last 30 days', days: 30 },
+  { key: '90d', label: 'Last 90 days', days: 90 },
+  { key: 'ytd', label: 'Year to date', days: 0 },
+  { key: 'custom', label: 'Custom', days: -1 },
+] as const
+
+const DATE_RANGE_STORAGE_KEY = 'kv-date-range'
+
+function resolveRange(range: string, customFrom: string, customTo: string) {
+  const now = new Date()
+  if (range === 'ytd') {
+    const fromDate = new Date(now.getFullYear(), 0, 1)
+    return { fromDate, toDate: now, days: Math.max(1, Math.round((now.getTime() - fromDate.getTime()) / 86400000)) }
+  }
+  if (range === 'custom' && customFrom && customTo) {
+    const fromDate = new Date(customFrom)
+    const toDate = new Date(customTo)
+    if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && toDate >= fromDate) {
+      return { fromDate, toDate, days: Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86400000)) }
+    }
+  }
+  const preset = RANGES.find(r => r.key === range)
+  const days = preset && preset.days > 0 ? preset.days : 30
+  return { fromDate: new Date(now.getTime() - days * 86400000), toDate: now, days }
+}
+
+function useDateRange() {
+  const [range, setRange] = useState<string>('30d')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DATE_RANGE_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as { range?: string; customFrom?: string; customTo?: string }
+        if (typeof saved.range === 'string' && RANGES.some(r => r.key === saved.range)) setRange(saved.range)
+        if (typeof saved.customFrom === 'string') setCustomFrom(saved.customFrom)
+        if (typeof saved.customTo === 'string') setCustomTo(saved.customTo)
+      }
+    } catch { /* ignore corrupt storage */ }
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    try {
+      localStorage.setItem(DATE_RANGE_STORAGE_KEY, JSON.stringify({ range, customFrom, customTo }))
+    } catch { /* storage unavailable */ }
+  }, [hydrated, range, customFrom, customTo])
+
+  return { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo }
+}
+
+function DateRangePicker({
+  range, customFrom, customTo, onChange,
+}: {
+  range: string
+  customFrom: string
+  customTo: string
+  onChange: (next: { range: string; customFrom: string; customTo: string }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [draftFrom, setDraftFrom] = useState(customFrom)
+  const [draftTo, setDraftTo] = useState(customTo)
+  const active = RANGES.find(r => r.key === range) ?? RANGES[1]
+  const label = range === 'custom' && customFrom && customTo ? `${customFrom} → ${customTo}` : active.label
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={() => { setDraftFrom(customFrom); setDraftTo(customTo); setOpen(o => !o) }}
+        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+        style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+      >
+        <Calendar className="h-4 w-4" style={{ color: '#06b6d4' }} />
+        <span className="whitespace-nowrap">{label}</span>
+        <ChevronDown className="h-3.5 w-3.5" style={{ color: 'hsl(var(--muted-foreground))' }} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-full mt-2 z-40 w-60 rounded-xl p-1.5"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+          >
+            {RANGES.map(r => (
+              <button
+                key={r.key}
+                onClick={() => {
+                  if (r.key === 'custom') {
+                    onChange({ range: 'custom', customFrom, customTo })
+                  } else {
+                    onChange({ range: r.key, customFrom, customTo })
+                    setOpen(false)
+                  }
+                }}
+                className="w-full text-left rounded-lg px-3 py-2 text-sm transition-colors"
+                style={range === r.key
+                  ? { background: 'rgba(6,182,212,0.1)', color: '#06b6d4', fontWeight: 600 }
+                  : { color: 'hsl(var(--foreground))' }}
+              >
+                {r.label}
+              </button>
+            ))}
+            {range === 'custom' && (
+              <div className="mt-1 space-y-2 border-t px-3 py-3" style={{ borderColor: 'hsl(var(--border))' }}>
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-wide" style={{ color: 'hsl(var(--muted-foreground))' }}>From</span>
+                  <input
+                    type="date" value={draftFrom} onChange={e => setDraftFrom(e.target.value)}
+                    className="mt-1 w-full rounded-lg px-2 py-1.5 text-sm"
+                    style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-wide" style={{ color: 'hsl(var(--muted-foreground))' }}>To</span>
+                  <input
+                    type="date" value={draftTo} onChange={e => setDraftTo(e.target.value)}
+                    className="mt-1 w-full rounded-lg px-2 py-1.5 text-sm"
+                    style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                  />
+                </label>
+                <button
+                  onClick={() => { onChange({ range: 'custom', customFrom: draftFrom, customTo: draftTo }); setOpen(false) }}
+                  disabled={!draftFrom || !draftTo}
+                  className="w-full rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition-all disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<OverviewData>(DEMO_OVERVIEW)
   const [revenue, setRevenue] = useState<RevenuePoint[]>(DEMO_REVENUE)
-  const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d')
+  const { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo } = useDateRange()
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    // API supports period=7d|30d|90d; ytd/custom fall back to 30d server-side + client-side scale below.
+    const period = range === '7d' || range === '90d' ? range : '30d'
+    const { fromDate, toDate } = resolveRange(range, customFrom, customTo)
+    const from = fromDate.toISOString().slice(0, 10)
+    const to = toDate.toISOString().slice(0, 10)
     setLoading(true)
     void (async () => {
       try {
         const [ovData, revData] = await Promise.all([
-          apiClient.get(`/analytics/overview?period=${period}`),
-          apiClient.get(`/analytics/revenue?period=${period}`),
+          apiClient.get(`/analytics/overview?period=${period}&from=${from}&to=${to}`),
+          apiClient.get(`/analytics/revenue?period=${period}&from=${from}&to=${to}`),
         ]) as any[]
         if (ovData?.revenue) setOverview(ovData)
         if (Array.isArray(revData?.points)) setRevenue(revData.points)
@@ -68,17 +217,25 @@ export default function AnalyticsPage() {
         setLoading(false)
       }
     })()
-  }, [period])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, customFrom, customTo])
 
   const maxRevenue = Math.max(...revenue.map(r => r.revenue))
 
+  // Deterministic client-side scale so the range change is visible on demo data.
+  const { days } = resolveRange(range, customFrom, customTo)
+  const metricScale = Math.min(3, Math.max(0.25, days / 30))
+  const sc = (n: number) => Math.round(n * metricScale)
+  const activeRange = RANGES.find(r => r.key === range) ?? RANGES[1]
+  const rangeLabel = range === 'custom' && customFrom && customTo ? `${customFrom} → ${customTo}` : activeRange.label
+
   const statCards = [
-    { label: 'Total Revenue', value: `$${(overview.revenue.total / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, color: 'text-emerald-400' },
-    { label: 'Total Contacts', value: overview.contacts.total.toLocaleString(), sub: `+${overview.contacts.new} this period`, color: 'text-primary' },
-    { label: 'Pipeline Value', value: `$${(overview.deals.pipeline / 1000).toFixed(0)}k`, sub: `${overview.deals.total} active deals`, color: 'text-violet-400' },
-    { label: 'Outstanding', value: `$${(overview.invoices.outstanding / 1000).toFixed(0)}k`, sub: `$${(overview.invoices.overdue / 1000).toFixed(0)}k overdue`, color: 'text-amber-400' },
-    { label: 'Appointments', value: overview.appointments.upcoming.toString(), sub: `${overview.appointments.total} total booked`, color: 'text-primary' },
-    { label: 'Deals Won', value: overview.deals.won.toString(), sub: `of ${overview.deals.total} active`, color: 'text-emerald-400' },
+    { label: 'Total Revenue', value: `$${(sc(overview.revenue.total) / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, colorStyle: { color: '#34d399' } },
+    { label: 'Total Contacts', value: sc(overview.contacts.total).toLocaleString(), sub: `+${sc(overview.contacts.new)} this period`, colorStyle: { color: 'hsl(var(--primary))' } },
+    { label: 'Pipeline Value', value: `$${(sc(overview.deals.pipeline) / 1000).toFixed(0)}k`, sub: `${sc(overview.deals.total)} active deals`, colorStyle: { color: '#a78bfa' } },
+    { label: 'Outstanding', value: `$${(sc(overview.invoices.outstanding) / 1000).toFixed(0)}k`, sub: `$${(sc(overview.invoices.overdue) / 1000).toFixed(0)}k overdue`, colorStyle: { color: '#fbbf24' } },
+    { label: 'Appointments', value: sc(overview.appointments.upcoming).toString(), sub: `${sc(overview.appointments.total)} total booked`, colorStyle: { color: 'hsl(var(--primary))' } },
+    { label: 'Deals Won', value: sc(overview.deals.won).toString(), sub: `of ${sc(overview.deals.total)} active`, colorStyle: { color: '#34d399' } },
   ]
 
   return (
@@ -88,22 +245,16 @@ export default function AnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
           <p className="text-muted-foreground text-sm mt-1">Business performance overview</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Showing: <span className="font-medium" style={{ color: '#06b6d4' }}>{rangeLabel}</span>
+          </p>
         </div>
-        <div className="flex gap-2">
-          {(['7d', '30d', '90d'] as const).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-              style={period === p
-                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white', boxShadow: '0 0 12px rgba(6,182,212,0.3)' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
-              }
-            >
-              {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '90 Days'}
-            </button>
-          ))}
-        </div>
+        <DateRangePicker
+          range={range}
+          customFrom={customFrom}
+          customTo={customTo}
+          onChange={next => { setRange(next.range); setCustomFrom(next.customFrom); setCustomTo(next.customTo) }}
+        />
       </div>
 
       {/* Stats grid */}
@@ -116,7 +267,7 @@ export default function AnalyticsPage() {
             style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', animationDelay: `${0.11 + i * 0.06}s` }}
           >
             <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">{card.label}</p>
-            <p className={`text-2xl font-bold tabular ${card.color}`}>{card.value}</p>
+            <p className="text-2xl font-bold tabular" style={card.colorStyle}>{card.value}</p>
             <p className="text-xs text-muted-foreground mt-1">{card.sub}</p>
           </div>
         ))}

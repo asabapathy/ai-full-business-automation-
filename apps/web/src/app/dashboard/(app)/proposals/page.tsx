@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { ClipboardList, Plus, Send, Trash2, FileSignature, X } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 
 interface LineItem {
   description: string
@@ -154,7 +154,7 @@ export default function ProposalsPage() {
       {/* Table */}
       <div {...anim(1)} className="rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
-          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
         ) : proposals.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <ClipboardList className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -181,7 +181,7 @@ export default function ProposalsPage() {
                     <tr key={p.id} className="hover:bg-accent/30 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          {p.status === 'SIGNED' && <FileSignature className="h-3.5 w-3.5 text-emerald-400 shrink-0" />}
+                          {p.status === 'SIGNED' && <FileSignature className="h-3.5 w-3.5 shrink-0" style={{ color: '#34d399' }} />}
                           <span className="font-medium text-foreground">{p.title}</span>
                         </div>
                       </td>

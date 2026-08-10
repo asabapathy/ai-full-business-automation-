@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { CreditCard, Plus, TrendingUp, Users, DollarSign, Trash2, X } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
 
 interface Subscription {
   id: string
@@ -137,7 +136,7 @@ export default function SubscriptionsPage() {
       {/* Subscriptions list */}
       <div {...anim(2)} className="rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
-          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
         ) : subs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <CreditCard className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -154,7 +153,7 @@ export default function SubscriptionsPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="font-medium text-foreground text-sm">{sub.name}</p>
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: meta.text, background: meta.bg }}>{sub.status}</span>
-                      {sub.cancelAtPeriodEnd && <span className="text-xs text-amber-400">Cancels at period end</span>}
+                      {sub.cancelAtPeriodEnd && <span className="text-xs" style={{ color: '#fbbf24' }}>Cancels at period end</span>}
                     </div>
                     <p className="text-xs text-muted-foreground">{sub.contact.firstName} {sub.contact.lastName}{sub.contact.email ? ` · ${sub.contact.email}` : ''}</p>
                     <div className="flex items-center gap-3 mt-1">
@@ -168,10 +167,10 @@ export default function SubscriptionsPage() {
                     <button
                       onClick={() => handleCancel(sub.id)}
                       disabled={cancelling === sub.id}
-                      className="p-1.5 rounded-lg transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                      className="p-1.5 rounded-lg transition-colors disabled:opacity-50"
                       title="Cancel subscription"
                     >
-                      <Trash2 className="h-4 w-4 text-red-400" />
+                      <Trash2 className="h-4 w-4" style={{ color: '#f87171' }} />
                     </button>
                   )}
                 </div>

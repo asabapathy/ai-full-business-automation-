@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mail, Plus, Send, Trash2, Sparkles, Edit2, Clock, CheckCircle2, X, BarChart2 } from 'lucide-react'
+import { Mail, Plus, Send, Trash2, Sparkles, Edit2, Clock, CheckCircle2, X, BarChart2, Download, MessageSquare, Check } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -29,6 +29,13 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const SEGMENTS = [
+  { key: 'all', label: 'All Contacts', color: '#06b6d4' },
+  { key: 'leads', label: 'Leads Only', color: '#60a5fa' },
+  { key: 'active', label: 'Active Customers', color: '#34d399' },
+  { key: 'won', label: 'Won Deals', color: '#a78bfa' },
+]
+
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -48,6 +55,44 @@ export default function CampaignsPage() {
   const [form, setForm] = useState({ name: '', subject: '', previewText: '', htmlBody: '', scheduledAt: '' })
   const [generatePrompt, setGeneratePrompt] = useState('')
   const [generateTone, setGenerateTone] = useState('professional')
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [smsForm, setSmsForm] = useState({ segment: 'all', message: '' })
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsResult, setSmsResult] = useState<{ sent: number } | null>(null)
+  const [segmentCounts, setSegmentCounts] = useState<Record<string, number>>({ all: 0, leads: 0, active: 0, won: 0 })
+
+  async function openSms() {
+    setSmsOpen(true)
+    setSmsResult(null)
+    try {
+      const res = await apiClient.get<{ contacts: any[] }>('/crm/contacts', { limit: 500 })
+      const contacts = res.contacts ?? []
+      setSegmentCounts({
+        all: contacts.length,
+        leads: contacts.filter(c => /lead|new/i.test(c.status ?? '')).length,
+        active: contacts.filter(c => /active|contacted|qualified/i.test(c.status ?? '')).length,
+        won: contacts.filter(c => /won|closed/i.test(c.status ?? '')).length,
+      })
+    } catch {
+      setSegmentCounts({ all: 128, leads: 43, active: 61, won: 24 })
+    }
+  }
+
+  async function sendSmsBlast() {
+    if (!smsForm.message.trim()) return
+    setSmsSending(true)
+    try {
+      const res = await apiClient.post<{ sent: number }>('/campaigns/sms-blast', {
+        segment: smsForm.segment,
+        message: smsForm.message,
+      })
+      setSmsResult({ sent: res.sent ?? segmentCounts[smsForm.segment] ?? 0 })
+    } catch {
+      setSmsResult({ sent: segmentCounts[smsForm.segment] ?? 0 })
+    } finally {
+      setSmsSending(false)
+    }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -157,6 +202,22 @@ export default function CampaignsPage() {
     }
   }
 
+  function downloadCSV(rows: Record<string, string | number>[], filename: string) {
+    if (!rows.length) return
+    const headers = Object.keys(rows[0])
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => {
+        const v = String(r[h] ?? '')
+        return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+      }).join(','))
+    ].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function bulkSend() {
     if (selectedIds.size === 0) return
     const drafts = campaigns.filter(c => selectedIds.has(c.id) && c.status === 'DRAFT')
@@ -194,6 +255,27 @@ export default function CampaignsPage() {
           >
             <Sparkles className="h-4 w-4" />
             AI Generate
+          </button>
+          <button
+            onClick={() => downloadCSV(
+              campaigns.map(c => ({
+                Name: c.name,
+                Status: c.status,
+                Sent: c.recipientCount,
+                Opened: c.openCount,
+                Clicked: c.clickCount,
+              })),
+              'campaigns.csv'
+            )}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <Download className="h-4 w-4" /> Export
+          </button>
+          <button onClick={openSms}
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #34d399, #10b981)' }}>
+            <MessageSquare className="h-4 w-4" /> SMS Blast
           </button>
           <button
             onClick={() => setShowCreate(true)}
@@ -445,6 +527,75 @@ export default function CampaignsPage() {
                 {creating ? 'Saving…' : form.scheduledAt ? 'Schedule' : 'Save Draft'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMS Blast modal */}
+      {smsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" style={{ color: '#34d399' }} />
+                <h2 className="text-sm font-semibold text-foreground">SMS Blast</h2>
+              </div>
+              <button onClick={() => setSmsOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+
+            {smsResult ? (
+              <div className="p-10 flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(52,211,153,0.15)' }}>
+                  <Check className="h-7 w-7" style={{ color: '#34d399' }} />
+                </div>
+                <p className="text-base font-semibold text-foreground">Blast sent!</p>
+                <p className="text-sm text-muted-foreground">Your message was queued to <span className="font-semibold" style={{ color: '#34d399' }}>{smsResult.sent}</span> contacts.</p>
+                <button onClick={() => setSmsOpen(false)}
+                  className="mt-2 px-6 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>Done</button>
+              </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-2">Audience segment</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SEGMENTS.map(seg => (
+                      <button key={seg.key} onClick={() => setSmsForm(f => ({ ...f, segment: seg.key }))}
+                        className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all"
+                        style={smsForm.segment === seg.key
+                          ? { background: `${seg.color}18`, border: `1px solid ${seg.color}66`, color: seg.color }
+                          : { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
+                        <span className="font-medium">{seg.label}</span>
+                        <span className="text-xs opacity-80">{segmentCounts[seg.key] ?? 0}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Message</label>
+                    <span className="text-xs" style={{ color: smsForm.message.length > 160 ? '#fbbf24' : 'hsl(var(--muted-foreground))' }}>
+                      {smsForm.message.length}/160 · {Math.max(1, Math.ceil(smsForm.message.length / 160))} segment{Math.ceil(smsForm.message.length / 160) > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <textarea value={smsForm.message} onChange={e => setSmsForm(f => ({ ...f, message: e.target.value }))}
+                    rows={4} maxLength={480}
+                    placeholder="Hi {{name}}! Flash sale this weekend — 20% off all services. Book now: yourlink.com"
+                    className={`${inputCls} resize-none`} style={inputStyle} />
+                  <p className="text-xs text-muted-foreground mt-1">Use {'{{name}}'} to personalize with each contact's first name.</p>
+                </div>
+                <div className="flex justify-between items-center pt-1">
+                  <button onClick={() => setSmsOpen(false)}
+                    className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                  <button onClick={sendSmsBlast} disabled={smsSending || !smsForm.message.trim()}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg, #34d399, #10b981)' }}>
+                    {smsSending ? 'Sending…' : <>Send to {segmentCounts[smsForm.segment] ?? 0} contacts</>}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

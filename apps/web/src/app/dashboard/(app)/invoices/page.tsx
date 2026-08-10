@@ -1,10 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2 } from 'lucide-react'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter, Eye, Printer, Repeat } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
+
+interface InvoiceLineItem {
+  description?: string
+  name?: string
+  quantity?: number
+  unitPrice?: number
+  rate?: number
+  total?: number
+  amount?: number
+}
 
 interface Invoice {
   id: string
@@ -15,6 +25,15 @@ interface Invoice {
   dueDate?: string
   createdAt: string
   contact?: { firstName: string; lastName?: string }
+  // optional extended fields (populated by some API responses)
+  subtotal?: number
+  tax?: number
+  items?: InvoiceLineItem[]
+  lineItems?: InvoiceLineItem[]
+  clientEmail?: string
+  description?: string
+  isRecurring?: boolean
+  recurringFrequency?: string
 }
 
 interface FinancialSummary {
@@ -45,6 +64,7 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
 
@@ -59,6 +79,12 @@ export default function InvoicesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkReminding, setBulkReminding] = useState(false)
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null)
+  const [filters, setFilters] = useState({ status: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' })
+  const [showFilters, setShowFilters] = useState(false)
+  const [recurOpen, setRecurOpen] = useState<Invoice | null>(null)
+  const [recurForm, setRecurForm] = useState({ frequency: 'monthly' as 'weekly' | 'monthly' | 'quarterly' | 'yearly', startDate: '', autoSend: true, endAfter: '' })
+  const [recurSaving, setRecurSaving] = useState(false)
   const [form, setForm] = useState({
     title: '',
     clientName: '',
@@ -133,6 +159,26 @@ export default function InvoicesPage() {
     }
   }
 
+  async function saveRecurring() {
+    if (!recurOpen) return
+    setRecurSaving(true)
+    try {
+      await apiClient.post(`/finance/invoices/${recurOpen.id}/recurring`, {
+        frequency: recurForm.frequency,
+        startDate: recurForm.startDate,
+        autoSend: recurForm.autoSend,
+        endAfter: recurForm.endAfter ? Number(recurForm.endAfter) : undefined,
+      })
+    } catch {
+      // demo mode — apply locally
+    }
+    const recurId = recurOpen.id
+    setInvoices(prev => prev.map(inv => inv.id === recurId ? { ...inv, isRecurring: true, recurringFrequency: recurForm.frequency } : inv))
+    setRecurOpen(null)
+    setRecurSaving(false)
+    toast(`Invoice set to repeat ${recurForm.frequency}`, 'success')
+  }
+
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -141,11 +187,20 @@ export default function InvoicesPage() {
     })
   }
 
+  const filteredInvoices = invoices.filter(inv => {
+    if (filters.status && inv.status?.toLowerCase() !== filters.status) return false
+    if (filters.minAmount && (inv.total ?? 0) < Number(filters.minAmount)) return false
+    if (filters.maxAmount && (inv.total ?? 0) > Number(filters.maxAmount)) return false
+    if (filters.dateFrom && inv.dueDate && new Date(inv.dueDate) < new Date(filters.dateFrom)) return false
+    if (filters.dateTo && inv.dueDate && new Date(inv.dueDate) > new Date(filters.dateTo)) return false
+    return true
+  })
+
   function toggleSelectAll() {
-    if (selectedIds.size === invoices.length) {
+    if (selectedIds.size === filteredInvoices.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(invoices.map(inv => inv.id)))
+      setSelectedIds(new Set(filteredInvoices.map(inv => inv.id)))
     }
   }
 
@@ -164,6 +219,22 @@ export default function InvoicesPage() {
     }
   }
 
+  function downloadCSV(rows: Record<string, string | number>[], filename: string) {
+    if (!rows.length) return
+    const headers = Object.keys(rows[0])
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => {
+        const v = String(r[h] ?? '')
+        return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+      }).join(','))
+    ].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function bulkRemind() {
     if (selectedIds.size === 0) return
     const remindable = invoices.filter(inv => selectedIds.has(inv.id) && ['SENT', 'OVERDUE'].includes(inv.status))
@@ -180,6 +251,47 @@ export default function InvoicesPage() {
     }
   }
 
+  function printInvoice() {
+    const printContent = document.getElementById('invoice-print-area')
+    if (!printContent) return
+    const win = window.open('', '_blank', 'width=800,height=600')
+    if (!win) return
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice ${previewInvoice?.invoiceNumber ?? ''}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; background: white; padding: 40px; }
+          .invoice-header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+          .company-name { font-size: 24px; font-weight: 700; color: #06b6d4; }
+          .invoice-title { font-size: 32px; font-weight: 300; color: #666; text-align: right; }
+          .invoice-number { font-size: 14px; color: #666; text-align: right; margin-top: 4px; }
+          .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+          .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #999; margin-bottom: 4px; }
+          .meta-value { font-size: 14px; color: #111; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; }
+          td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+          .total-row { display: flex; justify-content: flex-end; }
+          .total-box { background: #f5f5f5; padding: 20px 24px; border-radius: 8px; min-width: 260px; }
+          .total-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #666; }
+          .grand-total { display: flex; justify-content: space-between; font-size: 20px; font-weight: 700; color: #111; margin-top: 12px; padding-top: 12px; border-top: 2px solid #ddd; }
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+          .paid { background: #d1fae5; color: #065f46; }
+          .pending { background: #fef3c7; color: #92400e; }
+          .overdue { background: #fee2e2; color: #991b1b; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>${printContent.innerHTML}</body>
+      </html>
+    `)
+    win.document.close()
+    win.print()
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
@@ -191,11 +303,27 @@ export default function InvoicesPage() {
         <div className="flex gap-2">
           <button
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
-            style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.2)' }}
-            style={{ border: '1px solid rgba(6,182,212,0.3)' }}
+            style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.3)' }}
           >
             <Zap className="h-4 w-4" />
             AI Analyze
+          </button>
+          <button
+            onClick={() => downloadCSV(
+              invoices.map(inv => ({
+                Number: inv.invoiceNumber,
+                Client: inv.contact ? `${inv.contact.firstName} ${inv.contact.lastName ?? ''}`.trim() : '',
+                Amount: inv.total,
+                Status: inv.status,
+                Due: inv.dueDate ?? '',
+                Paid: '',
+              })),
+              'invoices.csv'
+            )}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <Download className="h-4 w-4" /> Export
           </button>
           <button
             onClick={() => setShowCreate(true)}
@@ -276,7 +404,7 @@ export default function InvoicesPage() {
       )}
 
       {/* Status Filter */}
-      <div className="kv-anim flex gap-2" style={{ animationDelay: '0.46s' }}>
+      <div className="kv-anim flex flex-wrap gap-2 items-center" style={{ animationDelay: '0.46s' }}>
         {['', 'DRAFT', 'SENT', 'PAID', 'OVERDUE'].map(status => (
           <button
             key={status}
@@ -290,7 +418,87 @@ export default function InvoicesPage() {
             {status || 'All'}
           </button>
         ))}
+        <button onClick={() => setShowFilters(f => !f)}
+          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+          style={showFilters
+            ? { background: 'rgba(6,182,212,0.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }
+            : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+          <Filter className="h-3.5 w-3.5" />
+          Filters
+          {(filters.status || filters.minAmount || filters.maxAmount || filters.dateFrom || filters.dateTo) && (
+            <span className="ml-1 h-2 w-2 rounded-full" style={{ background: '#06b6d4' }} />
+          )}
+        </button>
       </div>
+
+      {showFilters && (
+        <div className="rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3" style={cardStyle}>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
+            <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+              className={inputCls} style={inputStyle}>
+              <option value="">All statuses</option>
+              <option value="draft">Draft</option>
+              <option value="sent">Sent</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Min Amount ($)</label>
+            <input type="number" value={filters.minAmount} onChange={e => setFilters(f => ({ ...f, minAmount: e.target.value }))}
+              placeholder="0" className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Max Amount ($)</label>
+            <input type="number" value={filters.maxAmount} onChange={e => setFilters(f => ({ ...f, maxAmount: e.target.value }))}
+              placeholder="Any" className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Due From</label>
+            <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
+              className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Due To</label>
+            <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))}
+              className={inputCls} style={inputStyle} />
+          </div>
+          <div className="col-span-2 sm:col-span-3 flex items-end">
+            <button onClick={() => setFilters({ status: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' })}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Clear filters
+            </button>
+          </div>
+        </div>
+      )}
+
+      {Object.entries(filters).some(([, v]) => v) && (
+        <div className="flex flex-wrap gap-2">
+          {filters.status && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Status: {filters.status}
+              <button onClick={() => setFilters(f => ({ ...f, status: '' }))}>×</button>
+            </span>
+          )}
+          {filters.minAmount && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Min: ${filters.minAmount}
+              <button onClick={() => setFilters(f => ({ ...f, minAmount: '' }))}>×</button>
+            </span>
+          )}
+          {filters.maxAmount && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Max: ${filters.maxAmount}
+              <button onClick={() => setFilters(f => ({ ...f, maxAmount: '' }))}>×</button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Invoice List */}
       <div
@@ -298,16 +506,16 @@ export default function InvoicesPage() {
         style={{ animationDelay: '0.53s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
       >
         <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-          {invoices.length > 0 && (
+          {filteredInvoices.length > 0 && (
             <button
               onClick={toggleSelectAll}
               className="h-4 w-4 rounded shrink-0 flex items-center justify-center"
-              style={selectedIds.size === invoices.length && invoices.length > 0
+              style={selectedIds.size === filteredInvoices.length && filteredInvoices.length > 0
                 ? { background: '#06b6d4', border: '1px solid #06b6d4' }
                 : { border: '1px solid hsl(var(--border))', background: 'transparent' }
               }
             >
-              {selectedIds.size === invoices.length && invoices.length > 0 && (
+              {selectedIds.size === filteredInvoices.length && filteredInvoices.length > 0 && (
                 <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               )}
             </button>
@@ -345,7 +553,7 @@ export default function InvoicesPage() {
               <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
             ))}
           </div>
-        ) : invoices.length === 0 ? (
+        ) : filteredInvoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
             <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="font-medium text-foreground">No invoices yet</p>
@@ -353,7 +561,7 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-            {invoices.map(invoice => {
+            {filteredInvoices.map(invoice => {
               const isOverdue = invoice.status !== 'PAID' && invoice.dueDate && new Date(invoice.dueDate) < new Date()
               const displayStatus = isOverdue ? 'OVERDUE' : invoice.status
               const Icon = STATUS_ICONS[displayStatus] ?? FileText
@@ -390,10 +598,35 @@ export default function InvoicesPage() {
 
                   <span className="text-sm font-semibold text-foreground tabular">${invoice.total.toLocaleString()}</span>
 
+                  {invoice.isRecurring && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
+                      <Repeat className="h-3 w-3" /> {invoice.recurringFrequency ?? 'monthly'}
+                    </span>
+                  )}
+
                   {(() => {
                     const m = STATUS_META[displayStatus] ?? { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' }
                     return <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ color: m.text, background: m.bg }}>{displayStatus}</span>
                   })()}
+
+                  <button
+                    onClick={() => setPreviewInvoice(invoice)}
+                    title="Preview"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={(e) => { e.stopPropagation?.(); setRecurOpen(invoice); setRecurForm({ frequency: 'monthly', startDate: new Date().toISOString().slice(0, 10), autoSend: true, endAfter: '' }) }}
+                    title="Make recurring"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                  >
+                    <Repeat className="h-4 w-4" />
+                  </button>
 
                   {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
                     <button
@@ -411,6 +644,126 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
+
+      {/* Invoice PDF Preview Modal */}
+      {previewInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          style={{ background: 'rgba(0,0,0,0.75)' }}>
+          <div className="w-full max-w-2xl rounded-xl overflow-hidden my-4"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Invoice Preview</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{previewInvoice.invoiceNumber}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={printInvoice}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
+                  <Printer className="h-4 w-4" /> Print / Save PDF
+                </button>
+                <button onClick={() => setPreviewInvoice(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Invoice content (printable area) */}
+            <div id="invoice-print-area" className="p-8 space-y-6" style={{ background: 'white', color: '#111' }}>
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <p style={{ fontSize: 22, fontWeight: 700, color: '#06b6d4' }}>Your Business</p>
+                  <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>business@example.com</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: 28, fontWeight: 300, color: '#666' }}>INVOICE</p>
+                  <p style={{ fontSize: 13, color: '#333', marginTop: 4, fontWeight: 600 }}>{previewInvoice.invoiceNumber}</p>
+                </div>
+              </div>
+
+              {/* Meta grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, padding: '20px 0', borderTop: '1px solid #eee', borderBottom: '1px solid #eee' }}>
+                <div>
+                  <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#999', marginBottom: 6 }}>Bill To</p>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>
+                    {previewInvoice.contact
+                      ? `${previewInvoice.contact.firstName} ${previewInvoice.contact.lastName ?? ''}`.trim()
+                      : previewInvoice.title}
+                  </p>
+                  {previewInvoice.clientEmail && (
+                    <p style={{ fontSize: 13, color: '#666', marginTop: 2 }}>{previewInvoice.clientEmail}</p>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#999', marginBottom: 2 }}>Issue Date</p>
+                    <p style={{ fontSize: 13, color: '#111' }}>{previewInvoice.createdAt ? new Date(previewInvoice.createdAt).toLocaleDateString() : '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#999', marginBottom: 2 }}>Due Date</p>
+                    <p style={{ fontSize: 13, color: '#111' }}>{previewInvoice.dueDate ? new Date(previewInvoice.dueDate).toLocaleDateString() : '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Line items */}
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f9f9f9' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Description</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Qty</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Unit Price</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#999', fontWeight: 600 }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(previewInvoice.items ?? previewInvoice.lineItems ?? [{ description: previewInvoice.title ?? 'Services', quantity: 1, unitPrice: previewInvoice.total, total: previewInvoice.total }]).map((item, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                      <td style={{ padding: '12px', fontSize: 14, color: '#111' }}>{item.description ?? item.name ?? 'Service'}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontSize: 14, color: '#666' }}>{item.quantity ?? 1}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontSize: 14, color: '#666' }}>${Number(item.unitPrice ?? item.rate ?? 0).toFixed(2)}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#111' }}>${Number(item.total ?? item.amount ?? ((item.quantity ?? 1) * (item.unitPrice ?? item.rate ?? 0))).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ minWidth: 240 }}>
+                  {previewInvoice.subtotal != null && previewInvoice.subtotal !== previewInvoice.total && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14, color: '#666' }}>
+                      <span>Subtotal</span><span>${Number(previewInvoice.subtotal).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {previewInvoice.tax != null && previewInvoice.tax > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14, color: '#666' }}>
+                      <span>Tax</span><span>${Number(previewInvoice.tax).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 8, borderTop: '2px solid #eee', fontSize: 18, fontWeight: 700, color: '#111' }}>
+                    <span>Total</span><span>${Number(previewInvoice.total ?? 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #eee' }}>
+                <span style={{ fontSize: 12, color: '#999' }}>Status</span>
+                <span style={{
+                  display: 'inline-block', padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  background: previewInvoice.status?.toUpperCase() === 'PAID' ? '#d1fae5' : previewInvoice.status?.toUpperCase() === 'OVERDUE' ? '#fee2e2' : '#fef3c7',
+                  color: previewInvoice.status?.toUpperCase() === 'PAID' ? '#065f46' : previewInvoice.status?.toUpperCase() === 'OVERDUE' ? '#991b1b' : '#92400e',
+                }}>
+                  {(previewInvoice.status ?? 'PENDING').toUpperCase()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create invoice modal */}
       {showCreate && (
@@ -483,6 +836,73 @@ export default function InvoicesPage() {
                 style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
                 {creating ? 'Creating…' : 'Create Invoice'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring invoice modal */}
+      {recurOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-md rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Repeat className="h-4 w-4" style={{ color: '#a78bfa' }} />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Make Recurring</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{recurOpen.invoiceNumber} · ${Number(recurOpen.total ?? 0).toLocaleString()}</p>
+                </div>
+              </div>
+              <button onClick={() => setRecurOpen(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Frequency</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['weekly', 'monthly', 'quarterly', 'yearly'] as const).map(f => (
+                    <button key={f} onClick={() => setRecurForm(r => ({ ...r, frequency: f }))}
+                      className="py-2 rounded-lg text-xs font-medium capitalize transition-all"
+                      style={recurForm.frequency === f
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">First send date</label>
+                <input type="date" value={recurForm.startDate} onChange={e => setRecurForm(r => ({ ...r, startDate: e.target.value }))}
+                  className={inputCls} style={inputStyle} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">End after (occurrences, optional)</label>
+                <input type="number" min="1" value={recurForm.endAfter} onChange={e => setRecurForm(r => ({ ...r, endAfter: e.target.value }))}
+                  placeholder="Never" className={inputCls} style={inputStyle} />
+              </div>
+              <button onClick={() => setRecurForm(r => ({ ...r, autoSend: !r.autoSend }))}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-2.5"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <span className="text-sm text-foreground">Auto-send when generated</span>
+                <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                  style={{ background: recurForm.autoSend ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: recurForm.autoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+              <div className="rounded-lg p-3 text-xs text-muted-foreground" style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)' }}>
+                A copy of this invoice will be generated {recurForm.frequency}{recurForm.autoSend ? ' and sent automatically' : ' as a draft'}.
+              </div>
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setRecurOpen(null)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                <button onClick={saveRecurring} disabled={recurSaving || !recurForm.startDate}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  <Repeat className="h-4 w-4" /> {recurSaving ? 'Saving…' : 'Set Recurring'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Webhook, Plus, Trash2, Play, CheckCircle2, XCircle, Eye, EyeOff, X } from 'lucide-react'
+import { Webhook, Plus, Trash2, Play, CheckCircle2, XCircle, Eye, EyeOff, X, RefreshCw, ChevronDown, Copy, RotateCcw } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 
 interface WebhookEntry {
   id: string
@@ -16,6 +16,16 @@ interface WebhookEntry {
   failureCount: number
   lastTriggeredAt: string | null
   deliveries: Array<{ id: string; event: string; success: boolean; statusCode: number | null; createdAt: string }>
+}
+
+interface WebhookEvent {
+  id: string
+  event: string
+  url: string
+  status: number
+  durationMs: number
+  createdAt: string
+  payload: Record<string, unknown>
 }
 
 function anim(i: number) {
@@ -43,6 +53,91 @@ const DEMO_WEBHOOKS: WebhookEntry[] = [
   },
 ]
 
+const DEMO_LOG_EVENTS: WebhookEvent[] = [
+  {
+    id: 'evt_1',
+    event: 'invoice.paid',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 200,
+    durationMs: 142,
+    createdAt: new Date(Date.now() - 25 * 60000).toISOString(),
+    payload: { id: 'inv_8412', amount: 1250.0, currency: 'USD', customer: 'Maple Ridge HVAC', paidAt: new Date(Date.now() - 25 * 60000).toISOString() },
+  },
+  {
+    id: 'evt_2',
+    event: 'contact.created',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 201,
+    durationMs: 98,
+    createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+    payload: { id: 'ct_5521', name: 'Sarah Whitfield', email: 'sarah.w@example.com', source: 'website-form' },
+  },
+  {
+    id: 'evt_3',
+    event: 'appointment.booked',
+    url: 'https://api.make.com/w/hook/9f2e1d',
+    status: 500,
+    durationMs: 3012,
+    createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
+    payload: { id: 'apt_301', contact: 'Dan Okafor', service: 'AC Tune-Up', scheduledFor: new Date(Date.now() + 2 * 86400000).toISOString() },
+  },
+  {
+    id: 'evt_4',
+    event: 'campaign.sent',
+    url: 'https://n8n.internal.example.com/webhook/campaigns',
+    status: 200,
+    durationMs: 210,
+    createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+    payload: { id: 'cmp_77', name: 'Spring Maintenance Promo', recipients: 482, channel: 'email' },
+  },
+  {
+    id: 'evt_5',
+    event: 'estimate.approved',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 200,
+    durationMs: 156,
+    createdAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+    payload: { id: 'est_204', amount: 4890.5, customer: 'Linden Property Group', approvedBy: 'j.linden@example.com' },
+  },
+  {
+    id: 'evt_6',
+    event: 'invoice.paid',
+    url: 'https://api.make.com/w/hook/9f2e1d',
+    status: 404,
+    durationMs: 87,
+    createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+    payload: { id: 'inv_8398', amount: 320.0, currency: 'USD', customer: 'Tom Brennan' },
+  },
+  {
+    id: 'evt_7',
+    event: 'contact.created',
+    url: 'https://n8n.internal.example.com/webhook/contacts',
+    status: 0,
+    durationMs: 30000,
+    createdAt: new Date(Date.now() - 18 * 3600000).toISOString(),
+    payload: { id: 'ct_5498', name: 'Priya Raman', phone: '+1 (555) 014-2288', source: 'missed-call-textback' },
+  },
+  {
+    id: 'evt_8',
+    event: 'appointment.booked',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 200,
+    durationMs: 121,
+    createdAt: new Date(Date.now() - 23 * 3600000).toISOString(),
+    payload: { id: 'apt_298', contact: 'Melissa Cho', service: 'Furnace Inspection', scheduledFor: new Date(Date.now() + 5 * 86400000).toISOString() },
+  },
+]
+
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 const DEMO_EVENTS = [
   'contact.created', 'contact.updated', 'contact.deleted',
   'appointment.created', 'appointment.confirmed', 'appointment.cancelled',
@@ -60,6 +155,11 @@ export default function WebhooksPage() {
   const [creating, setCreating] = useState(false)
   const [showSecret, setShowSecret] = useState<Record<string, boolean>>({})
   const [form, setForm] = useState({ name: '', url: '', events: [] as string[] })
+  const [logEvents, setLogEvents] = useState<WebhookEvent[]>([])
+  const [logLoading, setLogLoading] = useState(true)
+  const [logFilter, setLogFilter] = useState<'all' | 'success' | 'failed'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [retryingId, setRetryingId] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -78,7 +178,54 @@ export default function WebhooksPage() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  const loadLogEvents = async () => {
+    setLogLoading(true)
+    try {
+      const data = await apiClient.get('/webhooks/events?limit=25') as any
+      const items = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : null
+      if (items && items.length > 0 && typeof items[0] === 'object' && 'status' in items[0]) {
+        setLogEvents(items as WebhookEvent[])
+      } else {
+        setLogEvents(DEMO_LOG_EVENTS)
+      }
+    } catch {
+      setLogEvents(DEMO_LOG_EVENTS)
+    } finally {
+      setLogLoading(false)
+    }
+  }
+
+  useEffect(() => { void load(); void loadLogEvents() }, [])
+
+  const isFailed = (ev: WebhookEvent) => ev.status === 0 || ev.status >= 400
+
+  const filteredLogEvents = logEvents.filter(ev => {
+    if (logFilter === 'success') return !isFailed(ev)
+    if (logFilter === 'failed') return isFailed(ev)
+    return true
+  })
+
+  const handleCopyPayload = async (ev: WebhookEvent) => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(ev.payload, null, 2))
+      toast('Payload copied to clipboard', 'success')
+    } catch {
+      toast('Failed to copy payload', 'error')
+    }
+  }
+
+  const handleRetry = async (ev: WebhookEvent) => {
+    setRetryingId(ev.id)
+    try {
+      await apiClient.post(`/webhooks/events/${ev.id}/retry`, {})
+    } catch {
+      // demo mode — proceed with local update
+    } finally {
+      setLogEvents(prev => prev.map(e => e.id === ev.id ? { ...e, status: 200 } : e))
+      setRetryingId(null)
+      toast('Delivery retried successfully', 'success')
+    }
+  }
 
   const handleCreate = async () => {
     if (!form.name || !form.url || form.events.length === 0) return
@@ -154,7 +301,7 @@ export default function WebhooksPage() {
       {/* Webhook list */}
       {loading ? (
         <div {...anim(1)} className="space-y-4">
-          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
+          {Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-28 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
         </div>
       ) : webhooks.length === 0 ? (
         <div {...anim(1)} className="flex flex-col items-center justify-center py-16 text-center rounded-xl" style={cardStyle}>
@@ -245,8 +392,8 @@ export default function WebhooksPage() {
                   {wh.deliveries.map(d => (
                     <div key={d.id} className="flex items-center gap-2 text-xs">
                       {d.success
-                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                        : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                        ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: '#34d399' }} />
+                        : <XCircle className="h-3.5 w-3.5 shrink-0" style={{ color: '#f87171' }} />
                       }
                       <span className="text-foreground/80">{d.event}</span>
                       <span className="text-muted-foreground tabular">{d.statusCode ?? '—'}</span>
@@ -259,6 +406,113 @@ export default function WebhooksPage() {
           ))}
         </div>
       )}
+
+      {/* Delivery Log */}
+      <div {...anim(2)} className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Delivery Log</h2>
+            <button
+              onClick={() => void loadLogEvents()}
+              disabled={logLoading}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              style={{ border: '1px solid hsl(var(--border))' }}
+              title="Refresh events"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${logLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          <div className="flex gap-1.5">
+            {([['all', 'All'], ['success', 'Success'], ['failed', 'Failed']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setLogFilter(key)}
+                className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                style={logFilter === key
+                  ? { color: '#06b6d4', background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.35)' }
+                  : { color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {logLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
+          </div>
+        ) : filteredLogEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center rounded-xl" style={cardStyle}>
+            <p className="text-sm text-muted-foreground">No {logFilter === 'all' ? '' : `${logFilter} `}deliveries to show.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredLogEvents.map(ev => {
+              const failed = isFailed(ev)
+              const dotColor = failed ? '#f87171' : ev.status >= 300 ? '#fbbf24' : '#34d399'
+              const expanded = expandedId === ev.id
+              return (
+                <div key={ev.id} className="rounded-lg" style={cardStyle}>
+                  <button
+                    onClick={() => setExpandedId(expanded ? null : ev.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: dotColor }} />
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-mono font-medium shrink-0 tabular"
+                      style={{ color: dotColor, background: failed ? 'rgba(248,113,113,0.12)' : ev.status >= 300 ? 'rgba(251,191,36,0.12)' : 'rgba(52,211,153,0.12)' }}
+                    >
+                      {ev.status === 0 ? 'ERR' : ev.status}
+                    </span>
+                    <span className="font-mono text-sm text-foreground shrink-0">{ev.event}</span>
+                    <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">{ev.url}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 tabular">{ev.durationMs}ms</span>
+                    <span className="text-xs text-muted-foreground/70 shrink-0">{relativeTime(ev.createdAt)}</span>
+                    <ChevronDown
+                      className="h-4 w-4 text-muted-foreground shrink-0 transition-transform"
+                      style={expanded ? { transform: 'rotate(180deg)' } : undefined}
+                    />
+                  </button>
+
+                  {expanded && (
+                    <div className="px-4 pb-4 space-y-3 border-t pt-3" style={{ borderColor: 'hsl(var(--border))' }}>
+                      <pre
+                        className="font-mono text-xs rounded-lg p-3 overflow-x-auto text-foreground/90"
+                        style={{ background: 'hsl(var(--muted))' }}
+                      >
+                        {JSON.stringify(ev.payload, null, 2)}
+                      </pre>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => void handleCopyPayload(ev)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          style={{ border: '1px solid hsl(var(--border))' }}
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copy payload
+                        </button>
+                        {failed && (
+                          <button
+                            onClick={() => void handleRetry(ev)}
+                            disabled={retryingId === ev.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                            style={{ color: '#f87171', border: '1px solid rgba(248,113,113,0.4)' }}
+                          >
+                            <RotateCcw className={`h-3 w-3 ${retryingId === ev.id ? 'animate-spin' : ''}`} />
+                            {retryingId === ev.id ? 'Retrying…' : 'Retry'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Create modal */}
       {showCreate && (

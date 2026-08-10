@@ -73,64 +73,96 @@ export default function FormsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Form Builder</h1>
-          <p className="text-sm text-gray-500 mt-1">Create embeddable lead capture forms</p>
+          <h1 className="text-2xl font-bold text-foreground">Form Builder</h1>
+          <p className="text-sm text-muted-foreground mt-1">Create embeddable lead capture forms</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+        >
           <Plus className="h-4 w-4" />
           New Form
         </button>
       </div>
 
       {showForm && (
-        <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
-          <h2 className="font-semibold text-gray-900">Create Lead Form</h2>
-          <p className="text-sm text-gray-500">A default contact form (name, email, phone) will be created. You can customize it later.</p>
+        <div className="rounded-xl p-6 space-y-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+          <h2 className="font-semibold text-foreground">Create Lead Form</h2>
+          <p className="text-sm text-muted-foreground">A default contact form (name, email, phone) will be created. You can customize it later.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Form Name</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Contact Us Form" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Form Name</label>
+              <input
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                placeholder="Contact Us Form"
+                value={formData.name}
+                onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Description (optional)</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Get in touch with our team" value={formData.description} onChange={e => setFormData(f => ({ ...f, description: e.target.value }))} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Description (optional)</label>
+              <input
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                placeholder="Get in touch with our team"
+                value={formData.description}
+                onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
+              />
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={create} disabled={saving || !formData.name} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button
+              onClick={create}
+              disabled={saving || !formData.name}
+              className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+            >
               {saving ? 'Creating...' : 'Create Form'}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground"
+              style={{ border: '1px solid hsl(var(--border))' }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {loading ? (
-          <div className="col-span-3 text-center py-12 text-gray-400">Loading...</div>
+          <div className="col-span-3 text-center py-12 text-muted-foreground">Loading...</div>
         ) : forms.length === 0 ? (
-          <div className="col-span-3 text-center py-12 text-gray-400">No forms yet. Create your first lead capture form.</div>
+          <div className="col-span-3 text-center py-12 text-muted-foreground">No forms yet. Create your first lead capture form.</div>
         ) : forms.map(form => (
-          <div key={form.id} className="rounded-xl border bg-white p-5 shadow-sm flex flex-col gap-3">
+          <div key={form.id} className="rounded-xl flex flex-col gap-3 p-5" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
-                <FormInput className="h-4 w-4 text-blue-600" />
-                <h3 className="font-semibold text-gray-900">{form.name}</h3>
+                <FormInput className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h3 className="font-semibold text-foreground">{form.name}</h3>
               </div>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${form.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                style={form.isActive
+                  ? { background: 'rgba(52,211,153,0.1)', color: '#34d399' }
+                  : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
+              >
                 {form.isActive ? 'Active' : 'Inactive'}
               </span>
             </div>
-            {form.description && <p className="text-sm text-gray-500">{form.description}</p>}
-            <div className="flex items-center gap-4 text-sm text-gray-600">
+            {form.description && <p className="text-sm text-muted-foreground">{form.description}</p>}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span>{form.submissionCount} submissions</span>
-              <span className="text-gray-300">·</span>
+              <span className="text-muted-foreground/40">·</span>
               <span>{new Date(form.createdAt).toLocaleDateString()}</span>
             </div>
             {form.embedCode && (
-              <div className="rounded-lg bg-gray-50 p-3">
-                <p className="text-xs text-gray-500 mb-1 font-medium">Embed Code</p>
-                <code className="text-xs text-gray-700 break-all line-clamp-2">{form.embedCode}</code>
+              <div className="rounded-lg p-3" style={{ background: 'hsl(var(--muted))' }}>
+                <p className="text-xs text-muted-foreground mb-1 font-medium">Embed Code</p>
+                <code className="text-xs text-muted-foreground break-all line-clamp-2">{form.embedCode}</code>
               </div>
             )}
             <div className="flex gap-2 pt-1">
@@ -138,19 +170,21 @@ export default function FormsPage() {
                 href={`/forms/${form.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                style={{ border: '1px solid hsl(var(--border))' }}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Preview
               </a>
               <button
                 onClick={() => copyEmbed(form)}
-                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-blue-700 border-blue-200 hover:bg-blue-50"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                style={{ border: '1px solid rgba(6,182,212,0.2)', color: '#06b6d4' }}
               >
                 {copiedId === form.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 {copiedId === form.id ? 'Copied' : 'Copy Embed'}
               </button>
-              <button onClick={() => deleteForm(form.id)} className="ml-auto text-gray-300 hover:text-red-500">
+              <button onClick={() => deleteForm(form.id)} className="ml-auto text-muted-foreground/40">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

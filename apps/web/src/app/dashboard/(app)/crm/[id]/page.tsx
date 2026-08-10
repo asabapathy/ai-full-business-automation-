@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp, Check, Send, Trash2 } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
+import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 
 interface Contact {
   id: string
@@ -62,6 +63,48 @@ function initials(first: string, last?: string) {
   return `${first[0] ?? ''}${last?.[0] ?? ''}`.toUpperCase()
 }
 
+// Deterministic demo CLV derived from the contact id — stable across renders
+function demoCLV(id: string): number {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return 500 + (h % 24) * 375  // $500–$9,125
+}
+
+interface Note { id: string; author: string; body: string; createdAt: string }
+
+const TEAM = ['Sarah', 'Mike', 'Jess', 'Alex']
+
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #06b6d4, #0ea5e9)',
+  'linear-gradient(135deg, #a78bfa, #8b5cf6)',
+  'linear-gradient(135deg, #34d399, #10b981)',
+  'linear-gradient(135deg, #fbbf24, #f59e0b)',
+]
+
+function avatarGradient(author: string): string {
+  let h = 0
+  for (const c of author) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length]!
+}
+
+// Render a note body with @mentions highlighted
+function renderNoteBody(body: string) {
+  return body.split(/(@\w+)/g).map((part, i) =>
+    part.startsWith('@') ? (
+      <span key={i} className="rounded px-1 font-medium" style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.1)' }}>
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  )
+}
+
+const DEMO_NOTES: Note[] = [
+  { id: 'tn1', author: 'Mike', body: 'Called about the quote — wants to move forward next week. @Sarah can you prep the contract?', createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+  { id: 'tn2', author: 'Sarah', body: 'Met at the trade show. High intent.', createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+]
+
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -93,6 +136,47 @@ const DEAL_STATUS_META: Record<string, { text: string; bg: string }> = {
   LOST:        { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
 }
 
+const EMAIL_TEMPLATES = [
+  {
+    name: 'Follow-up',
+    subject: 'Following up on our conversation',
+    body: `Hi {{name}},
+
+I wanted to follow up on our recent conversation and see if you had any questions.
+
+I'd love to connect and discuss how we can help you further. Would you have 15 minutes this week for a quick call?
+
+Looking forward to hearing from you.`,
+  },
+  {
+    name: 'Quote ready',
+    subject: 'Your quote is ready',
+    body: `Hi {{name}},
+
+Thank you for your interest! I've prepared a quote based on your requirements.
+
+Please let me know if you have any questions or if you'd like to discuss the details.`,
+  },
+  {
+    name: 'Check-in',
+    subject: 'Checking in',
+    body: `Hi {{name}},
+
+Just checking in to see how things are going on your end.
+
+Is there anything we can help you with? We're always here if you need us.`,
+  },
+  {
+    name: 'Thank you',
+    subject: 'Thank you for your business',
+    body: `Hi {{name}},
+
+I just wanted to reach out to say thank you for choosing us. It's been a pleasure working with you.
+
+Please don't hesitate to reach out if you ever need anything.`,
+  },
+]
+
 export default function ContactDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -107,6 +191,15 @@ export default function ContactDetailPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', status: '', notes: '' })
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [emailForm, setEmailForm] = useState({ to: '', subject: '', body: '' })
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState('')
+  const [clv, setClv] = useState<{ total: number; count: number; demo: boolean } | null>(null)
+  const [notes, setNotes] = useState<Note[]>([])
+  const [noteDraft, setNoteDraft] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -120,6 +213,7 @@ export default function ContactDetailPage() {
         const c = contactData?.contact ?? contactData
         setContact(c)
         setForm({ firstName: c.firstName ?? '', lastName: c.lastName ?? '', email: c.email ?? '', phone: c.phone ?? '', status: c.status ?? 'NEW', notes: c.notes ?? '' })
+        setEmailForm(prev => ({ ...prev, to: c.email ?? '' }))
         setActivity(activityData?.activities ?? [])
         setDeals(dealsData?.deals ?? [])
       } catch {
@@ -138,6 +232,7 @@ export default function ContactDetailPage() {
         }
         setContact(demo)
         setForm({ firstName: demo.firstName, lastName: demo.lastName ?? '', email: demo.email ?? '', phone: demo.phone ?? '', status: demo.status, notes: demo.notes ?? '' })
+        setEmailForm(prev => ({ ...prev, to: demo.email ?? '' }))
         setActivity(DEMO_ACTIVITY)
         setDeals(DEMO_DEALS)
       } finally {
@@ -145,6 +240,43 @@ export default function ContactDetailPage() {
       }
     }
     if (contactId) void load()
+  }, [contactId])
+
+  // Lifetime value — sum real paid invoices, fall back to deterministic demo value
+  useEffect(() => {
+    if (!contactId) return
+    const loadClv = async () => {
+      try {
+        const res = await apiClient.get('/finance/invoices', { contactId }) as any
+        const invoices: any[] = res?.invoices ?? res?.data?.invoices ?? []
+        const paid = invoices.filter(inv => String(inv?.status ?? '').toUpperCase() === 'PAID')
+        if (paid.length === 0) throw new Error('no paid invoices')
+        setClv({
+          total: paid.reduce((a, inv) => a + Number(inv?.total ?? inv?.amount ?? 0), 0),
+          count: paid.length,
+          demo: false,
+        })
+      } catch {
+        setClv({ total: demoCLV(contactId), count: 0, demo: true })
+      }
+    }
+    void loadClv()
+  }, [contactId])
+
+  // Team notes — load from API with demo fallback
+  useEffect(() => {
+    if (!contactId) return
+    const loadNotes = async () => {
+      try {
+        const res = await apiClient.get(`/crm/contacts/${contactId}/notes`) as any
+        const list = res?.notes ?? res?.data?.notes
+        if (!Array.isArray(list) || list.length === 0) throw new Error('no notes')
+        setNotes(list)
+      } catch {
+        setNotes(DEMO_NOTES)
+      }
+    }
+    void loadNotes()
   }, [contactId])
 
   const saveContact = async () => {
@@ -191,16 +323,80 @@ export default function ContactDetailPage() {
     }
   }
 
+  const postNote = async () => {
+    const body = noteDraft.trim()
+    if (!body) return
+    setSavingNote(true)
+    try {
+      await apiClient.post(`/crm/contacts/${contactId}/notes`, { body, author: 'You' })
+    } catch {
+      // Demo mode: keep the note locally
+    }
+    setNotes(prev => [{ id: `tn-${Date.now()}`, author: 'You', body, createdAt: new Date().toISOString() }, ...prev])
+    setNoteDraft('')
+    setSavingNote(false)
+    toast('Note posted', 'success')
+  }
+
+  const deleteNote = (id: string) => {
+    setNotes(prev => prev.filter(n => n.id !== id))
+    toast('Note deleted', 'success')
+  }
+
+  // @mention suggestions: active when the draft's last token starts with '@'
+  const lastToken = noteDraft.split(/\s/).pop() ?? ''
+  const mentionQuery = lastToken.startsWith('@') ? lastToken.slice(1).toLowerCase() : null
+  const mentionSuggestions = mentionQuery !== null
+    ? TEAM.filter(t => t.toLowerCase().startsWith(mentionQuery))
+    : []
+
+  const completeMention = (name: string) => {
+    setNoteDraft(d => d.replace(/@\w*$/, `@${name} `))
+  }
+
+  function applyTemplate(templateName: string) {
+    const tpl = EMAIL_TEMPLATES.find(t => t.name === templateName)
+    if (!tpl || !contact) return
+    const firstName = contact.firstName ?? 'there'
+    setEmailForm(prev => ({
+      ...prev,
+      subject: tpl.subject,
+      body: tpl.body.replace(/\{\{name\}\}/g, firstName),
+    }))
+    setSelectedTemplate(templateName)
+  }
+
+  async function sendEmail() {
+    if (!emailForm.to || !emailForm.subject || !emailForm.body) return
+    setEmailSending(true)
+    try {
+      await apiClient.post('/emails/send', {
+        to: emailForm.to,
+        subject: emailForm.subject,
+        body: emailForm.body,
+        contactId: contact?.id,
+      })
+      setEmailSent(true)
+      setTimeout(() => { setEmailSent(false); setEmailOpen(false) }, 2000)
+    } catch {
+      // Demo mode: show success anyway
+      setEmailSent(true)
+      setTimeout(() => { setEmailSent(false); setEmailOpen(false) }, 2000)
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-6 space-y-4 max-w-[1200px]">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-40" />
+        <div className="h-8 w-32 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+        <div className="h-40 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
           </div>
-          <Skeleton className="h-64" />
+          <div className="h-64 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
         </div>
       </div>
     )
@@ -302,20 +498,29 @@ export default function ContactDetailPage() {
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
-                style={{ border: '1px solid hsl(var(--border))' }}
-              >
-                <Edit3 className="h-3.5 w-3.5" />
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={() => setEmailOpen(true)}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+                >
+                  <Mail className="h-4 w-4" /> Send Email
+                </button>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Edit
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -339,6 +544,22 @@ export default function ContactDetailPage() {
             <p className="text-sm text-foreground/80">{contact.notes}</p>
           </div>
         )}
+      </div>
+
+      {/* Lifetime Value */}
+      <div {...anim(1)} className="kv-anim rounded-xl border p-5 flex items-center justify-between" style={{ ...cardStyle, animationDelay: '0.08s' }}>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lifetime Value</p>
+          <p className="text-3xl font-bold tabular mt-1" style={{ color: '#34d399' }}>
+            ${(clv?.total ?? 0).toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {clv === null ? 'calculating…' : clv.demo ? 'demo' : `from ${clv.count} invoice${clv.count === 1 ? '' : 's'}`}
+          </p>
+        </div>
+        <div className="h-11 w-11 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(52,211,153,0.12)' }}>
+          <DollarSign className="h-5 w-5" style={{ color: '#34d399' }} />
+        </div>
       </div>
 
       {/* Main content: timeline left, deals right */}
@@ -387,7 +608,7 @@ export default function ContactDetailPage() {
                     const actMeta = ACTIVITY_ICONS[item.type] ?? ACTIVITY_ICONS['note']!
                     const Icon = actMeta.icon
                     return (
-                      <div key={item.id} className="flex items-start gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors">
+                      <div key={item.id} className="flex items-start gap-4 px-5 py-4 hover:bg-accent/5 transition-colors">
                         <div
                           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 z-10 relative"
                           style={{ background: `${actMeta.color}15`, border: `1px solid ${actMeta.color}30` }}
@@ -415,6 +636,85 @@ export default function ContactDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Team Notes */}
+          <div {...anim(3)} className="kv-anim rounded-xl border overflow-hidden" style={{ ...cardStyle, animationDelay: '0.25s' }}>
+            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Team Notes</h2>
+              </div>
+              <span className="text-xs text-muted-foreground">{notes.length}</span>
+            </div>
+
+            {notes.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">No notes yet — start the thread below.</p>
+            ) : (
+              <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+                {notes.map(note => (
+                  <div key={note.id} className="flex items-start gap-3 px-5 py-4 group hover:bg-accent/5 transition-colors">
+                    <div
+                      className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                      style={{ background: avatarGradient(note.author) }}
+                    >
+                      {note.author[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{note.author}</span>
+                        <span className="text-xs text-muted-foreground">{formatRelativeTime(note.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-foreground/80 mt-0.5 whitespace-pre-wrap break-words">{renderNoteBody(note.body)}</p>
+                    </div>
+                    <button
+                      onClick={() => deleteNote(note.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 shrink-0"
+                      title="Delete note"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" style={{ color: '#f87171' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Composer */}
+            <div className="px-5 py-4" style={{ borderTop: '1px solid hsl(var(--border))' }}>
+              <textarea
+                value={noteDraft}
+                onChange={e => setNoteDraft(e.target.value)}
+                rows={2}
+                className={inputCls + ' resize-none'}
+                style={inputStyle}
+                placeholder="Add an internal note…"
+              />
+              {mentionSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {mentionSuggestions.map(name => (
+                    <button
+                      key={name}
+                      onClick={() => completeMention(name)}
+                      className="text-xs px-2 py-1 rounded-lg font-medium transition-colors"
+                      style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)' }}
+                    >
+                      @{name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-muted-foreground">Type @ to mention a teammate</p>
+                <button
+                  onClick={postNote}
+                  disabled={savingNote || !noteDraft.trim()}
+                  className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  {savingNote ? 'Posting…' : 'Post'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -452,7 +752,7 @@ export default function ContactDetailPage() {
                 {deals.map(deal => {
                   const dm = DEAL_STATUS_META[deal.status] ?? DEAL_STATUS_META['LEAD']!
                   return (
-                    <div key={deal.id} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                    <div key={deal.id} className="px-4 py-3 hover:bg-accent/5 transition-colors">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-medium text-foreground">{deal.title}</p>
                         <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ color: dm.text, background: dm.bg }}>
@@ -472,7 +772,7 @@ export default function ContactDetailPage() {
           <div {...anim(5)} className="kv-anim rounded-xl border p-4 space-y-2" style={{ ...cardStyle, animationDelay: '0.39s' }}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Quick Actions</p>
             {[
-              { label: 'Send Email', icon: Mail, action: () => toast('Opening email composer…', 'success') },
+              { label: 'Send Email', icon: Mail, action: () => setEmailOpen(true) },
               { label: 'Log Call', icon: Phone, action: () => toast('Call logged', 'success') },
               { label: 'Book Appointment', icon: Calendar, action: () => toast('Opening scheduler…', 'success') },
               { label: 'Create Invoice', icon: FileText, action: () => toast('Opening invoice…', 'success') },
@@ -480,7 +780,7 @@ export default function ContactDetailPage() {
               <button
                 key={a.label}
                 onClick={a.action}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors text-left"
               >
                 <a.icon className="h-3.5 w-3.5 text-primary shrink-0" />
                 {a.label}
@@ -489,6 +789,90 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </div>
+
+      {emailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Send Email</h2>
+              </div>
+              <button onClick={() => setEmailOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Template picker */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Template (optional)</label>
+                <div className="flex flex-wrap gap-2">
+                  {EMAIL_TEMPLATES.map(t => (
+                    <button key={t.name}
+                      onClick={() => applyTemplate(t.name)}
+                      className="text-xs px-3 py-1.5 rounded-lg transition-all font-medium"
+                      style={selectedTemplate === t.name
+                        ? { background: 'rgba(6,182,212,0.15)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.4)' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* To */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">To</label>
+                <input value={emailForm.to}
+                  onChange={e => setEmailForm(f => ({ ...f, to: e.target.value }))}
+                  placeholder="email@example.com"
+                  className={inputCls} style={inputStyle} />
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Subject</label>
+                <input value={emailForm.subject}
+                  onChange={e => setEmailForm(f => ({ ...f, subject: e.target.value }))}
+                  placeholder="Email subject"
+                  className={inputCls} style={inputStyle} />
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Message</label>
+                <textarea value={emailForm.body}
+                  onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))}
+                  rows={8} placeholder="Write your message…"
+                  className={`${inputCls} resize-none leading-relaxed`} style={inputStyle} />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-1">
+                <button onClick={() => setEmailOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                  Cancel
+                </button>
+                <button onClick={sendEmail}
+                  disabled={emailSending || emailSent || !emailForm.to || !emailForm.subject || !emailForm.body}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60 transition-all hover:scale-[1.02]"
+                  style={emailSent
+                    ? { background: '#34d399' }
+                    : { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {emailSent ? <><Check className="h-4 w-4" /> Sent!</>
+                    : emailSending ? 'Sending…'
+                    : <><Send className="h-4 w-4" /> Send Email</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

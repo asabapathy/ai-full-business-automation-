@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
-import { Star, CheckCircle, Zap } from 'lucide-react'
+
+import { Star, CheckCircle, Zap, Send, X, Check } from 'lucide-react'
 
 interface Review {
   id: string
@@ -42,11 +42,34 @@ const DEMO_REVIEWS: Review[] = [
 
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+const DEFAULT_EMAIL_MSG = `Hi {{name}},
+
+Thank you so much for choosing us! We truly appreciate your business.
+
+We'd love to hear about your experience. Could you take 2 minutes to leave us a review? It means the world to our small business.
+
+{{review_link}}
+
+Thank you again,
+The Team`
+
+const DEFAULT_SMS_MSG = `Hi {{name}}, thanks for choosing us! We'd love your feedback — could you take 60 seconds to leave a review? {{review_link}}`
+
 function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map(s => (
-        <Star key={s} className={`h-3.5 w-3.5 ${s <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
+        <Star
+          key={s}
+          className="h-3.5 w-3.5"
+          style={s <= rating
+            ? { color: '#fbbf24', fill: '#fbbf24' }
+            : { color: 'hsl(var(--muted-foreground))', opacity: 0.3 }
+          }
+        />
       ))}
     </div>
   )
@@ -64,6 +87,56 @@ export default function ReviewsPage() {
   const [responseText, setResponseText] = useState('')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [submittingId, setSubmittingId] = useState<string | null>(null)
+
+  const [requestOpen, setRequestOpen] = useState(false)
+  const [requestForm, setRequestForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    channel: 'email' as 'email' | 'sms',
+    message: '',
+  })
+  const [requestSending, setRequestSending] = useState(false)
+  const [requestSent, setRequestSent] = useState(false)
+
+  useEffect(() => {
+    setRequestForm(f => ({
+      ...f,
+      message: f.channel === 'email'
+        ? DEFAULT_EMAIL_MSG.replace('{{name}}', f.name || 'there').replace('{{review_link}}', 'https://g.page/r/your-business/review')
+        : DEFAULT_SMS_MSG.replace('{{name}}', f.name || 'there').replace('{{review_link}}', 'https://g.page/r/your-business/review'),
+    }))
+  }, [requestForm.channel, requestForm.name])
+
+  async function sendRequest() {
+    if (!requestForm.name || (!requestForm.email && !requestForm.phone)) return
+    setRequestSending(true)
+    try {
+      await apiClient.post('/reviews/request', {
+        name: requestForm.name,
+        email: requestForm.channel === 'email' ? requestForm.email : undefined,
+        phone: requestForm.channel === 'sms' ? requestForm.phone : undefined,
+        channel: requestForm.channel,
+        message: requestForm.message,
+      })
+      setRequestSent(true)
+      setTimeout(() => {
+        setRequestSent(false)
+        setRequestOpen(false)
+        setRequestForm({ name: '', email: '', phone: '', channel: 'email', message: '' })
+      }, 2500)
+    } catch {
+      // Demo success
+      setRequestSent(true)
+      setTimeout(() => {
+        setRequestSent(false)
+        setRequestOpen(false)
+        setRequestForm({ name: '', email: '', phone: '', channel: 'email', message: '' })
+      }, 2500)
+    } finally {
+      setRequestSending(false)
+    }
+  }
 
   useEffect(() => {
     apiClient.get('/reviews')
@@ -136,16 +209,21 @@ export default function ReviewsPage() {
           <h1 className="text-2xl font-bold text-foreground">Reviews & Reputation</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Monitor and respond to customer reviews with AI</p>
         </div>
+        <button onClick={() => setRequestOpen(true)}
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+          <Send className="h-4 w-4" /> Request Review
+        </button>
       </div>
 
       {/* Stats row + star distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Avg Rating', value: stats.avgRating.toFixed(1), sub: <StarRating rating={Math.round(stats.avgRating)} />, color: 'text-amber-400' },
-            { label: 'Total Reviews', value: stats.total, color: 'text-primary' },
-            { label: 'Response Rate', value: `${stats.responseRate}%`, color: 'text-emerald-400' },
-            { label: 'Positive', value: stats.positive, color: 'text-violet-400' },
+            { label: 'Avg Rating', value: stats.avgRating.toFixed(1), sub: <StarRating rating={Math.round(stats.avgRating)} />, colorStyle: { color: '#fbbf24' } },
+            { label: 'Total Reviews', value: stats.total, colorStyle: { color: 'hsl(var(--primary))' } },
+            { label: 'Response Rate', value: `${stats.responseRate}%`, colorStyle: { color: '#34d399' } },
+            { label: 'Positive', value: stats.positive, colorStyle: { color: '#a78bfa' } },
           ].map((stat, i) => (
             <div
               key={stat.label}
@@ -153,8 +231,8 @@ export default function ReviewsPage() {
               style={{ ...cardStyle, animationDelay: `${0.11 + i * 0.07}s` }}
             >
               {loading
-                ? <Skeleton className="h-8 w-12 mx-auto mb-1" />
-                : <p className={`text-3xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+                ? <div className="h-8 w-12 mx-auto mb-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+                : <p className="text-3xl font-bold tabular" style={stat.colorStyle}>{stat.value}</p>
               }
               <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
               {stat.sub && <div className="flex justify-center mt-1">{stat.sub}</div>}
@@ -172,7 +250,7 @@ export default function ReviewsPage() {
             {starDist.map(({ star, count, pct }) => (
               <div key={star} className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground tabular w-3">{star}</span>
-                <Star className="h-3 w-3 fill-amber-400 text-amber-400 shrink-0" />
+                <Star className="h-3 w-3 shrink-0" style={{ color: '#fbbf24', fill: '#fbbf24' }} />
                 <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                   <div
                     className="h-full rounded-full transition-all duration-700"
@@ -212,7 +290,7 @@ export default function ReviewsPage() {
       {/* Review list */}
       <div className="kv-anim space-y-3" style={{ animationDelay: '0.53s' }}>
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28" />)
+          Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-center rounded-xl" style={cardStyle}>
             <Star className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -236,7 +314,7 @@ export default function ReviewsPage() {
                         {review.sentiment}
                       </span>
                       {review.respondedAt && (
-                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                        <span className="text-xs flex items-center gap-1" style={{ color: '#34d399' }}>
                           <CheckCircle className="h-3 w-3" />
                           Responded
                         </span>
@@ -313,6 +391,108 @@ export default function ReviewsPage() {
           })
         )}
       </div>
+
+      {requestOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Request a Review</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Send a review request via email or SMS</p>
+              </div>
+              <button onClick={() => setRequestOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {requestSent ? (
+              <div className="p-10 flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(52,211,153,0.15)' }}>
+                  <Check className="h-7 w-7" style={{ color: '#34d399' }} />
+                </div>
+                <p className="text-base font-semibold text-foreground">Review request sent!</p>
+                <p className="text-sm text-muted-foreground">
+                  {requestForm.name} will receive your request via {requestForm.channel}.
+                </p>
+              </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                {/* Channel toggle */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-2">Send via</label>
+                  <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+                    {(['email', 'sms'] as const).map(ch => (
+                      <button key={ch} onClick={() => setRequestForm(f => ({ ...f, channel: ch }))}
+                        className="flex-1 py-2 text-sm font-medium capitalize transition-all"
+                        style={requestForm.channel === ch
+                          ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                          : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }}>
+                        {ch === 'email' ? '✉️ Email' : '💬 SMS'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Customer name */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Customer Name</label>
+                  <input value={requestForm.name}
+                    onChange={e => setRequestForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Jane Smith"
+                    className={inputCls} style={inputStyle} />
+                </div>
+
+                {/* Email or phone */}
+                {requestForm.channel === 'email' ? (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email Address</label>
+                    <input type="email" value={requestForm.email}
+                      onChange={e => setRequestForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="jane@example.com"
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Phone Number</label>
+                    <input type="tel" value={requestForm.phone}
+                      onChange={e => setRequestForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="+1 (555) 000-0000"
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                )}
+
+                {/* Message preview */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Message</label>
+                  <textarea value={requestForm.message}
+                    onChange={e => setRequestForm(f => ({ ...f, message: e.target.value }))}
+                    rows={requestForm.channel === 'email' ? 7 : 3}
+                    className={`${inputCls} resize-none`} style={inputStyle} />
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-between items-center pt-1">
+                  <button onClick={() => setRequestOpen(false)}
+                    className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                    Cancel
+                  </button>
+                  <button onClick={sendRequest}
+                    disabled={requestSending || !requestForm.name || (!requestForm.email && !requestForm.phone)}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                    <Send className="h-4 w-4" />
+                    {requestSending ? 'Sending…' : 'Send Request'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

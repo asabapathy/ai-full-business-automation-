@@ -247,7 +247,14 @@ export default function BrainPage() {
           {context && context.alerts.length > 0 && (
             <div className="flex gap-2">
               {context.alerts.map((alert, i) => (
-                <span key={i} className={`text-xs px-2 py-1 rounded-full ${alert.type === 'warning' ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/20 text-primary'}`}>
+                <span
+                  key={i}
+                  className="text-xs px-2 py-1 rounded-full"
+                  style={alert.type === 'warning'
+                    ? { background: 'rgba(251,191,36,0.2)', color: '#fbbf24' }
+                    : { background: 'rgba(6,182,212,0.2)', color: 'hsl(var(--primary))' }
+                  }
+                >
                   {alert.type === 'warning' ? '⚠️' : 'ℹ️'} {alert.message}
                 </span>
               ))}
@@ -358,7 +365,14 @@ export default function BrainPage() {
                 <div className="mt-4 space-y-2">
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Alerts</p>
                   {context.alerts.map((alert, i) => (
-                    <div key={i} className={`text-xs px-2 py-1.5 rounded-lg ${alert.type === 'warning' ? 'bg-amber-500/10 text-amber-400' : 'bg-primary/10 text-primary'}`}>
+                    <div
+                      key={i}
+                      className="text-xs px-2 py-1.5 rounded-lg"
+                      style={alert.type === 'warning'
+                        ? { background: 'rgba(251,191,36,0.1)', color: '#fbbf24' }
+                        : { background: 'rgba(6,182,212,0.1)', color: 'hsl(var(--primary))' }
+                      }
+                    >
                       {alert.message}
                     </div>
                   ))}

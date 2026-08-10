@@ -96,23 +96,26 @@ export default function CommissionsPage() {
 
   const fmt = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+  const inputStyle: React.CSSProperties = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+  const inputClass = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Commission Tracking</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage commission rules and calculate staff payouts</p>
+        <h1 className="text-2xl font-bold text-foreground">Commission Tracking</h1>
+        <p className="text-sm text-muted-foreground mt-1">Manage commission rules and calculate staff payouts</p>
       </div>
 
       {summary && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Pending Payouts', value: fmt(summary.pendingPayouts), color: 'text-orange-600' },
-            { label: 'Paid Out', value: fmt(summary.paidPayouts), color: 'text-green-600' },
-            { label: 'Total Earned', value: fmt(summary.totalCommissionEarned), color: 'text-blue-600' },
+            { label: 'Pending Payouts', value: fmt(summary.pendingPayouts), color: '#fb923c' },
+            { label: 'Paid Out', value: fmt(summary.paidPayouts), color: '#34d399' },
+            { label: 'Total Earned', value: fmt(summary.totalCommissionEarned), color: '#06b6d4' },
           ].map(s => (
-            <div key={s.label} className="rounded-xl border bg-white p-4 shadow-sm">
-              <p className="text-xs text-gray-500">{s.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+            <div key={s.label} className="rounded-xl border p-4" style={{ background: 'hsl(var(--card))' }}>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="text-2xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
             </div>
           ))}
         </div>
@@ -120,7 +123,7 @@ export default function CommissionsPage() {
 
       <div className="flex gap-2 border-b">
         {(['rules', 'payouts'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
@@ -129,68 +132,70 @@ export default function CommissionsPage() {
       {tab === 'rules' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <button onClick={() => setShowRuleForm(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <button onClick={() => setShowRuleForm(true)} className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
               <Plus className="h-4 w-4" />
               Add Rule
             </button>
           </div>
 
           {showRuleForm && (
-            <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
-              <h3 className="font-semibold text-gray-900">New Commission Rule</h3>
+            <div className="rounded-xl border p-5 space-y-4" style={{ background: 'hsl(var(--card))' }}>
+              <h3 className="font-semibold text-foreground">New Commission Rule</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Rule Name</label>
-                  <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" value={ruleForm.name} onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} />
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Rule Name</label>
+                  <input className={inputClass} style={inputStyle} value={ruleForm.name} onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-                  <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" value={ruleForm.type} onChange={e => setRuleForm(f => ({ ...f, type: e.target.value }))}>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Type</label>
+                  <select className={inputClass} style={inputStyle} value={ruleForm.type} onChange={e => setRuleForm(f => ({ ...f, type: e.target.value }))}>
                     <option value="percentage">Percentage</option>
                     <option value="flat">Flat Amount</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Rate {ruleForm.type === 'percentage' ? '(%)' : '($)'}</label>
-                  <input type="number" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" value={ruleForm.rate} onChange={e => setRuleForm(f => ({ ...f, rate: parseFloat(e.target.value) }))} />
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Rate {ruleForm.type === 'percentage' ? '(%)' : '($)'}</label>
+                  <input type="number" className={inputClass} style={inputStyle} value={ruleForm.rate} onChange={e => setRuleForm(f => ({ ...f, rate: parseFloat(e.target.value) }))} />
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={createRule} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Rule</button>
-                <button onClick={() => setShowRuleForm(false)} className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button onClick={createRule} className="rounded-lg px-4 py-2 text-sm font-medium" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>Save Rule</button>
+                <button onClick={() => setShowRuleForm(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
               </div>
             </div>
           )}
 
-          <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <div className="rounded-xl border overflow-hidden" style={{ background: 'hsl(var(--card))' }}>
             {loading ? (
-              <div className="p-8 text-center text-gray-400">Loading...</div>
+              <div className="p-8 text-center text-muted-foreground">Loading...</div>
             ) : rules.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">No commission rules yet</div>
+              <div className="p-8 text-center text-muted-foreground">No commission rules yet</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
+                <thead className="border-b" style={{ background: 'hsl(var(--muted))' }}>
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Name</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Type</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Rate</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {rules.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{r.name}</td>
-                      <td className="px-4 py-3 text-gray-600 capitalize">{r.type}</td>
-                      <td className="px-4 py-3 text-gray-600">{r.type === 'percentage' ? `${r.rate}%` : fmt(r.rate)}</td>
+                    <tr key={r.id} className="hover:bg-muted">
+                      <td className="px-4 py-3 font-medium text-foreground">{r.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground capitalize">{r.type}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.type === 'percentage' ? `${r.rate}%` : fmt(r.rate)}</td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={r.isActive ? { background: 'rgba(52,211,153,0.15)', color: '#34d399' } : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
                           {r.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => deleteRule(r.id)} className="text-gray-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                        <button onClick={() => deleteRule(r.id)} className="text-muted-foreground hover:text-red-400" style={{}}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -203,58 +208,58 @@ export default function CommissionsPage() {
 
       {tab === 'payouts' && (
         <div className="space-y-4">
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <Calculator className="h-4 w-4 text-blue-600" />
+          <div className="rounded-xl border p-5" style={{ background: 'hsl(var(--card))' }}>
+            <h3 className="font-semibold text-foreground flex items-center gap-2 mb-4">
+              <Calculator className="h-4 w-4" style={{ color: '#06b6d4' }} />
               Calculate Payouts
             </h3>
             <div className="flex items-end gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Period Start</label>
-                <input type="date" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" value={calcPeriod.start} onChange={e => setCalcPeriod(p => ({ ...p, start: e.target.value }))} />
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Period Start</label>
+                <input type="date" className="rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" style={inputStyle} value={calcPeriod.start} onChange={e => setCalcPeriod(p => ({ ...p, start: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Period End</label>
-                <input type="date" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" value={calcPeriod.end} onChange={e => setCalcPeriod(p => ({ ...p, end: e.target.value }))} />
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Period End</label>
+                <input type="date" className="rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" style={inputStyle} value={calcPeriod.end} onChange={e => setCalcPeriod(p => ({ ...p, end: e.target.value }))} />
               </div>
-              <button onClick={calculate} disabled={calculating} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={calculate} disabled={calculating} className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
                 {calculating ? 'Calculating...' : 'Calculate'}
               </button>
             </div>
           </div>
 
-          <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <div className="rounded-xl border overflow-hidden" style={{ background: 'hsl(var(--card))' }}>
             {payouts.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">No payouts calculated yet</div>
+              <div className="p-8 text-center text-muted-foreground">No payouts calculated yet</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
+                <thead className="border-b" style={{ background: 'hsl(var(--muted))' }}>
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Employee</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Period</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Commission</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Employee</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Period</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Revenue</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Commission</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {payouts.map(p => (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{p.employeeId.slice(0, 8)}...</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
+                    <tr key={p.id} className="hover:bg-muted">
+                      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{p.employeeId.slice(0, 8)}...</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
                         {new Date(p.periodStart).toLocaleDateString()} – {new Date(p.periodEnd).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-gray-900 font-medium">{fmt(p.grossRevenue)}</td>
-                      <td className="px-4 py-3 text-green-700 font-semibold">{fmt(p.commissionAmount)}</td>
+                      <td className="px-4 py-3 text-foreground font-medium">{fmt(p.grossRevenue)}</td>
+                      <td className="px-4 py-3 font-semibold" style={{ color: '#34d399' }}>{fmt(p.commissionAmount)}</td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.status === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                        <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={p.status === 'PAID' ? { background: 'rgba(52,211,153,0.15)', color: '#34d399' } : { background: 'rgba(251,146,60,0.15)', color: '#fb923c' }}>
                           {p.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         {p.status !== 'PAID' && (
-                          <button onClick={() => markPaid(p.id)} className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-800">
+                          <button onClick={() => markPaid(p.id)} className="flex items-center gap-1 text-xs font-medium" style={{ color: '#34d399' }}>
                             <CheckCircle className="h-3.5 w-3.5" />
                             Mark Paid
                           </button>

@@ -51,7 +51,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       className="relative w-11 h-6 rounded-full transition-all shrink-0"
       style={enabled ? { background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' } : { background: 'rgba(255,255,255,0.08)' }}
     >
-      <div className="absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform" style={{ left: enabled ? '24px' : '4px' }} />
+      <div className="absolute top-1 w-4 h-4 rounded-full transition-transform" style={{ left: enabled ? '24px' : '4px', background: 'white' }} />
     </button>
   )
 }
@@ -357,7 +357,7 @@ export default function WhiteLabelPage() {
                             <td className="px-4 py-2.5 text-muted-foreground tabular">{r.ttl}</td>
                             <td className="px-4 py-2.5">
                               <button onClick={() => copyDns(r.value)} className="p-1 rounded transition-colors hover:text-foreground text-muted-foreground">
-                                {copiedDns === r.value ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                                {copiedDns === r.value ? <CheckCircle className="h-3.5 w-3.5" style={{ color: '#34d399' }} /> : <Copy className="h-3.5 w-3.5" />}
                               </button>
                             </td>
                           </tr>

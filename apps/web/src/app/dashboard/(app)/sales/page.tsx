@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { TrendingUp, Plus, DollarSign, Target, CheckCircle, LayoutList, LayoutGrid, ChevronRight, Zap, X } from 'lucide-react'
-import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
 
@@ -34,6 +33,20 @@ const STAGE_META: Record<string, { label: string; color: string; bg: string; bor
 }
 
 const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'NEGOTIATION', 'WON', 'LOST'] as const
+
+const STAGE_PROBABILITY: Record<string, number> = {
+  new: 0.1, lead: 0.1,
+  contacted: 0.25,
+  qualified: 0.45,
+  proposal: 0.65, proposal_sent: 0.65,
+  negotiation: 0.8,
+  won: 1, closed: 1,
+  lost: 0,
+}
+
+function probabilityFor(stage: string): number {
+  return STAGE_PROBABILITY[stage?.toLowerCase()?.replace(/[\s-]/g, '_')] ?? 0.3
+}
 
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -85,6 +98,26 @@ export default function SalesPage() {
   const pipelineValue = deals
     .filter(d => !['WON', 'LOST'].includes(d.stage))
     .reduce((sum, d) => sum + (d.value ?? 0), 0)
+
+  const forecast = useMemo(() => {
+    const open = deals.filter(d => !/won|lost|closed/i.test(d.stage ?? ''))
+    const weighted = open.reduce((s, d) => s + Number(d.value ?? 0) * probabilityFor(d.stage ?? ''), 0)
+    const best = open.reduce((s, d) => s + Number(d.value ?? 0), 0)
+    const byStage = new Map<string, { total: number; weighted: number; count: number }>()
+    for (const d of open) {
+      const key = (d.stage ?? 'other').toLowerCase()
+      const cur = byStage.get(key) ?? { total: 0, weighted: 0, count: 0 }
+      const v = Number(d.value ?? 0)
+      byStage.set(key, { total: cur.total + v, weighted: cur.weighted + v * probabilityFor(key), count: cur.count + 1 })
+    }
+    const stageOrder = STAGES.map(s => s.toLowerCase())
+    const entries = Array.from(byStage.entries()).sort((a, b) => {
+      const ai = stageOrder.indexOf(a[0])
+      const bi = stageOrder.indexOf(b[0])
+      return (ai === -1 ? stageOrder.length : ai) - (bi === -1 ? stageOrder.length : bi)
+    })
+    return { weighted, best, byStage: entries, openCount: open.length }
+  }, [deals])
 
   async function createDeal() {
     if (!form.title.trim()) return
@@ -159,24 +192,73 @@ export default function SalesPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Pipeline Value', value: `$${(pipelineValue / 1000).toFixed(1)}k`, icon: TrendingUp, color: 'text-primary' },
-          { label: 'Won Revenue', value: analytics ? `$${(analytics.wonRevenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: 'text-emerald-400' },
-          { label: 'Won Deals', value: analytics?.wonDeals ?? '--', icon: CheckCircle, color: 'text-emerald-400' },
-          { label: 'Conversion', value: analytics ? `${analytics.conversionRate}%` : '--', icon: Target, color: 'text-violet-400' },
+          { label: 'Pipeline Value', value: `$${(pipelineValue / 1000).toFixed(1)}k`, icon: TrendingUp, hex: null as string | null },
+          { label: 'Won Revenue', value: analytics ? `$${(analytics.wonRevenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, hex: '#34d399' as string | null },
+          { label: 'Won Deals', value: analytics?.wonDeals ?? '--', icon: CheckCircle, hex: '#34d399' as string | null },
+          { label: 'Conversion', value: analytics ? `${analytics.conversionRate}%` : '--', icon: Target, hex: '#a78bfa' as string | null },
         ].map((stat, i) => (
           <div key={stat.label} {...anim(i + 1)} className="rounded-xl border p-4" style={cardStyle}>
             <div className="flex items-center gap-2 mb-1">
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <stat.icon className={`h-4 w-4${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined} />
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>
-            {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>}
+            {isLoading ? <div className="h-8 w-16 mt-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} /> : <p className={`text-2xl font-bold tabular${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined}>{stat.value}</p>}
           </div>
         ))}
       </div>
 
+      {/* Revenue Forecast */}
+      <div {...anim(5)} className="rounded-xl p-5" style={cardStyle}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Revenue Forecast</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{forecast.openCount} open deals · weighted by stage probability</p>
+          </div>
+          <TrendingUp className="h-5 w-5" style={{ color: '#34d399' }} />
+        </div>
+
+        {/* Headline numbers */}
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          <div className="rounded-lg p-3" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
+            <p className="text-xs text-muted-foreground">Expected (weighted)</p>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: '#34d399' }}>${Math.round(forecast.weighted).toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg p-3" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
+            <p className="text-xs text-muted-foreground">Best case (all close)</p>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: '#06b6d4' }}>${Math.round(forecast.best).toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Per-stage horizontal bars */}
+        <div className="space-y-3">
+          {forecast.byStage.map(([stage, s]) => {
+            const pct = forecast.best > 0 ? (s.total / forecast.best) * 100 : 0
+            const wpct = s.total > 0 ? (s.weighted / s.total) * 100 : 0
+            return (
+              <div key={stage}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="capitalize text-muted-foreground">{stage.replace(/_/g, ' ')} · {s.count} deal{s.count !== 1 ? 's' : ''}</span>
+                  <span className="text-foreground font-medium">
+                    ${Math.round(s.weighted).toLocaleString()} <span className="text-muted-foreground font-normal">of ${Math.round(s.total).toLocaleString()}</span>
+                  </span>
+                </div>
+                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                  <div className="h-full rounded-full relative" style={{ width: `${pct}%`, background: 'rgba(6,182,212,0.25)' }}>
+                    <div className="h-full rounded-full" style={{ width: `${wpct}%`, background: 'linear-gradient(90deg, #06b6d4, #34d399)' }} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {forecast.byStage.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No open deals to forecast</p>
+          )}
+        </div>
+      </div>
+
       {/* Kanban view */}
       {view === 'kanban' && (
-        <div {...anim(5)} className="overflow-x-auto pb-4">
+        <div {...anim(6)} className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {STAGES.map(stage => {
               const meta = STAGE_META[stage]
@@ -210,7 +292,7 @@ export default function SalesPage() {
                         </p>
                         <div className="flex items-center justify-between">
                           {deal.value ? (
-                            <span className="text-sm font-semibold text-emerald-400 tabular">${deal.value.toLocaleString()}</span>
+                            <span className="text-sm font-semibold tabular" style={{ color: '#34d399' }}>${deal.value.toLocaleString()}</span>
                           ) : <span />}
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -253,7 +335,7 @@ export default function SalesPage() {
 
       {/* List view */}
       {view === 'list' && (
-        <div {...anim(5)}>
+        <div {...anim(6)}>
           {/* Stage filter */}
           <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-hide">
             <button onClick={() => setStageFilter('')}
@@ -277,7 +359,7 @@ export default function SalesPage() {
               <span className="ml-auto text-xs text-muted-foreground">{deals.length} deals</span>
             </div>
             {isLoading ? (
-              <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+              <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
             ) : deals.length === 0 ? (
               <div className="py-16 text-center">
                 <TrendingUp className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -295,7 +377,7 @@ export default function SalesPage() {
                           {deal.contact ? `${deal.contact.firstName} ${deal.contact.lastName ?? ''}` : deal.company?.name ?? '—'}
                         </p>
                       </div>
-                      {deal.value && <span className="text-sm font-semibold text-emerald-400 tabular">${deal.value.toLocaleString()}</span>}
+                      {deal.value && <span className="text-sm font-semibold tabular" style={{ color: '#34d399' }}>${deal.value.toLocaleString()}</span>}
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.color }}>
                         {meta.label}
                       </span>

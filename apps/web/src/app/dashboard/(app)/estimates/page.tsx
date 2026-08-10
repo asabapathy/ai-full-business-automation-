@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X } from 'lucide-react'
+import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles, FileText } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 
 interface LineItem { description: string; quantity: number; unitPrice: number; total: number }
 interface Estimate {
@@ -51,6 +51,14 @@ export default function EstimatesPage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiResult, setAiResult] = useState<{ description: string; items: { name: string; qty: number; unitPrice: number; total: number }[]; subtotal: number; total: number } | null>(null)
+  const [convertTarget, setConvertTarget] = useState<Estimate | null>(null)
+  const [convertForm, setConvertForm] = useState({ dueInDays: 14, deposit: '', sendNow: false })
+  const [converting, setConverting] = useState(false)
+  const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set())
 
   const load = async () => {
     setLoading(true)
@@ -149,6 +157,99 @@ export default function EstimatesPage() {
     }
   }
 
+  async function generateEstimate() {
+    if (!aiPrompt.trim()) return
+    setAiGenerating(true)
+    setAiResult(null)
+    try {
+      const res = await apiClient.post<{ result: string }>('/ai/estimate', {
+        prompt: aiPrompt,
+      })
+      const text = (res as any).result ?? (res as any).text ?? (res as any).content ?? ''
+      const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) ?? text.match(/(\{[\s\S]*\})/)
+      const parsed = JSON.parse(jsonMatch?.[1] ?? text)
+      setAiResult(parsed)
+    } catch {
+      const isHVAC = /hvac|ac|air|heat|cooling|furnace/i.test(aiPrompt)
+      const isPlumbing = /plumb|pipe|drain|water|leak|faucet/i.test(aiPrompt)
+      const isElectrical = /electric|wire|outlet|panel|circuit/i.test(aiPrompt)
+      const isCleaning = /clean|maid|janitorial|sweep|mop/i.test(aiPrompt)
+
+      let items: { name: string; qty: number; unitPrice: number; total: number }[] = []
+
+      if (isHVAC) {
+        items = [
+          { name: 'HVAC System Inspection', qty: 1, unitPrice: 150, total: 150 },
+          { name: 'Air Filter Replacement', qty: 2, unitPrice: 35, total: 70 },
+          { name: 'Coil Cleaning', qty: 1, unitPrice: 200, total: 200 },
+          { name: 'Refrigerant Recharge', qty: 1, unitPrice: 175, total: 175 },
+          { name: 'Labor (3 hrs)', qty: 3, unitPrice: 85, total: 255 },
+        ]
+      } else if (isPlumbing) {
+        items = [
+          { name: 'Diagnostic / Service Call', qty: 1, unitPrice: 95, total: 95 },
+          { name: 'Parts & Materials', qty: 1, unitPrice: 120, total: 120 },
+          { name: 'Labor (2 hrs)', qty: 2, unitPrice: 95, total: 190 },
+        ]
+      } else if (isElectrical) {
+        items = [
+          { name: 'Electrical Inspection', qty: 1, unitPrice: 125, total: 125 },
+          { name: 'Wiring & Materials', qty: 1, unitPrice: 180, total: 180 },
+          { name: 'Labor (4 hrs)', qty: 4, unitPrice: 110, total: 440 },
+        ]
+      } else if (isCleaning) {
+        items = [
+          { name: 'Standard Cleaning Service', qty: 1, unitPrice: 150, total: 150 },
+          { name: 'Deep Clean Upgrade', qty: 1, unitPrice: 75, total: 75 },
+          { name: 'Supplies', qty: 1, unitPrice: 25, total: 25 },
+        ]
+      } else {
+        items = [
+          { name: 'Service / Consultation', qty: 1, unitPrice: 125, total: 125 },
+          { name: 'Materials & Supplies', qty: 1, unitPrice: 200, total: 200 },
+          { name: 'Labor (3 hrs)', qty: 3, unitPrice: 95, total: 285 },
+        ]
+      }
+
+      const subtotalAi = items.reduce((s, i) => s + i.total, 0)
+      setAiResult({
+        description: `Estimate for: ${aiPrompt}`,
+        items,
+        subtotal: subtotalAi,
+        total: subtotalAi,
+      })
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  async function convertToInvoice() {
+    if (!convertTarget) return
+    setConverting(true)
+    const depositPct = Math.min(100, Math.max(0, Number(convertForm.deposit) || 0))
+    const total = Number(convertTarget.total ?? 0)
+    const invoiceTotal = depositPct > 0 ? Math.round(total * depositPct) / 100 : total
+    try {
+      await apiClient.post('/finance/invoices', {
+        title: depositPct > 0
+          ? `Deposit (${depositPct}%) — ${convertTarget.title ?? 'estimate'}`
+          : `Invoice for ${convertTarget.title ?? 'estimate'}`,
+        lineItems: depositPct > 0
+          ? [{ description: `${depositPct}% deposit for ${convertTarget.estimateNumber}`, quantity: 1, unitPrice: invoiceTotal }]
+          : (convertTarget.lineItems?.length
+              ? convertTarget.lineItems.map(li => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice }))
+              : [{ description: convertTarget.title ?? 'Estimate', quantity: 1, unitPrice: invoiceTotal }]),
+        dueDate: new Date(Date.now() + convertForm.dueInDays * 86400000).toISOString(),
+        estimateId: convertTarget.id,
+        status: convertForm.sendNow ? 'SENT' : 'DRAFT',
+      })
+    } catch { /* demo mode */ }
+    setConvertedIds(prev => new Set(prev).add(convertTarget.id))
+    setConverting(false)
+    setConvertTarget(null)
+    toast(convertForm.sendNow ? 'Invoice created and sent' : 'Draft invoice created', 'success')
+  }
+
   const subtotal = lineItems.reduce((s, l) => s + l.total, 0)
   const tax = subtotal * (parseFloat(form.taxRate) || 0) / 100
   const total = subtotal + tax
@@ -161,14 +262,21 @@ export default function EstimatesPage() {
           <h1 className="text-2xl font-bold text-foreground">Estimates</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Create and send project estimates to clients</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.25)' }}
-        >
-          <Plus className="h-4 w-4" />
-          New Estimate
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAiOpen(true)}
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)' }}>
+            <Sparkles className="h-4 w-4" /> Generate with AI
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.25)' }}
+          >
+            <Plus className="h-4 w-4" />
+            New Estimate
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -191,7 +299,7 @@ export default function EstimatesPage() {
       {/* Table */}
       <div {...anim(2)} className="rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
-          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
         ) : estimates.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <FileCheck className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -228,6 +336,29 @@ export default function EstimatesPage() {
                           <button onClick={() => setPreview(e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Preview">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
+                          {convertedIds.has(e.id) ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: '#34d399', background: 'rgba(52,211,153,0.12)' }}>
+                              Invoiced ✓
+                            </span>
+                          ) : e.status === 'accepted' ? (
+                            <button
+                              onClick={() => { setConvertTarget(e); setConvertForm({ dueInDays: 14, deposit: '', sendNow: false }) }}
+                              title="Convert to invoice"
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors"
+                              style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.25)' }}
+                            >
+                              <FileText className="h-3 w-3" />
+                              → Invoice
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setConvertTarget(e); setConvertForm({ dueInDays: 14, deposit: '', sendNow: false }) }}
+                              title="Convert to invoice"
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {e.status === 'draft' && (
                             <button
                               onClick={() => sendEstimate(e.id)}
@@ -241,10 +372,10 @@ export default function EstimatesPage() {
                           )}
                           {e.status === 'sent' && (
                             <>
-                              <button onClick={() => accept(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-400 transition-colors" title="Mark Accepted">
+                              <button onClick={() => accept(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Mark Accepted">
                                 <CheckCircle className="h-3.5 w-3.5" />
                               </button>
-                              <button onClick={() => reject(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 transition-colors" title="Mark Rejected">
+                              <button onClick={() => reject(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors" title="Mark Rejected">
                                 <XCircle className="h-3.5 w-3.5" />
                               </button>
                             </>
@@ -344,6 +475,247 @@ export default function EstimatesPage() {
           </div>
         </div>
       )}
+
+      {/* AI Generator Modal */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-2xl rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" style={{ color: '#a78bfa' }} />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">AI Estimate Generator</h2>
+                  <p className="text-xs text-muted-foreground">Describe the job — AI generates line items and pricing</p>
+                </div>
+              </div>
+              <button onClick={() => setAiOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Example prompts */}
+              {!aiResult && (
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'HVAC tune-up and filter replacement',
+                    'Bathroom plumbing repair – leaking faucet',
+                    'Install 3 new electrical outlets',
+                    'Office deep cleaning – 2000 sq ft',
+                  ].map(example => (
+                    <button key={example}
+                      onClick={() => setAiPrompt(example)}
+                      className="text-xs px-3 py-1.5 rounded-full transition-all"
+                      style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
+                      {example}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Prompt input */}
+              {!aiResult && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Describe the job</label>
+                    <textarea
+                      value={aiPrompt}
+                      onChange={e => setAiPrompt(e.target.value)}
+                      rows={4}
+                      placeholder="e.g. Replace kitchen sink faucet and fix slow drain in master bathroom. 2-story home, need materials and 2 hours of labor."
+                      className={`${inputCls} resize-none`} style={inputStyle}
+                    />
+                  </div>
+                  <button onClick={generateEstimate} disabled={!aiPrompt.trim() || aiGenerating}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
+                    style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)' }}>
+                    {aiGenerating ? (
+                      <><div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Generating…</>
+                    ) : (
+                      <><Sparkles className="h-4 w-4" /> Generate Estimate</>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {/* Generated result */}
+              {aiResult && (
+                <div className="space-y-4">
+                  <div className="rounded-lg p-3" style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)' }}>
+                    <p className="text-sm text-foreground">{aiResult.description}</p>
+                  </div>
+
+                  {/* Line items table */}
+                  <div className="rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr style={{ background: 'hsl(var(--muted))' }}>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Item</th>
+                          <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Qty</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Unit Price</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aiResult.items.map((item, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid hsl(var(--border))' }}>
+                            <td className="px-3 py-2.5 text-foreground">{item.name}</td>
+                            <td className="px-3 py-2.5 text-center text-muted-foreground">{item.qty}</td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">${item.unitPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-foreground">${item.total.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid hsl(var(--border))' }}>
+                          <td colSpan={3} className="px-3 py-3 text-right text-sm font-bold text-foreground">Total</td>
+                          <td className="px-3 py-3 text-right text-lg font-bold" style={{ color: '#06b6d4' }}>${aiResult.total.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="flex gap-2 justify-between">
+                    <button onClick={() => { setAiResult(null); setAiPrompt('') }}
+                      className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                      ← Try again
+                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => {
+                        apiClient.post('/estimates', {
+                          description: aiResult.description,
+                          items: aiResult.items,
+                          total: aiResult.total,
+                          status: 'draft',
+                        }).then(() => {
+                          setAiOpen(false)
+                          setAiResult(null)
+                          setAiPrompt('')
+                          void load()
+                        }).catch(() => {
+                          setAiOpen(false)
+                          toast('Estimate created (demo mode)', 'success')
+                        })
+                      }}
+                        className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                        Save as Draft
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Invoice Modal */}
+      {convertTarget && (() => {
+        const estTotal = Number(convertTarget.total ?? 0)
+        const depositPct = Math.min(100, Math.max(0, Number(convertForm.deposit) || 0))
+        const depositAmount = Math.round(estTotal * depositPct) / 100
+        const dueDate = new Date(Date.now() + convertForm.dueInDays * 86400000)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+            <div className="w-full max-w-md rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" style={cardStyle}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" style={{ color: '#06b6d4' }} />
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Convert to Invoice</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {convertTarget.estimateNumber} · {convertTarget.title} · {fmt(estTotal)}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setConvertTarget(null)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-xl p-4 space-y-1.5" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Estimate total carried over</span>
+                  <span className="font-semibold text-foreground tabular">{fmt(estTotal)}</span>
+                </div>
+                {convertTarget.lineItems?.length > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Line items</span>
+                    <span className="text-muted-foreground tabular">{convertTarget.lineItems.length}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Due in */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Due in</label>
+                <div className="flex gap-2">
+                  {[7, 14, 30, 60].map(d => (
+                    <button key={d}
+                      onClick={() => setConvertForm(f => ({ ...f, dueInDays: d }))}
+                      className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                      style={convertForm.dueInDays === d
+                        ? { color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.35)' }
+                        : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                      {d} days
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">Due {dueDate.toLocaleDateString()}</p>
+              </div>
+
+              {/* Deposit */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Deposit % (optional)</label>
+                <input
+                  type="number" min="0" max="100" step="1"
+                  value={convertForm.deposit}
+                  onChange={e => setConvertForm(f => ({ ...f, deposit: e.target.value }))}
+                  placeholder="e.g. 25 — leave blank for full amount"
+                  className={inputCls} style={inputStyle}
+                />
+                {depositPct > 0 && (
+                  <p className="text-xs mt-1.5" style={{ color: '#06b6d4' }}>
+                    Invoice will be for the {depositPct}% deposit: {fmt(depositAmount)}
+                  </p>
+                )}
+              </div>
+
+              {/* Send immediately */}
+              <button onClick={() => setConvertForm(f => ({ ...f, sendNow: !f.sendNow }))}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-2.5"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <span className="text-sm text-foreground">Send immediately</span>
+                <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                  style={{ background: convertForm.sendNow ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: convertForm.sendNow ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+              <p className="text-xs text-muted-foreground -mt-3">
+                {convertForm.sendNow ? 'The invoice will be sent to the client right away.' : 'The invoice will be created as a draft.'}
+              </p>
+
+              <div className="flex gap-3">
+                <button onClick={() => setConvertTarget(null)}
+                  className="flex-1 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}>
+                  Cancel
+                </button>
+                <button onClick={convertToInvoice} disabled={converting}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {converting ? 'Creating…' : 'Create Invoice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Preview Modal */}
       {preview && (

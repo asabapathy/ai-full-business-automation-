@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 import { ScrollText, Plus, Trash2, Send, PenLine, Eye, X } from 'lucide-react'
 
 interface Contract {
@@ -202,10 +202,10 @@ export default function ContractsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: stats.total, color: 'text-foreground' },
-          { label: 'Draft', value: stats.byStatus.draft ?? 0, color: 'text-muted-foreground' },
-          { label: 'Sent', value: stats.byStatus.sent ?? 0, color: 'text-primary' },
-          { label: 'Signed Value', value: `$${(stats.signedValue / 1000).toFixed(1)}k`, color: 'text-emerald-400' },
+          { label: 'Total', value: stats.total, colorStyle: { color: 'hsl(var(--foreground))' } },
+          { label: 'Draft', value: stats.byStatus.draft ?? 0, colorStyle: { color: 'hsl(var(--muted-foreground))' } },
+          { label: 'Sent', value: stats.byStatus.sent ?? 0, colorStyle: { color: 'hsl(var(--primary))' } },
+          { label: 'Signed Value', value: `$${(stats.signedValue / 1000).toFixed(1)}k`, colorStyle: { color: '#34d399' } },
         ].map((s, i) => (
           <div
             key={s.label}
@@ -213,7 +213,7 @@ export default function ContractsPage() {
             style={{ ...cardStyle, animationDelay: `${0.11 + i * 0.07}s` }}
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold tabular ${s.color}`}>{s.value}</p>
+            <p className="text-2xl font-bold tabular" style={s.colorStyle}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -225,7 +225,7 @@ export default function ContractsPage() {
       >
         {loading ? (
           <div className="p-4 space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
           </div>
         ) : contracts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -247,7 +247,7 @@ export default function ContractsPage() {
                 {contracts.map(c => {
                   const meta = STATUS_META[c.status] ?? STATUS_META['draft']!
                   return (
-                    <tr key={c.id} className="border-b last:border-0 hover:bg-white/[0.02] transition-colors" style={{ borderColor: 'hsl(var(--border))' }}>
+                    <tr key={c.id} className="border-b last:border-0 hover:bg-accent/5 transition-colors" style={{ borderColor: 'hsl(var(--border))' }}>
                       <td className="px-4 py-3 font-medium text-foreground">{c.title}</td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {c.contact ? `${c.contact.firstName} ${c.contact.lastName}` : '—'}
@@ -273,7 +273,7 @@ export default function ContractsPage() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setPreview(c)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors"
                             title="Preview"
                           >
                             <Eye className="h-3.5 w-3.5" />
@@ -282,7 +282,7 @@ export default function ContractsPage() {
                             <button
                               onClick={() => sendContract(c.id)}
                               disabled={sending === c.id}
-                              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
+                              className="p-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50"
                               title="Send to client"
                             >
                               <Send className="h-3.5 w-3.5" style={{ color: '#38bdf8' }} />
@@ -292,7 +292,7 @@ export default function ContractsPage() {
                             <button
                               onClick={() => markSigned(c.id)}
                               disabled={signing === c.id}
-                              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
+                              className="p-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50"
                               title="Mark as signed"
                             >
                               <PenLine className="h-3.5 w-3.5" style={{ color: '#34d399' }} />
@@ -302,7 +302,7 @@ export default function ContractsPage() {
                             <button
                               onClick={() => remove(c.id)}
                               disabled={removing === c.id}
-                              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
+                              className="p-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50"
                             >
                               <Trash2 className="h-3.5 w-3.5" style={{ color: '#f87171' }} />
                             </button>

@@ -88,6 +88,79 @@
     --t2: #5a7fa0;
     --t3: #2e4a65;
   }
+
+  /* data-theme selectors for custom toggle — override next-themes .dark class */
+  :root[data-theme="dark"] {
+    --background: 216 56% 8%;
+    --foreground: 215 72% 92%;
+    --card: 218 49% 14%;
+    --card-foreground: 215 72% 92%;
+    --popover: 217 58% 10%;
+    --popover-foreground: 215 72% 92%;
+    --primary: 188 94% 43%;
+    --primary-foreground: 214 53% 5%;
+    --secondary: 213 44% 17%;
+    --secondary-foreground: 215 72% 92%;
+    --muted: 213 44% 17%;
+    --muted-foreground: 208 29% 49%;
+    --accent: 213 44% 17%;
+    --accent-foreground: 215 72% 92%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 43% 20%;
+    --input: 217 43% 20%;
+    --ring: 188 94% 43%;
+    --sidebar-background: 217 58% 10%;
+    --sidebar-foreground: 215 72% 92%;
+    --sidebar-primary: 188 94% 43%;
+    --sidebar-primary-foreground: 214 53% 5%;
+    --sidebar-accent: 218 49% 14%;
+    --sidebar-accent-foreground: 215 72% 92%;
+    --sidebar-border: 217 43% 18%;
+    --sidebar-ring: 188 94% 43%;
+    --ink: #060a12;
+    --s0: #090f1c;
+    --s1: #0d1526;
+    --s2: #121e34;
+    --s3: #192840;
+    --ba: rgba(6, 182, 212, 0.22);
+    --cyan-raw: #06b6d4;
+    --cglow: rgba(6, 182, 212, 0.1);
+    --cglows: rgba(6, 182, 212, 0.2);
+    --t1: #dce8f8;
+    --t2: #5a7fa0;
+    --t3: #2e4a65;
+  }
+
+  :root[data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 188 94% 43%;
+    --primary-foreground: 214 53% 5%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 188 94% 43%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 188 94% 43%;
+    --sidebar-primary-foreground: 214 53% 5%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 188 94% 43%;
+  }
 }
 
 /* ── Keyframes ───────────────────────────────── */

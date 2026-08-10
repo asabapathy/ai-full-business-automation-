@@ -68,11 +68,67 @@ const TRIGGER_LABELS: Record<string, string> = {
   CONTACT_CREATED: 'New Contact',
   DEAL_STAGE_CHANGED: 'Deal Stage Change',
   APPOINTMENT_BOOKED: 'Appointment Booked',
+  APPOINTMENT_COMPLETED: 'Appointment Completed',
+  ESTIMATE_APPROVED: 'Estimate Approved',
   INVOICE_OVERDUE: 'Invoice Overdue',
   REVIEW_RECEIVED: 'Review Received',
   SCHEDULE: 'Scheduled',
   MANUAL: 'Manual',
 }
+
+/* ─── Visual Builder building blocks ─── */
+
+const TRIGGERS = [
+  { key: 'contact.created', label: 'New contact added', icon: '👤', color: '#06b6d4', sentence: 'a new contact is added', triggerType: 'CONTACT_CREATED' },
+  { key: 'invoice.overdue', label: 'Invoice becomes overdue', icon: '⏰', color: '#f87171', sentence: 'an invoice becomes overdue', triggerType: 'INVOICE_OVERDUE' },
+  { key: 'appointment.completed', label: 'Appointment completed', icon: '✅', color: '#34d399', sentence: 'an appointment is completed', triggerType: 'APPOINTMENT_COMPLETED' },
+  { key: 'estimate.approved', label: 'Estimate approved', icon: '📝', color: '#a78bfa', sentence: 'an estimate is approved', triggerType: 'ESTIMATE_APPROVED' },
+  { key: 'review.received', label: 'Review received', icon: '⭐', color: '#fbbf24', sentence: 'a review is received', triggerType: 'REVIEW_RECEIVED' },
+]
+
+const CONDITIONS = [
+  { key: 'always', label: 'Always run' },
+  { key: 'value_gt', label: 'Deal value greater than…', hasInput: true, inputType: 'number', placeholder: '1000' },
+  { key: 'status_is', label: 'Status equals…', hasInput: true, inputType: 'text', placeholder: 'qualified' },
+  { key: 'first_time', label: 'Only the first time' },
+]
+
+const ACTIONS = [
+  { key: 'send_email', label: 'Send email', icon: '✉️', hasInput: true, placeholder: 'Email template name', stepType: 'SEND_EMAIL' },
+  { key: 'send_sms', label: 'Send SMS', icon: '💬', hasInput: true, placeholder: 'Message text', stepType: 'SEND_SMS' },
+  { key: 'create_task', label: 'Create task', icon: '📋', hasInput: true, placeholder: 'Task title', stepType: 'UPDATE_CRM' },
+  { key: 'notify_team', label: 'Notify team', icon: '🔔', stepType: 'NOTIFY_TEAM' },
+  { key: 'add_tag', label: 'Add tag to contact', icon: '🏷️', hasInput: true, placeholder: 'Tag name', stepType: 'UPDATE_CRM' },
+]
+
+interface BuilderDraft {
+  name: string
+  trigger: string | null
+  condition: string
+  conditionValue: string
+  actions: { key: string; value: string }[]
+}
+
+const EMPTY_DRAFT: BuilderDraft = { name: '', trigger: null, condition: 'always', conditionValue: '', actions: [] }
+
+function draftSentence(draft: BuilderDraft): string {
+  const trig = TRIGGERS.find(t => t.key === draft.trigger)
+  const parts: string[] = [`When ${trig ? trig.sentence : '…'}`]
+  if (draft.condition === 'value_gt') parts.push(`if deal value > ${draft.conditionValue || '…'}`)
+  else if (draft.condition === 'status_is') parts.push(`if status is "${draft.conditionValue || '…'}"`)
+  else if (draft.condition === 'first_time') parts.push('if it is the first time')
+  const acts = draft.actions.map(a => {
+    const meta = ACTIONS.find(x => x.key === a.key)
+    const label = (meta?.label ?? a.key).toLowerCase()
+    return a.value.trim() ? `${label} '${a.value.trim()}'` : label
+  })
+  parts.push(`then: ${acts.length ? acts.join(', ') : '…'}`)
+  return parts.join(', ') + '.'
+}
+
+const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 
 function getStepMeta(type: string) {
   return STEP_TYPES.find(s => s.type === type) ?? { type, label: type, icon: '▸', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', text: 'hsl(var(--muted-foreground))' }
@@ -260,7 +316,7 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
                       >
                         <Settings className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => removeStep(step.id)} className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
+                      <button onClick={() => removeStep(step.id)} className="p-1 rounded text-muted-foreground transition-colors" style={{ }} onMouseEnter={e => (e.currentTarget.style.color='#f87171')} onMouseLeave={e => (e.currentTarget.style.color='')}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => setExpandedId(isExpanded ? null : step.id)} className="p-1 rounded hover:bg-white/10 text-muted-foreground">
@@ -331,6 +387,10 @@ export default function AutomationsPage() {
   const [generating, setGenerating] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null)
   const [executingId, setExecutingId] = useState<string | null>(null)
+  const [builderOpen, setBuilderOpen] = useState(false)
+  const [draft, setDraft] = useState<BuilderDraft>(EMPTY_DRAFT)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [showActionPicker, setShowActionPicker] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -393,6 +453,58 @@ export default function AutomationsPage() {
     setGenerating(false)
   }
 
+  const draftValid = draft.name.trim().length > 0 && draft.trigger !== null && draft.actions.length > 0
+
+  function closeBuilder() {
+    setBuilderOpen(false)
+    setDraft(EMPTY_DRAFT)
+    setShowActionPicker(false)
+  }
+
+  async function createAutomation() {
+    if (!draftValid || savingDraft) return
+    setSavingDraft(true)
+    const description = draftSentence(draft)
+    const trig = TRIGGERS.find(t => t.key === draft.trigger)
+    let created: Workflow | null = null
+    try {
+      const data = await (apiClient as any).post('/automations', {
+        name: draft.name.trim(),
+        trigger: draft.trigger,
+        condition: draft.condition,
+        conditionValue: draft.conditionValue,
+        actions: draft.actions,
+      }) as any
+      if (data?.workflow) created = data.workflow
+    } catch {}
+    if (!created) {
+      // Demo mode — build the workflow locally from the draft
+      created = {
+        id: `auto-${Date.now()}`,
+        name: draft.name.trim(),
+        description,
+        triggerType: trig?.triggerType ?? 'MANUAL',
+        isActive: true,
+        runCount: 0,
+        steps: draft.actions.map((a, i) => {
+          const meta = ACTIONS.find(x => x.key === a.key)
+          return {
+            id: `bstep-${Date.now()}-${i}`,
+            type: meta?.stepType ?? 'AI_ACTION',
+            name: a.value.trim() ? `${meta?.label ?? a.key}: ${a.value.trim()}` : (meta?.label ?? a.key),
+            order: i + 1,
+            ...(a.value.trim() ? { config: { value: a.value.trim() } } : {}),
+          }
+        }),
+      }
+    }
+    setWorkflows(prev => [created!, ...prev])
+    setStats(prev => ({ ...prev, total: prev.total + 1, active: prev.active + (created!.isActive ? 1 : 0) }))
+    closeBuilder()
+    toast('Automation created', 'success')
+    setSavingDraft(false)
+  }
+
   const handleSaveWorkflow = async (updated: Workflow) => {
     try {
       await (apiClient as any).patch(`/automations/${updated.id}`, { name: updated.name, steps: updated.steps })
@@ -420,30 +532,40 @@ export default function AutomationsPage() {
           <h1 className="text-2xl font-bold text-foreground">Automations</h1>
           <p className="text-muted-foreground text-sm mt-0.5">AI-powered workflow automation engine</p>
         </div>
-        <button
-          onClick={() => setShowGenerator(true)}
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
-        >
-          <Zap className="h-4 w-4" />
-          Generate with AI
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowGenerator(true)}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/60"
+            style={{ border: '1px solid hsl(var(--border))' }}
+          >
+            <Zap className="h-4 w-4" />
+            Generate with AI
+          </button>
+          <button
+            onClick={() => setBuilderOpen(true)}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
+          >
+            <Plus className="h-4 w-4" />
+            New Automation
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Workflows', value: stats.total, color: 'text-primary' },
-          { label: 'Active', value: stats.active, color: 'text-emerald-400' },
-          { label: 'Total Runs', value: stats.totalRuns, color: 'text-primary' },
-          { label: 'Failures (7d)', value: stats.recentFailures, color: stats.recentFailures > 0 ? 'text-red-400' : 'text-emerald-400' },
+          { label: 'Total Workflows', value: stats.total, hex: null as string | null },
+          { label: 'Active', value: stats.active, hex: '#34d399' as string | null },
+          { label: 'Total Runs', value: stats.totalRuns, hex: null as string | null },
+          { label: 'Failures (7d)', value: stats.recentFailures, hex: (stats.recentFailures > 0 ? '#f87171' : '#34d399') as string | null },
         ].map((stat, i) => (
           <div
             key={stat.label}
             className="kv-anim rounded-xl border p-4 text-center"
             style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
           >
-            <p className={`text-3xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+            <p className={`text-3xl font-bold tabular${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined}>{stat.value}</p>
             <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
           </div>
         ))}
@@ -489,6 +611,211 @@ export default function AutomationsPage() {
           </div>
         </div>
       )}
+
+      {/* Visual Automation Builder modal */}
+      {builderOpen && (() => {
+        const selectedTrigger = TRIGGERS.find(t => t.key === draft.trigger)
+        const selectedCondition = CONDITIONS.find(c => c.key === draft.condition)
+        const Connector = () => <div className="mx-auto my-0" style={{ width: '2px', height: '24px', background: 'hsl(var(--border))' }} />
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+            <div className="w-full max-w-2xl rounded-2xl flex flex-col" style={{ ...cardStyle, maxHeight: '90vh' }}>
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">New Automation</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Build a trigger → condition → action flow</p>
+                </div>
+                <button onClick={closeBuilder} className="p-2 rounded-lg hover:bg-accent/60 text-muted-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-0">
+                {/* Name */}
+                <input
+                  value={draft.name}
+                  onChange={e => setDraft(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Automation name"
+                  className={inputCls}
+                  style={inputStyle}
+                />
+
+                <div className="h-4" />
+
+                {/* WHEN node */}
+                <div className="rounded-xl p-4" style={cardStyle}>
+                  <p className="text-xs uppercase tracking-wide font-semibold text-muted-foreground mb-3">When</p>
+                  {!selectedTrigger ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {TRIGGERS.map(t => (
+                        <button
+                          key={t.key}
+                          onClick={() => setDraft(prev => ({ ...prev, trigger: t.key }))}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+                          style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+                          onMouseEnter={e => (e.currentTarget.style.borderColor = t.color)}
+                          onMouseLeave={e => (e.currentTarget.style.borderColor = 'hsl(var(--border))')}
+                        >
+                          <span className="text-base">{t.icon}</span>
+                          <span>{t.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                      style={{ background: 'hsl(var(--muted))', borderLeft: `3px solid ${selectedTrigger.color}` }}
+                    >
+                      <div className="flex items-center gap-2 text-sm text-foreground font-medium">
+                        <span className="text-base">{selectedTrigger.icon}</span>
+                        {selectedTrigger.label}
+                      </div>
+                      <button
+                        onClick={() => setDraft(prev => ({ ...prev, trigger: null }))}
+                        className="text-xs text-muted-foreground transition-colors hover:text-foreground flex-shrink-0"
+                      >
+                        change
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <Connector />
+
+                {/* IF node */}
+                <div className="rounded-xl p-4" style={cardStyle}>
+                  <p className="text-xs uppercase tracking-wide font-semibold text-muted-foreground mb-3">If</p>
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                    <select
+                      value={draft.condition}
+                      onChange={e => setDraft(prev => ({ ...prev, condition: e.target.value, conditionValue: '' }))}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      {CONDITIONS.map(c => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </select>
+                    {selectedCondition?.hasInput && (
+                      <input
+                        type={selectedCondition.inputType ?? 'text'}
+                        value={draft.conditionValue}
+                        onChange={e => setDraft(prev => ({ ...prev, conditionValue: e.target.value }))}
+                        placeholder={selectedCondition.placeholder}
+                        className={`${inputCls} sm:w-44 flex-shrink-0`}
+                        style={inputStyle}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <Connector />
+
+                {/* THEN node */}
+                <div className="rounded-xl p-4" style={cardStyle}>
+                  <p className="text-xs uppercase tracking-wide font-semibold text-muted-foreground mb-3">Then</p>
+                  <div className="space-y-2">
+                    {draft.actions.map((a, idx) => {
+                      const meta = ACTIONS.find(x => x.key === a.key)
+                      return (
+                        <div
+                          key={`${a.key}-${idx}`}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2"
+                          style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+                        >
+                          <span className="text-base flex-shrink-0">{meta?.icon}</span>
+                          <span className="text-sm text-foreground font-medium flex-shrink-0">{meta?.label ?? a.key}</span>
+                          {meta?.hasInput && (
+                            <input
+                              value={a.value}
+                              onChange={e => setDraft(prev => ({
+                                ...prev,
+                                actions: prev.actions.map((x, i) => i === idx ? { ...x, value: e.target.value } : x),
+                              }))}
+                              placeholder={meta.placeholder}
+                              className={`${inputCls} flex-1 min-w-0`}
+                              style={inputStyle}
+                            />
+                          )}
+                          <button
+                            onClick={() => setDraft(prev => ({ ...prev, actions: prev.actions.filter((_, i) => i !== idx) }))}
+                            className="ml-auto flex-shrink-0 p-1 rounded text-muted-foreground transition-colors"
+                            onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '')}
+                            aria-label="Remove action"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+
+                    {draft.actions.length < 4 && (
+                      <div>
+                        <button
+                          onClick={() => setShowActionPicker(v => !v)}
+                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                          style={{ border: '2px dashed hsl(var(--border))' }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add action
+                        </button>
+                        {showActionPicker && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {ACTIONS.map(a => (
+                              <button
+                                key={a.key}
+                                onClick={() => {
+                                  setDraft(prev => prev.actions.length >= 4 ? prev : { ...prev, actions: [...prev.actions, { key: a.key, value: '' }] })
+                                  setShowActionPicker(false)
+                                }}
+                                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+                              >
+                                <span>{a.icon}</span>
+                                {a.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {draft.actions.length >= 4 && (
+                      <p className="text-xs text-muted-foreground">Maximum of 4 actions per automation.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live sentence preview */}
+                <div className="mt-4 rounded-xl px-4 py-3" style={{ background: 'hsl(var(--muted))' }}>
+                  <p className="text-xs text-muted-foreground italic leading-relaxed">{draftSentence(draft)}</p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-3 px-6 py-4 flex-shrink-0" style={{ borderTop: '1px solid hsl(var(--border))' }}>
+                <button
+                  onClick={closeBuilder}
+                  className="px-4 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createAutomation}
+                  disabled={!draftValid || savingDraft}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  {savingDraft ? 'Creating…' : 'Create Automation'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Workflow list */}
       <div className="kv-anim space-y-4" style={{ animationDelay: '0.39s' }}>
@@ -551,11 +878,11 @@ export default function AutomationsPage() {
                 </button>
                 <button
                   onClick={() => toggleWorkflow(wf.id, wf.isActive)}
-                  className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${wf.isActive
-                    ? 'text-red-400 hover:bg-red-400/10'
-                    : 'text-emerald-400 hover:bg-emerald-400/10'
-                  }`}
-                  style={{ border: `1px solid ${wf.isActive ? 'rgba(248,113,113,0.2)' : 'rgba(52,211,153,0.2)'}` }}
+                  className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    color: wf.isActive ? '#f87171' : '#34d399',
+                    border: `1px solid ${wf.isActive ? 'rgba(248,113,113,0.2)' : 'rgba(52,211,153,0.2)'}`,
+                  }}
                 >
                   {wf.isActive ? <><Pause className="h-3 w-3" /> Pause</> : <><Play className="h-3 w-3" /> Activate</>}
                 </button>

@@ -25,7 +25,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void 
         : { background: 'rgba(255,255,255,0.1)' }
       }
     >
-      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform shadow ${enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+      <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-1'}`} style={{ background: 'white' }} />
     </div>
   )
 }
@@ -403,7 +403,7 @@ export default function SettingsPage() {
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">{planInfo.desc}</p>
                 {isTrialing && organization?.trialEndsAt && (
-                  <p className="text-xs text-amber-400 mt-2">
+                  <p className="text-xs mt-2" style={{ color: '#fbbf24' }}>
                     Trial ends {new Date(organization.trialEndsAt).toLocaleDateString()}
                   </p>
                 )}

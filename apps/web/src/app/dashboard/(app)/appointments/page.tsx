@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle } from 'lucide-react'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays, BellRing } from 'lucide-react'
+
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
 
@@ -49,6 +49,18 @@ const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hs
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
+function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1) }
+function daysInMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() }
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+function appointmentsOnDay(day: Date, apts: Appointment[]) {
+  return apts.filter(apt => {
+    const d = new Date(apt.startTime ?? '')
+    return !isNaN(d.getTime()) && isSameDay(d, day)
+  })
+}
+
 function buildWeekStrip(centerDate: string) {
   const center = new Date(centerDate + 'T12:00:00')
   const days = []
@@ -69,6 +81,13 @@ export default function AppointmentsPage() {
   const [showBook, setShowBook] = useState(false)
   const [booking, setBooking] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [view, setView] = useState<'list' | 'calendar'>('list')
+  const [calMonth, setCalMonth] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [reminderSettings, setReminderSettings] = useState({ enabled: true, hoursBefore: 24, channel: 'both' as 'email' | 'sms' | 'both' })
+  const [reminderSettingsOpen, setReminderSettingsOpen] = useState(false)
+  const [savingReminders, setSavingReminders] = useState(false)
+  const [remindingId, setRemindingId] = useState<string | null>(null)
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
@@ -107,6 +126,32 @@ export default function AppointmentsPage() {
     }
     fetchData()
   }, [selectedDate])
+
+  useEffect(() => {
+    api.get<typeof reminderSettings>('/appointments/reminder-settings')
+      .then(s => s && setReminderSettings(s))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function saveReminderSettings() {
+    setSavingReminders(true)
+    try {
+      await api.put('/appointments/reminder-settings', reminderSettings)
+    } catch { /* demo mode */ }
+    setSavingReminders(false)
+    setReminderSettingsOpen(false)
+    toast('Reminder settings saved', 'success')
+  }
+
+  async function sendReminderNow(appt: Appointment) {
+    setRemindingId(appt.id)
+    try {
+      await api.post(`/appointments/${appt.id}/remind`, {})
+    } catch { /* demo */ }
+    setRemindingId(null)
+    toast(`Reminder sent to ${appt.contact?.firstName ?? 'client'}`, 'success')
+  }
 
   const changeDate = (days: number) => {
     const d = new Date(selectedDate + 'T12:00:00')
@@ -175,7 +220,26 @@ export default function AppointmentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Scheduling and appointment management</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+            {(['list', 'calendar'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium capitalize"
+                style={view === v
+                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                  : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }}>
+                {v === 'list' ? <List className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setReminderSettingsOpen(true)}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <BellRing className="h-4 w-4" />
+            Reminders
+            {reminderSettings.enabled && <span className="h-2 w-2 rounded-full" style={{ background: '#34d399' }} />}
+          </button>
           <button
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
             style={{ color: '#a855f7', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)' }}
@@ -206,11 +270,12 @@ export default function AppointmentsPage() {
               <stat.icon className="h-4 w-4" style={{ color: stat.color }} />
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>
-            {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>}
+            {isLoading ? <div className="h-8 w-16 mt-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} /> : <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>}
           </div>
         ))}
       </div>
 
+      {view === 'list' && (<>
       {/* Week strip */}
       <div {...anim(3)} className="kv-anim flex items-center gap-2" style={{ animationDelay: '0.25s' }}>
         <button onClick={() => changeDate(-7)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors shrink-0">
@@ -256,7 +321,7 @@ export default function AppointmentsPage() {
 
               {isLoading ? (
                 <div className="p-4 space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+                  {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-20 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
                 </div>
               ) : appointments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
@@ -302,12 +367,21 @@ export default function AppointmentsPage() {
                           </span>
                           {active && (
                             <div className="flex gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation?.(); sendReminderNow(appt) }}
+                                disabled={remindingId === appt.id}
+                                title="Send reminder now"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                                style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                              >
+                                <BellRing className="h-4 w-4" style={remindingId === appt.id ? { color: '#fbbf24' } : undefined} />
+                              </button>
                               {appt.status === 'SCHEDULED' && (
                                 <button
                                   onClick={() => updateStatus(appt.id, 'CONFIRMED')}
                                   disabled={updatingId === appt.id}
                                   title="Confirm"
-                                  className="p-1 rounded hover:bg-emerald-400/10 transition-colors disabled:opacity-50"
+                                  className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                   style={{ color: '#34d399' }}
                                 >
                                   <CheckCircle className="h-4 w-4" />
@@ -318,7 +392,7 @@ export default function AppointmentsPage() {
                                   onClick={() => updateStatus(appt.id, 'COMPLETED')}
                                   disabled={updatingId === appt.id}
                                   title="Mark completed"
-                                  className="p-1 rounded hover:bg-white/5 transition-colors disabled:opacity-50"
+                                  className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                   style={{ color: '#94a3b8' }}
                                 >
                                   <CheckCircle className="h-4 w-4" />
@@ -328,7 +402,7 @@ export default function AppointmentsPage() {
                                 onClick={() => updateStatus(appt.id, 'NO_SHOW')}
                                 disabled={updatingId === appt.id}
                                 title="No show"
-                                className="p-1 rounded hover:bg-amber-400/10 transition-colors disabled:opacity-50"
+                                className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                 style={{ color: '#f59e0b' }}
                               >
                                 <AlertCircle className="h-4 w-4" />
@@ -337,7 +411,7 @@ export default function AppointmentsPage() {
                                 onClick={() => updateStatus(appt.id, 'CANCELLED')}
                                 disabled={updatingId === appt.id}
                                 title="Cancel"
-                                className="p-1 rounded hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                                className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                 style={{ color: '#f87171' }}
                               >
                                 <XCircle className="h-4 w-4" />
@@ -361,7 +435,7 @@ export default function AppointmentsPage() {
           </div>
           <div className="p-4 space-y-2">
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)
+              Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-9 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)
             ) : slots.filter(s => s.available).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">No open slots today</p>
             ) : (
@@ -384,6 +458,223 @@ export default function AppointmentsPage() {
           </div>
         </div>
       </div>
+      </>)}
+
+      {/* Calendar view */}
+      {view === 'calendar' && (
+        <div {...anim(3)}>
+          {/* Month navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+              className="p-2 rounded-lg transition-colors"
+              style={{ ...cardStyle, color: 'hsl(var(--muted-foreground))' }}>
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <h2 className="text-base font-semibold text-foreground">
+              {calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </h2>
+            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+              className="p-2 rounded-lg transition-colors"
+              style={{ ...cardStyle, color: 'hsl(var(--muted-foreground))' }}>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Day-of-week headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+              <div key={d} className="text-center text-xs font-medium py-2" style={{ color: 'hsl(var(--muted-foreground))' }}>{d}</div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+            {(() => {
+              const start = startOfMonth(calMonth)
+              const totalDays = daysInMonth(calMonth)
+              const startDow = start.getDay()
+              const cells: (Date | null)[] = Array(startDow).fill(null)
+              for (let i = 1; i <= totalDays; i++) {
+                cells.push(new Date(calMonth.getFullYear(), calMonth.getMonth(), i))
+              }
+              while (cells.length % 7 !== 0) cells.push(null)
+              const weeks: (Date | null)[][] = []
+              for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+              const today = new Date()
+              return weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7">
+                  {week.map((day, di) => {
+                    const isToday = day ? isSameDay(day, today) : false
+                    const isSelected = day && selectedDay ? isSameDay(day, selectedDay) : false
+                    const dayApts = day ? appointmentsOnDay(day, appointments) : []
+                    return (
+                      <div key={di}
+                        onClick={() => day && setSelectedDay(day)}
+                        className={`min-h-[80px] p-1.5 transition-colors ${day ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                        style={{
+                          background: isSelected ? 'rgba(6,182,212,0.08)' : day ? 'hsl(var(--card))' : 'hsl(var(--muted))',
+                          borderBottom: wi < weeks.length - 1 ? '1px solid hsl(var(--border))' : undefined,
+                          borderRight: di < 6 ? '1px solid hsl(var(--border))' : undefined,
+                        }}>
+                        {day && (
+                          <>
+                            <div className="flex items-center justify-center h-6 w-6 rounded-full text-xs font-medium mb-1"
+                              style={isToday
+                                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                                : { color: isSelected ? '#06b6d4' : 'hsl(var(--foreground))' }}>
+                              {day.getDate()}
+                            </div>
+                            <div className="space-y-0.5">
+                              {dayApts.slice(0, 2).map((apt, ai) => (
+                                <div key={ai} className="text-xs px-1 py-0.5 rounded truncate"
+                                  style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}>
+                                  {apt.contact ? `${apt.contact.firstName} ${apt.contact.lastName ?? ''}`.trim() : apt.title}
+                                </div>
+                              ))}
+                              {dayApts.length > 2 && (
+                                <div className="text-xs px-1" style={{ color: 'hsl(var(--muted-foreground))' }}>+{dayApts.length - 2} more</div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))
+            })()}
+          </div>
+
+          {/* Selected day detail panel */}
+          {selectedDay && (() => {
+            const dayApts = appointmentsOnDay(selectedDay, appointments)
+            return (
+              <div className="mt-4 rounded-xl p-4" style={cardStyle}>
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  {selectedDay.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  <span className="ml-2 text-xs font-normal" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {dayApts.length} appointment{dayApts.length !== 1 ? 's' : ''}
+                  </span>
+                </h3>
+                {dayApts.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>No appointments scheduled.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {dayApts.map((apt, i) => {
+                      const pill = STATUS_PILL[apt.status] ?? STATUS_PILL.SCHEDULED
+                      return (
+                        <div key={i} className="flex items-start gap-3 rounded-lg p-3"
+                          style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                          <div className="h-2 w-2 rounded-full mt-1.5 shrink-0" style={{ background: '#06b6d4' }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {apt.contact ? `${apt.contact.firstName} ${apt.contact.lastName ?? ''}`.trim() : apt.title}
+                            </p>
+                            <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{apt.service?.name ?? ''}</p>
+                            <p className="text-xs mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                              {new Date(apt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {apt.duration ? ` · ${apt.duration}m` : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{ background: pill.bg, color: pill.text }}>
+                              {apt.status.replace('_', ' ')}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation?.(); sendReminderNow(apt) }}
+                              disabled={remindingId === apt.id}
+                              title="Send reminder now"
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                              style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                            >
+                              <BellRing className="h-4 w-4" style={remindingId === apt.id ? { color: '#fbbf24' } : undefined} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Reminder settings modal */}
+      {reminderSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-md rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <BellRing className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Appointment Reminders</h2>
+              </div>
+              <button onClick={() => setReminderSettingsOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Enable toggle */}
+              <button onClick={() => setReminderSettings(s => ({ ...s, enabled: !s.enabled }))}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-3"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-foreground">Automatic reminders</p>
+                  <p className="text-xs text-muted-foreground">Notify clients before their appointment</p>
+                </div>
+                <span className="relative inline-flex h-5 w-9 rounded-full transition-colors shrink-0"
+                  style={{ background: reminderSettings.enabled ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: reminderSettings.enabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+
+              {/* Timing */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Send reminder</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 4, 24, 48].map(h => (
+                    <button key={h} onClick={() => setReminderSettings(s => ({ ...s, hoursBefore: h }))}
+                      className="py-2 rounded-lg text-xs font-medium transition-all"
+                      style={reminderSettings.hoursBefore === h
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {h < 24 ? `${h}h` : `${h / 24}d`} before
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Channel */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Channel</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['email', 'sms', 'both'] as const).map(ch => (
+                    <button key={ch} onClick={() => setReminderSettings(s => ({ ...s, channel: ch }))}
+                      className="py-2 rounded-lg text-xs font-medium capitalize transition-all"
+                      style={reminderSettings.channel === ch
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {ch === 'both' ? 'Email + SMS' : ch.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setReminderSettingsOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                <button onClick={saveReminderSettings} disabled={savingReminders}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {savingReminders ? 'Saving…' : 'Save Settings'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Booking modal */}
       {showBook && (

@@ -70,20 +70,25 @@ export default function OnboardingPage() {
   const totalSteps = 3
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a] p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#0a0a1a' }}>
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🧠</div>
-          <h1 className="text-3xl font-bold text-white">Welcome to Kanavu AI</h1>
-          <p className="text-gray-400 mt-2">Let's set up your AI business operating system</p>
+          <h1 className="text-3xl font-bold text-foreground">Welcome to Kanavu AI</h1>
+          <p className="text-muted-foreground mt-2">Let's set up your AI business operating system</p>
         </div>
 
         {/* Progress */}
         <div className="flex items-center gap-2 mb-8">
           {Array.from({ length: totalSteps }, (_, i) => (
             <div key={i} className="flex items-center flex-1">
-              <div className={`flex-1 h-1.5 rounded-full transition-colors ${i < step ? 'bg-purple-500' : 'bg-white/10'}`} />
+              <div
+                className="flex-1 h-1.5 rounded-full transition-colors"
+                style={i < step
+                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }
+                  : { background: 'rgba(255,255,255,0.1)' }}
+              />
             </div>
           ))}
         </div>
@@ -92,16 +97,17 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">What type of business do you run?</h2>
-              <p className="text-sm text-gray-400">Your AI will be customized for your industry</p>
+              <h2 className="text-xl font-bold text-foreground mb-1">What type of business do you run?</h2>
+              <p className="text-sm text-muted-foreground">Your AI will be customized for your industry</p>
             </div>
             <div className="mb-4">
-              <label className="text-xs text-gray-400 mb-1.5 block">Business name</label>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Business name</label>
               <input
                 value={businessName}
                 onChange={e => setBusinessName(e.target.value)}
                 placeholder={organization?.name ?? 'Your business name'}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                className="w-full rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -109,7 +115,10 @@ export default function OnboardingPage() {
                 <button
                   key={ind.value}
                   onClick={() => setIndustry(ind.value)}
-                  className={`p-4 rounded-xl border text-left transition-all ${industry === ind.value ? 'border-purple-500 bg-purple-600/20 text-white' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-white/20'}`}
+                  className="p-4 rounded-xl text-left transition-all"
+                  style={industry === ind.value
+                    ? { border: '1px solid #06b6d4', background: 'rgba(6,182,212,0.2)', color: 'hsl(var(--foreground))' }
+                    : { border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'hsl(var(--muted-foreground))' }}
                 >
                   <span className="text-2xl block mb-2">{ind.icon}</span>
                   <span className="text-sm font-medium">{ind.label}</span>
@@ -119,7 +128,8 @@ export default function OnboardingPage() {
             <button
               onClick={() => setStep(2)}
               disabled={!industry}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors disabled:opacity-40"
+              className="w-full py-3 rounded-xl font-medium transition-colors disabled:opacity-40"
+              style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
             >
               Continue →
             </button>
@@ -130,30 +140,38 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">How big is your team?</h2>
-              <p className="text-sm text-gray-400">We'll tailor features to your scale</p>
+              <h2 className="text-xl font-bold text-foreground mb-1">How big is your team?</h2>
+              <p className="text-sm text-muted-foreground">We'll tailor features to your scale</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {TEAM_SIZES.map(size => (
                 <button
                   key={size.value}
                   onClick={() => setTeamSize(size.value)}
-                  className={`p-6 rounded-xl border text-left transition-all ${teamSize === size.value ? 'border-purple-500 bg-purple-600/20' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                  className="p-6 rounded-xl text-left transition-all"
+                  style={teamSize === size.value
+                    ? { border: '1px solid #06b6d4', background: 'rgba(6,182,212,0.2)' }
+                    : { border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)' }}
                 >
                   <span className="text-3xl block mb-3">{size.icon}</span>
-                  <p className="text-white font-bold text-lg">{size.label}</p>
-                  <p className="text-sm text-gray-400">{size.desc}</p>
+                  <p className="text-foreground font-bold text-lg">{size.label}</p>
+                  <p className="text-sm text-muted-foreground">{size.desc}</p>
                 </button>
               ))}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep(1)} className="px-6 py-3 bg-white/5 text-gray-400 rounded-xl hover:text-white transition-colors">
+              <button
+                onClick={() => setStep(1)}
+                className="px-6 py-3 rounded-xl transition-colors text-muted-foreground"
+                style={{ background: 'rgba(255,255,255,0.05)' }}
+              >
                 ← Back
               </button>
               <button
                 onClick={() => setStep(3)}
                 disabled={!teamSize}
-                className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors disabled:opacity-40"
+                className="flex-1 py-3 rounded-xl font-medium transition-colors disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
               >
                 Continue →
               </button>
@@ -165,8 +183,8 @@ export default function OnboardingPage() {
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">What are your top priorities?</h2>
-              <p className="text-sm text-gray-400">Select all that apply — your AI will focus here first</p>
+              <h2 className="text-xl font-bold text-foreground mb-1">What are your top priorities?</h2>
+              <p className="text-sm text-muted-foreground">Select all that apply — your AI will focus here first</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {GOALS.map(goal => {
@@ -175,23 +193,31 @@ export default function OnboardingPage() {
                   <button
                     key={goal.value}
                     onClick={() => toggleGoal(goal.value)}
-                    className={`p-4 rounded-xl border text-left transition-all flex items-center gap-3 ${isSelected ? 'border-purple-500 bg-purple-600/20 text-white' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-white/20'}`}
+                    className="p-4 rounded-xl text-left transition-all flex items-center gap-3"
+                    style={isSelected
+                      ? { border: '1px solid #06b6d4', background: 'rgba(6,182,212,0.2)', color: 'hsl(var(--foreground))' }
+                      : { border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'hsl(var(--muted-foreground))' }}
                   >
                     <span className="text-2xl">{goal.icon}</span>
                     <span className="text-sm font-medium">{goal.label}</span>
-                    {isSelected && <span className="ml-auto text-purple-400">✓</span>}
+                    {isSelected && <span className="ml-auto" style={{ color: '#06b6d4' }}>✓</span>}
                   </button>
                 )
               })}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep(2)} className="px-6 py-3 bg-white/5 text-gray-400 rounded-xl hover:text-white transition-colors">
+              <button
+                onClick={() => setStep(2)}
+                className="px-6 py-3 rounded-xl transition-colors text-muted-foreground"
+                style={{ background: 'rgba(255,255,255,0.05)' }}
+              >
                 ← Back
               </button>
               <button
                 onClick={finish}
                 disabled={saving || selectedGoals.length === 0}
-                className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 text-white rounded-xl font-medium transition-opacity disabled:opacity-40"
+                className="flex-1 py-3 rounded-xl font-medium transition-opacity disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
               >
                 {saving ? 'Setting up your AI...' : '🚀 Launch Kanavu AI'}
               </button>
