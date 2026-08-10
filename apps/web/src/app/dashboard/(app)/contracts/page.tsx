@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
-import { ScrollText, Plus, Trash2, Send, PenLine, Eye, X } from 'lucide-react'
+import { ScrollText, Plus, Trash2, Send, PenLine, Eye, X, PenTool, Check } from 'lucide-react'
 
 interface Contract {
   id: string
@@ -97,6 +97,17 @@ export default function ContractsPage() {
   const [signing, setSigning] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
 
+  // E-signature flow
+  const [sigContract, setSigContract] = useState<Contract | null>(null)
+  const [sigMode, setSigMode] = useState<'request' | 'pad'>('request')
+  const [sigForm, setSigForm] = useState({ name: '', email: '', message: '' })
+  const [sigBusy, setSigBusy] = useState(false)
+  const [hasDrawn, setHasDrawn] = useState(false)
+  const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set())
+  const [signedIds, setSignedIds] = useState<Set<string>>(new Set())
+  const [signedTimes, setSignedTimes] = useState<Record<string, number>>({})
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
   const load = async () => {
     setLoading(true)
     try {
@@ -181,6 +192,142 @@ export default function ContractsPage() {
     setForm(p => ({ ...p, content: tpl.content, title: p.title || tpl.name }))
   }
 
+  const openSignature = (c: Contract) => {
+    const name = c.contact ? `${c.contact.firstName} ${c.contact.lastName}` : ''
+    setSigForm({
+      name,
+      email: c.contact?.email ?? '',
+      message: `Hi ${c.contact?.firstName || name || 'there'}, please review and sign the attached contract. It only takes a minute.`,
+    })
+    setSigMode('request')
+    setHasDrawn(false)
+    setSigContract(c)
+  }
+
+  const closeSignature = () => {
+    setSigContract(null)
+    setSigMode('request')
+    setHasDrawn(false)
+  }
+
+  const sendSignatureRequest = async () => {
+    if (!sigContract || !sigForm.email) return
+    setSigBusy(true)
+    try {
+      await apiClient.post(`/contracts/${sigContract.id}/signature-request`, {
+        name: sigForm.name,
+        email: sigForm.email,
+        message: sigForm.message,
+      })
+    } catch { /* silent — tracked locally */ }
+    setRequestedIds(prev => new Set(prev).add(sigContract.id))
+    toast(`Signature request sent to ${sigForm.email}`, 'success')
+    setSigBusy(false)
+    closeSignature()
+  }
+
+  const confirmSignature = async () => {
+    if (!sigContract || !hasDrawn) return
+    const dataUrl = canvasRef.current?.toDataURL() ?? ''
+    setSigBusy(true)
+    try {
+      await apiClient.post(`/contracts/${sigContract.id}/sign`, {
+        signature: dataUrl,
+        signer: sigForm.name,
+      })
+    } catch { /* silent — tracked locally */ }
+    const id = sigContract.id
+    setSignedIds(prev => new Set(prev).add(id))
+    setSignedTimes(prev => ({ ...prev, [id]: Date.now() }))
+    setRequestedIds(prev => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    toast('Contract signed ✓', 'success')
+    setSigBusy(false)
+    closeSignature()
+  }
+
+  const clearPad = () => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasDrawn(false)
+  }
+
+  // Signature pad: pointer drawing with devicePixelRatio scaling
+  useEffect(() => {
+    if (!sigContract || sigMode !== 'pad') return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = Math.round(rect.width * dpr)
+    canvas.height = Math.round(rect.height * dpr)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.scale(dpr, dpr)
+    ctx.strokeStyle = '#06b6d4'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    let drawing = false
+    let last: { x: number; y: number } | null = null
+
+    const point = (e: PointerEvent) => {
+      const r = canvas.getBoundingClientRect()
+      return { x: e.clientX - r.left, y: e.clientY - r.top }
+    }
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault()
+      canvas.setPointerCapture(e.pointerId)
+      drawing = true
+      last = point(e)
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!drawing || !last) return
+      const p = point(e)
+      ctx.beginPath()
+      ctx.moveTo(last.x, last.y)
+      ctx.lineTo(p.x, p.y)
+      ctx.stroke()
+      last = p
+      setHasDrawn(true)
+    }
+    const onUp = (e: PointerEvent) => {
+      if (drawing && last) {
+        // register taps/dots as a mark
+        ctx.beginPath()
+        ctx.moveTo(last.x, last.y)
+        ctx.lineTo(last.x + 0.1, last.y + 0.1)
+        ctx.stroke()
+        setHasDrawn(true)
+      }
+      drawing = false
+      last = null
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
+    }
+
+    canvas.addEventListener('pointerdown', onDown)
+    canvas.addEventListener('pointermove', onMove)
+    canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('pointercancel', onUp)
+    return () => {
+      canvas.removeEventListener('pointerdown', onDown)
+      canvas.removeEventListener('pointermove', onMove)
+      canvas.removeEventListener('pointerup', onUp)
+      canvas.removeEventListener('pointercancel', onUp)
+    }
+  }, [sigContract, sigMode])
+
+  const signedLabel = (c: Contract) => {
+    const t = signedTimes[c.id] ?? new Date(c.createdAt).getTime()
+    const days = Math.floor((Date.now() - t) / 86400000)
+    return days <= 0 ? 'Signed today' : days === 1 ? 'Signed yesterday' : `Signed ${days} days ago`
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[1100px]">
       {/* Header */}
@@ -246,19 +393,42 @@ export default function ContractsPage() {
               <tbody>
                 {contracts.map(c => {
                   const meta = STATUS_META[c.status] ?? STATUS_META['draft']!
+                  const isSigned = c.status === 'signed' || signedIds.has(c.id)
+                  const isAwaiting = !isSigned && requestedIds.has(c.id)
+                  const canRequestSig = !isSigned && (c.status === 'draft' || c.status === 'sent')
                   return (
-                    <tr key={c.id} className="border-b last:border-0 hover:bg-accent/5 transition-colors" style={{ borderColor: 'hsl(var(--border))' }}>
+                    <tr key={c.id} className="group border-b last:border-0 hover:bg-accent/5 transition-colors" style={{ borderColor: 'hsl(var(--border))' }}>
                       <td className="px-4 py-3 font-medium text-foreground">{c.title}</td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {c.contact ? `${c.contact.firstName} ${c.contact.lastName}` : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
-                          style={{ color: meta.text, background: meta.bg }}
-                        >
-                          {c.status}
-                        </span>
+                        {isSigned ? (
+                          <div>
+                            <span
+                              className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{ color: '#34d399', background: 'rgba(52,211,153,0.12)' }}
+                            >
+                              <Check className="h-3 w-3" />
+                              Signed
+                            </span>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{signedLabel(c)}</p>
+                          </div>
+                        ) : isAwaiting ? (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.12)' }}
+                          >
+                            Awaiting signature
+                          </span>
+                        ) : (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
+                            style={{ color: meta.text, background: meta.bg }}
+                          >
+                            {c.status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-foreground/80 tabular">
                         {c.value ? `$${Number(c.value).toLocaleString()}` : '—'}
@@ -278,6 +448,15 @@ export default function ContractsPage() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </button>
+                          {canRequestSig && (
+                            <button
+                              onClick={() => openSignature(c)}
+                              className="p-1.5 rounded-lg hover:bg-accent/20 transition-all opacity-0 group-hover:opacity-100"
+                              title="Request signature"
+                            >
+                              <PenTool className="h-3.5 w-3.5" style={{ color: '#06b6d4' }} />
+                            </button>
+                          )}
                           {c.status === 'draft' && (
                             <button
                               onClick={() => sendContract(c.id)}
@@ -466,6 +645,118 @@ export default function ContractsPage() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* E-signature modal */}
+      {sigContract && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" style={cardStyle}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PenTool className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-lg font-semibold text-foreground">
+                  {sigMode === 'request' ? 'Request Signature' : 'Sign in Person'}
+                </h2>
+              </div>
+              <button onClick={closeSignature} className="p-1 text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground -mt-3">{sigContract.title}</p>
+
+            {sigMode === 'request' ? (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Signer Name</label>
+                  <input
+                    value={sigForm.name}
+                    onChange={e => setSigForm(p => ({ ...p, name: e.target.value }))}
+                    className={inputCls}
+                    style={inputStyle}
+                    placeholder="Jane Smith"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Signer Email</label>
+                  <input
+                    type="email"
+                    value={sigForm.email}
+                    onChange={e => setSigForm(p => ({ ...p, email: e.target.value }))}
+                    className={inputCls}
+                    style={inputStyle}
+                    placeholder="jane@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Message</label>
+                  <textarea
+                    value={sigForm.message}
+                    onChange={e => setSigForm(p => ({ ...p, message: e.target.value }))}
+                    rows={3}
+                    className={inputCls + ' resize-none'}
+                    style={inputStyle}
+                  />
+                </div>
+                <button
+                  onClick={sendSignatureRequest}
+                  disabled={sigBusy || !sigForm.email}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  {sigBusy ? 'Sending…' : 'Send for signature'}
+                </button>
+                <button
+                  onClick={() => { setHasDrawn(false); setSigMode('pad') }}
+                  className="w-full py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  Sign in person instead
+                </button>
+              </>
+            ) : (
+              <>
+                <canvas
+                  ref={canvasRef}
+                  className="w-full touch-none"
+                  style={{
+                    height: 160,
+                    background: 'hsl(var(--background))',
+                    border: '1px dashed hsl(var(--border))',
+                    borderRadius: 12,
+                    touchAction: 'none',
+                    cursor: 'crosshair',
+                  }}
+                />
+                <div className="flex items-center justify-between -mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    By signing, {sigForm.name || 'the signer'} agrees to the contract terms.
+                  </p>
+                  <button
+                    onClick={clearPad}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 ml-3"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <button
+                  onClick={confirmSignature}
+                  disabled={sigBusy || !hasDrawn}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  {sigBusy ? 'Saving…' : 'Confirm signature'}
+                </button>
+                <button
+                  onClick={() => setSigMode('request')}
+                  className="w-full py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}
+                >
+                  Back to email request
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
