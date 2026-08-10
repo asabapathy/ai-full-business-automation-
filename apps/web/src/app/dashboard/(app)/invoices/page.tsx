@@ -1,10 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter } from 'lucide-react'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter, Eye, Printer } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
+
+interface InvoiceLineItem {
+  description?: string
+  name?: string
+  quantity?: number
+  unitPrice?: number
+  rate?: number
+  total?: number
+  amount?: number
+}
 
 interface Invoice {
   id: string
@@ -15,6 +25,13 @@ interface Invoice {
   dueDate?: string
   createdAt: string
   contact?: { firstName: string; lastName?: string }
+  // optional extended fields (populated by some API responses)
+  subtotal?: number
+  tax?: number
+  items?: InvoiceLineItem[]
+  lineItems?: InvoiceLineItem[]
+  clientEmail?: string
+  description?: string
 }
 
 interface FinancialSummary {
@@ -60,6 +77,7 @@ export default function InvoicesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkReminding, setBulkReminding] = useState(false)
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null)
   const [filters, setFilters] = useState({ status: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [form, setForm] = useState({
