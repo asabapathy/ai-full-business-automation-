@@ -30,9 +30,10 @@ const STAGE_META: Record<string, { label: string; color: string; bg: string; bor
   PROPOSAL_SENT: { label: 'Proposal Sent', color: '#fb923c', bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.25)' },
   NEGOTIATION:   { label: 'Negotiation',   color: '#f472b6', bg: 'rgba(236,72,153,0.08)',  border: 'rgba(236,72,153,0.25)' },
   WON:           { label: 'Won',           color: '#34d399', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)' },
+  LOST:          { label: 'Lost',          color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
 }
 
-const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'NEGOTIATION', 'WON'] as const
+const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'NEGOTIATION', 'WON', 'LOST'] as const
 
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -219,7 +220,7 @@ export default function SalesPage() {
                               <Zap className="h-3 w-3" />
                             </button>
                             {/* Advance stage */}
-                            {stage !== 'WON' && (
+                            {stage !== 'WON' && stage !== 'LOST' && (
                               <button
                                 onClick={() => {
                                   const nextIdx = STAGES.indexOf(stage) + 1

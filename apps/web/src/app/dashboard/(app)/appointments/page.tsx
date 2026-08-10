@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, DollarSign } from 'lucide-react'
-import { Badge } from '../../../../../components/ui/badge'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle } from 'lucide-react'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
@@ -24,14 +23,6 @@ interface AvailabilitySlot {
   available: boolean
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  SCHEDULED: 'info',
-  CONFIRMED: 'success',
-  COMPLETED: 'secondary',
-  CANCELLED: 'destructive',
-  NO_SHOW: 'warning',
-}
-
 const STATUS_PILL: Record<string, { text: string; bg: string }> = {
   SCHEDULED: { text: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
   CONFIRMED:  { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
@@ -44,6 +35,10 @@ function formatTime(isoString: string) {
   return new Date(isoString).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
+function toDateStr(d: Date) {
+  return d.toISOString().split('T')[0]!
+}
+
 function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
@@ -54,11 +49,22 @@ const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hs
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
+function buildWeekStrip(centerDate: string) {
+  const center = new Date(centerDate + 'T12:00:00')
+  const days = []
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(center)
+    d.setDate(d.getDate() + i)
+    days.push(d)
+  }
+  return days
+}
+
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [slots, setSlots] = useState<AvailabilitySlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]!)
+  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()))
   const [analytics, setAnalytics] = useState<{ totalAppointments: number; completedAppointments: number; showRate: number } | null>(null)
   const [showBook, setShowBook] = useState(false)
   const [booking, setBooking] = useState(false)
@@ -66,7 +72,7 @@ export default function AppointmentsPage() {
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
-    date: new Date().toISOString().split('T')[0]!,
+    date: toDateStr(new Date()),
     time: '09:00',
     duration: 60,
     notes: '',
@@ -103,17 +109,13 @@ export default function AppointmentsPage() {
   }, [selectedDate])
 
   const changeDate = (days: number) => {
-    const d = new Date(selectedDate)
+    const d = new Date(selectedDate + 'T12:00:00')
     d.setDate(d.getDate() + days)
-    setSelectedDate(d.toISOString().split('T')[0]!)
+    setSelectedDate(toDateStr(d))
   }
 
   function openBookModal(prefillTime?: string) {
-    setBookForm(f => ({
-      ...f,
-      date: selectedDate,
-      time: prefillTime ?? '09:00',
-    }))
+    setBookForm(f => ({ ...f, date: selectedDate, time: prefillTime ?? '09:00' }))
     setShowBook(true)
   }
 
@@ -124,19 +126,14 @@ export default function AppointmentsPage() {
       const startISO = new Date(`${bookForm.date}T${bookForm.time}:00`).toISOString()
       const endISO = new Date(new Date(`${bookForm.date}T${bookForm.time}:00`).getTime() + bookForm.duration * 60000).toISOString()
       const body = {
-        title: bookForm.serviceName ? `${bookForm.serviceName} — ${bookForm.firstName} ${bookForm.lastName}`.trim() : `Appointment — ${bookForm.firstName} ${bookForm.lastName}`.trim(),
+        title: bookForm.serviceName
+          ? `${bookForm.serviceName} — ${bookForm.firstName} ${bookForm.lastName}`.trim()
+          : `Appointment — ${bookForm.firstName} ${bookForm.lastName}`.trim(),
         startTime: startISO,
         endTime: endISO,
         duration: bookForm.duration,
-        contact: {
-          firstName: bookForm.firstName,
-          lastName: bookForm.lastName || undefined,
-          phone: bookForm.phone || undefined,
-        },
-        service: bookForm.serviceName ? {
-          name: bookForm.serviceName,
-          price: bookForm.servicePrice ? Number(bookForm.servicePrice) : undefined,
-        } : undefined,
+        contact: { firstName: bookForm.firstName, lastName: bookForm.lastName || undefined, phone: bookForm.phone || undefined },
+        service: bookForm.serviceName ? { name: bookForm.serviceName, price: bookForm.servicePrice ? Number(bookForm.servicePrice) : undefined } : undefined,
         notes: bookForm.notes || undefined,
       }
       const res = await api.post('/receptionist/appointments', body) as any
@@ -148,7 +145,7 @@ export default function AppointmentsPage() {
       setShowBook(false)
       setBookForm({ firstName: '', lastName: '', phone: '', serviceName: '', servicePrice: '', date: selectedDate, time: '09:00', duration: 60, notes: '' })
     } catch {
-      toast('Failed to book appointment. Check the details and try again.', 'error')
+      toast('Failed to book appointment', 'error')
     } finally {
       setBooking(false)
     }
@@ -157,15 +154,18 @@ export default function AppointmentsPage() {
   async function updateStatus(id: string, status: string) {
     setUpdatingId(id)
     try {
-      await api.patch(`/receptionist/appointments/${id}`, { status }) as any
+      await api.patch(`/receptionist/appointments/${id}`, { status })
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
-      toast(`Marked ${status.toLowerCase()}`, 'success')
+      toast(`Marked ${status.toLowerCase().replace('_', '-')}`, 'success')
     } catch {
       toast('Failed to update status', 'error')
     } finally {
       setUpdatingId(null)
     }
   }
+
+  const weekDays = buildWeekStrip(selectedDate)
+  const todayStr = toDateStr(new Date())
 
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
@@ -211,105 +211,151 @@ export default function AppointmentsPage() {
         ))}
       </div>
 
+      {/* Week strip */}
+      <div {...anim(3)} className="kv-anim flex items-center gap-2" style={{ animationDelay: '0.25s' }}>
+        <button onClick={() => changeDate(-7)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors shrink-0">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="flex-1 grid grid-cols-7 gap-1">
+          {weekDays.map(day => {
+            const ds = toDateStr(day)
+            const isSelected = ds === selectedDate
+            const isToday = ds === todayStr
+            return (
+              <button
+                key={ds}
+                onClick={() => setSelectedDate(ds)}
+                className="flex flex-col items-center py-2 rounded-xl text-xs font-medium transition-all"
+                style={isSelected
+                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                  : { ...cardStyle, color: isToday ? '#06b6d4' : 'hsl(var(--muted-foreground))' }
+                }
+              >
+                <span className="text-[10px] uppercase tracking-wide">{day.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                <span className="text-base font-bold mt-0.5">{day.getDate()}</span>
+              </button>
+            )
+          })}
+        </div>
+        <button onClick={() => changeDate(7)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors shrink-0">
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Day View */}
+        {/* Day view */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Date Navigation */}
-          <div {...anim(4)} className="flex items-center justify-between">
-            <button onClick={() => changeDate(-1)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <h2 className="font-semibold text-sm text-foreground">
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </h2>
-            <button onClick={() => changeDate(1)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <div {...anim(4)}>
+            <div className="rounded-xl overflow-hidden" style={cardStyle}>
+              <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'hsl(var(--border))' }}>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </h3>
+                <span className="text-xs text-muted-foreground">{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</span>
+              </div>
 
-          <div {...anim(5)} className="rounded-xl overflow-hidden" style={cardStyle}>
-            <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-              <h3 className="text-sm font-semibold text-foreground">
-                Schedule — {appointments.length} appointment{appointments.length !== 1 ? 's' : ''}
-              </h3>
+              {isLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+                </div>
+              ) : appointments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                  <Calendar className="h-8 w-8 text-muted-foreground/30 mb-3" />
+                  <p className="font-medium text-sm text-foreground">No appointments this day</p>
+                  <button onClick={() => openBookModal()} className="mt-3 text-xs text-primary hover:underline">Book one now</button>
+                </div>
+              ) : (
+                <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+                  {appointments.map(appt => {
+                    const pill = STATUS_PILL[appt.status] ?? STATUS_PILL.SCHEDULED
+                    const active = !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appt.status)
+                    return (
+                      <div key={appt.id} className="flex items-start gap-4 px-5 py-4 hover:bg-accent/30 transition-colors">
+                        <div className="text-center shrink-0 w-14">
+                          <p className="text-sm font-bold text-foreground tabular">{formatTime(appt.startTime)}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{appt.duration}m</p>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-foreground">{appt.title}</p>
+                          {appt.contact && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {appt.contact.firstName} {appt.contact.lastName}
+                              {appt.contact.phone && (
+                                <span className="ml-2 inline-flex items-center gap-0.5">
+                                  <Phone className="h-2.5 w-2.5" />
+                                  {appt.contact.phone}
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          {appt.service && (
+                            <p className="text-xs text-muted-foreground">
+                              {appt.service.name}{appt.service.price ? ` — $${appt.service.price}` : ''}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: pill.text, background: pill.bg }}>
+                            {appt.status.replace('_', ' ')}
+                          </span>
+                          {active && (
+                            <div className="flex gap-1">
+                              {appt.status === 'SCHEDULED' && (
+                                <button
+                                  onClick={() => updateStatus(appt.id, 'CONFIRMED')}
+                                  disabled={updatingId === appt.id}
+                                  title="Confirm"
+                                  className="p-1 rounded hover:bg-emerald-400/10 transition-colors disabled:opacity-50"
+                                  style={{ color: '#34d399' }}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </button>
+                              )}
+                              {appt.status === 'CONFIRMED' && (
+                                <button
+                                  onClick={() => updateStatus(appt.id, 'COMPLETED')}
+                                  disabled={updatingId === appt.id}
+                                  title="Mark completed"
+                                  className="p-1 rounded hover:bg-white/5 transition-colors disabled:opacity-50"
+                                  style={{ color: '#94a3b8' }}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => updateStatus(appt.id, 'NO_SHOW')}
+                                disabled={updatingId === appt.id}
+                                title="No show"
+                                className="p-1 rounded hover:bg-amber-400/10 transition-colors disabled:opacity-50"
+                                style={{ color: '#f59e0b' }}
+                              >
+                                <AlertCircle className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => updateStatus(appt.id, 'CANCELLED')}
+                                disabled={updatingId === appt.id}
+                                title="Cancel"
+                                className="p-1 rounded hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                                style={{ color: '#f87171' }}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-
-            {isLoading ? (
-              <div className="p-4 space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
-              </div>
-            ) : appointments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                <Calendar className="h-8 w-8 text-muted-foreground/30 mb-3" />
-                <p className="font-medium text-sm text-foreground">No appointments today</p>
-                <button onClick={() => openBookModal()} className="mt-3 text-xs text-primary hover:underline">Book one now</button>
-              </div>
-            ) : (
-              <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-                {appointments.map(appt => {
-                  const pill = STATUS_PILL[appt.status] ?? STATUS_PILL.SCHEDULED
-                  return (
-                    <div key={appt.id} className="flex items-start gap-4 px-5 py-4 hover:bg-accent/30 transition-colors">
-                      <div className="text-center shrink-0 w-14">
-                        <p className="text-sm font-bold text-foreground tabular">{formatTime(appt.startTime)}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{appt.duration}m</p>
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground">{appt.title}</p>
-                        {appt.contact && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {appt.contact.firstName} {appt.contact.lastName}
-                            {appt.contact.phone && (
-                              <span className="ml-2 inline-flex items-center gap-0.5">
-                                <Phone className="h-2.5 w-2.5" />
-                                {appt.contact.phone}
-                              </span>
-                            )}
-                          </p>
-                        )}
-                        {appt.service && (
-                          <p className="text-xs text-muted-foreground">
-                            {appt.service.name}{appt.service.price ? ` — $${appt.service.price}` : ''}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: pill.text, background: pill.bg }}>
-                          {appt.status}
-                        </span>
-                        {appt.status === 'SCHEDULED' && (
-                          <button
-                            onClick={() => updateStatus(appt.id, 'CONFIRMED')}
-                            disabled={updatingId === appt.id}
-                            className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
-                            title="Mark confirmed"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                        {appt.status === 'CONFIRMED' && (
-                          <button
-                            onClick={() => updateStatus(appt.id, 'COMPLETED')}
-                            disabled={updatingId === appt.id}
-                            className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                            title="Mark completed"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Available Slots */}
-        <div {...anim(6)} className="rounded-xl overflow-hidden" style={cardStyle}>
+        {/* Available slots */}
+        <div {...anim(5)} className="rounded-xl overflow-hidden" style={cardStyle}>
           <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
             <h3 className="text-sm font-semibold text-foreground">Available Slots</h3>
           </div>
@@ -319,7 +365,7 @@ export default function AppointmentsPage() {
             ) : slots.filter(s => s.available).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">No open slots today</p>
             ) : (
-              slots.filter(s => s.available).slice(0, 7).map((slot, i) => {
+              slots.filter(s => s.available).slice(0, 8).map((slot, i) => {
                 const t = new Date(slot.startTime)
                 const timeStr = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
                 return (
@@ -339,7 +385,7 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      {/* Booking Modal */}
+      {/* Booking modal */}
       {showBook && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
           <div className="w-full max-w-lg rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" style={cardStyle}>
@@ -348,7 +394,6 @@ export default function AppointmentsPage() {
               <button onClick={() => setShowBook(false)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
-            {/* Contact */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <User className="h-3.5 w-3.5 text-primary" />
@@ -370,7 +415,6 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            {/* Service */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Wrench className="h-3.5 w-3.5 text-primary" />
@@ -388,7 +432,6 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            {/* Time */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="h-3.5 w-3.5 text-primary" />
@@ -424,14 +467,13 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            {/* Notes */}
             <div>
               <label className="block text-xs text-muted-foreground mb-1">Notes (optional)</label>
               <textarea
                 className={inputCls + ' resize-none'}
                 style={inputStyle}
                 rows={2}
-                placeholder="Any special instructions or notes…"
+                placeholder="Any special instructions…"
                 value={bookForm.notes}
                 onChange={e => setBookForm(f => ({ ...f, notes: e.target.value }))}
               />

@@ -38,10 +38,10 @@ const PLATFORM_ICONS: Record<string, string> = {
 }
 
 const STATUS_META: Record<string, { text: string; bg: string; label: string }> = {
-  published: { text: '#34d399', bg: 'rgba(52,211,153,0.1)', label: 'Published' },
-  scheduled: { text: '#38bdf8', bg: 'rgba(56,189,248,0.1)', label: 'Scheduled' },
-  draft:     { text: 'hsl(var(--muted-foreground))', bg: 'rgba(255,255,255,0.05)', label: 'Draft' },
-  failed:    { text: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'Failed' },
+  published: { text: '#34d399', bg: 'rgba(52,211,153,0.12)', label: 'Published' },
+  scheduled: { text: '#38bdf8', bg: 'rgba(56,189,248,0.12)', label: 'Scheduled' },
+  draft:     { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: 'Draft' },
+  failed:    { text: '#f87171', bg: 'rgba(248,113,113,0.12)', label: 'Failed' },
 }
 
 const DEMO_ACCOUNTS: SocialAccount[] = [
@@ -85,6 +85,7 @@ export default function SocialPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAiModal, setShowAiModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'posts' | 'accounts'>('posts')
+  const [postFilter, setPostFilter] = useState<string>('all')
   const [newPost, setNewPost] = useState({ accountId: '', content: '', scheduledAt: '' })
   const [aiForm, setAiForm] = useState({ platform: 'facebook', topic: '', tone: 'professional', includeHashtags: true })
   const [generatedContent, setGeneratedContent] = useState('')
@@ -161,8 +162,11 @@ export default function SocialPage() {
   const handlePublish = async (postId: string) => {
     try {
       await api.post(`/social/posts/${postId}/publish`)
+      toast('Post published', 'success')
       await load()
-    } catch {}
+    } catch {
+      toast('Failed to publish post', 'error')
+    }
   }
 
   const handleDelete = async (postId: string) => {
@@ -252,6 +256,25 @@ export default function SocialPage() {
         ))}
       </div>
 
+      {/* Post filter tabs */}
+      {activeTab === 'posts' && (
+        <div className="kv-anim flex gap-2 flex-wrap" style={{ animationDelay: '0.42s' }}>
+          {['all', 'published', 'scheduled', 'draft', 'failed'].map(f => (
+            <button
+              key={f}
+              onClick={() => setPostFilter(f)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all"
+              style={postFilter === f
+                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+              }
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Posts tab */}
       {activeTab === 'posts' && (
         <div className="kv-anim space-y-3" style={{ animationDelay: '0.46s' }}>
@@ -268,7 +291,7 @@ export default function SocialPage() {
               <p className="font-medium text-foreground">No posts yet</p>
               <p className="text-sm text-muted-foreground mt-1">Create your first post to get started</p>
             </div>
-          ) : posts.map(post => {
+          ) : posts.filter(p => postFilter === 'all' || p.status === postFilter).map(post => {
             const meta = STATUS_META[post.status]
             return (
               <div

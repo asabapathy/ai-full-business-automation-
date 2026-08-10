@@ -43,7 +43,7 @@ export default function CampaignsPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [form, setForm] = useState({ name: '', subject: '', previewText: '', htmlBody: '' })
+  const [form, setForm] = useState({ name: '', subject: '', previewText: '', htmlBody: '', scheduledAt: '' })
   const [generatePrompt, setGeneratePrompt] = useState('')
   const [generateTone, setGenerateTone] = useState('professional')
 
@@ -68,8 +68,8 @@ export default function CampaignsPage() {
     if (!form.name || !form.subject || !form.htmlBody) return
     setCreating(true)
     try {
-      await apiClient.post('/campaigns', form) as any
-      setForm({ name: '', subject: '', previewText: '', htmlBody: '' })
+      await apiClient.post('/campaigns', { ...form, scheduledAt: form.scheduledAt || undefined }) as any
+      setForm({ name: '', subject: '', previewText: '', htmlBody: '', scheduledAt: '' })
       setShowCreate(false)
       toast('Campaign saved as draft', 'success')
       void load()
@@ -333,6 +333,17 @@ export default function CampaignsPage() {
                   placeholder="<p>Your email content here…</p>"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Schedule Send (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={form.scheduledAt}
+                  onChange={e => setForm(p => ({ ...p, scheduledAt: e.target.value }))}
+                  className={inputCls}
+                  style={inputStyle}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Leave blank to save as draft and send manually.</p>
+              </div>
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
@@ -342,7 +353,7 @@ export default function CampaignsPage() {
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
                 style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
               >
-                {creating ? 'Saving…' : 'Save Draft'}
+                {creating ? 'Saving…' : form.scheduledAt ? 'Schedule' : 'Save Draft'}
               </button>
             </div>
           </div>

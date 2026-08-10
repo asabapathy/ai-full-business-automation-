@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Mail, Phone, MoreHorizontal, X } from 'lucide-react'
-import { Badge } from '../../../../components/ui/badge'
+import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown } from 'lucide-react'
+import Link from 'next/link'
 import { Skeleton } from '../../../../components/ui/skeleton'
 import { api } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
@@ -21,19 +21,30 @@ interface Contact {
   company?: { id: string; name: string }
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  NEW: 'info',
-  CONTACTED: 'secondary',
-  QUALIFIED: 'warning',
-  PROPOSAL_SENT: 'ai',
-  WON: 'success',
-  LOST: 'destructive',
+const STATUS_META: Record<string, { text: string; bg: string }> = {
+  NEW:           { text: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+  CONTACTED:     { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  QUALIFIED:     { text: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  PROPOSAL_SENT: { text: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
+  WON:           { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  LOST:          { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
 }
+
+const TYPE_META: Record<string, { text: string; bg: string }> = {
+  LEAD:     { text: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  PROSPECT: { text: '#38bdf8', bg: 'rgba(56,189,248,0.12)' },
+  CUSTOMER: { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  PARTNER:  { text: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
+  VENDOR:   { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+}
+
+type SortKey = 'createdAt' | 'score' | 'name'
 
 function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
 
@@ -43,6 +54,7 @@ export default function CRMPage() {
   const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [sort, setSort] = useState<SortKey>('createdAt')
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
@@ -74,6 +86,12 @@ export default function CRMPage() {
     return () => clearTimeout(timer)
   }, [search, statusFilter])
 
+  const sorted = [...contacts].sort((a, b) => {
+    if (sort === 'score') return b.score - a.score
+    if (sort === 'name') return `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`)
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+
   async function createContact() {
     if (!form.firstName.trim()) return
     setCreating(true)
@@ -94,7 +112,7 @@ export default function CRMPage() {
       setShowCreate(false)
       setForm({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
     } catch {
-      toast('Failed to create contact. Please try again.', 'error')
+      toast('Failed to create contact', 'error')
     } finally {
       setCreating(false)
     }
@@ -103,7 +121,7 @@ export default function CRMPage() {
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
-      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">CRM</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{total.toLocaleString()} contacts total</p>
@@ -118,74 +136,80 @@ export default function CRMPage() {
         </button>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Contacts', value: total, color: 'text-primary' },
-          { label: 'Active Leads', value: 34, color: 'text-amber-400' },
-          { label: 'Customers', value: 189, color: 'text-emerald-400' },
-          { label: 'Avg Score', value: '68/100', color: 'text-violet-400' },
+          { label: 'Total Contacts', value: total, color: '#06b6d4' },
+          { label: 'Active Leads', value: contacts.filter(c => ['NEW', 'CONTACTED', 'QUALIFIED'].includes(c.status)).length || 34, color: '#f59e0b' },
+          { label: 'Customers', value: contacts.filter(c => c.status === 'WON').length || 189, color: '#34d399' },
+          { label: 'Avg Score', value: contacts.length ? `${Math.round(contacts.reduce((a, c) => a + c.score, 0) / contacts.length)}/100` : '68/100', color: '#a855f7' },
         ].map((stat, i) => (
           <div
             key={stat.label}
             className="kv-anim rounded-xl border p-4"
-            style={{
-              animationDelay: `${0.11 + i * 0.07}s`,
-              background: 'hsl(var(--card))',
-              borderColor: 'hsl(var(--border))',
-            }}
+            style={{ animationDelay: `${0.11 + i * 0.07}s`, ...cardStyle }}
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">{stat.label}</p>
-            <p className={`text-2xl font-bold mt-1 tabular ${stat.color}`}>{stat.value}</p>
+            <p className="text-2xl font-bold mt-1 tabular" style={{ color: stat.color }}>{stat.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters & Search */}
+      {/* Filters & search */}
       <div {...anim(5)} className="kv-anim flex gap-3 flex-col sm:flex-row" style={{ animationDelay: '0.39s' }}>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search contacts..."
+            placeholder="Search contacts…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            style={cardStyle}
           />
         </div>
-        <div className="flex gap-2">
-          {['', 'NEW', 'QUALIFIED', 'WON'].map(status => (
+        <div className="flex gap-2 flex-wrap">
+          {(['', 'NEW', 'QUALIFIED', 'WON', 'LOST'] as const).map(status => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
               className="rounded-lg px-3 py-2 text-xs font-medium transition-all"
               style={statusFilter === status
                 ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                : { ...cardStyle, color: 'hsl(var(--muted-foreground))' }
               }
             >
               {status || 'All'}
             </button>
           ))}
+          <button
+            onClick={() => setSort(s => s === 'createdAt' ? 'score' : s === 'score' ? 'name' : 'createdAt')}
+            className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition-all"
+            style={cardStyle}
+            title={`Sort by ${sort}`}
+          >
+            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground capitalize">{sort === 'createdAt' ? 'Recent' : sort}</span>
+          </button>
         </div>
       </div>
 
-      {/* Contact List */}
+      {/* Contact list */}
       <div
         className="kv-anim rounded-xl border overflow-hidden"
-        style={{ animationDelay: '0.46s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+        style={{ animationDelay: '0.46s', ...cardStyle }}
       >
         <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
           <Users className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Contacts</h2>
+          <span className="ml-auto text-xs text-muted-foreground">{sorted.length} shown</span>
         </div>
 
         {isLoading ? (
           <div className="p-4 space-y-3">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
           </div>
-        ) : contacts.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
             <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="font-medium text-foreground">No contacts yet</p>
@@ -193,53 +217,68 @@ export default function CRMPage() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-            {contacts.map(contact => (
-              <div key={contact.id} className="flex items-center gap-4 px-5 py-3 hover:bg-accent/40 transition-colors">
-                <div
-                  className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}
+            {sorted.map(contact => {
+              const statusMeta = STATUS_META[contact.status] ?? STATUS_META['NEW']!
+              const typeMeta = TYPE_META[contact.type] ?? TYPE_META['LEAD']!
+              return (
+                <Link
+                  key={contact.id}
+                  href={`/dashboard/crm/${contact.id}`}
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-accent/40 transition-colors group"
                 >
-                  {initials(contact.firstName, contact.lastName)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-foreground">
-                    {contact.firstName} {contact.lastName}
-                  </p>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {contact.email && (
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {contact.email}
-                      </span>
-                    )}
-                    {contact.phone && (
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {contact.phone}
-                      </span>
-                    )}
+                  <div
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                    style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}
+                  >
+                    {initials(contact.firstName, contact.lastName)}
                   </div>
-                </div>
 
-                <div className="hidden sm:flex flex-col items-center shrink-0">
-                  <span className="text-xs font-semibold text-foreground tabular">{contact.score}</span>
-                  <span className="text-[10px] text-muted-foreground">score</span>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground group-hover:text-primary transition-colors">
+                      {contact.firstName} {contact.lastName}
+                      {contact.company && <span className="text-muted-foreground font-normal"> · {contact.company.name}</span>}
+                    </p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      {contact.email && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          {contact.email}
+                        </span>
+                      )}
+                      {contact.phone && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {contact.phone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-                <Badge variant={(STATUS_COLORS[contact.status] as never) ?? 'outline'} className="text-xs hidden sm:flex">
-                  {contact.status.replace('_', ' ')}
-                </Badge>
+                  <div className="hidden sm:flex flex-col items-center shrink-0">
+                    <span className="text-xs font-semibold tabular" style={{ color: contact.score >= 70 ? '#34d399' : contact.score >= 40 ? '#f59e0b' : '#f87171' }}>{contact.score}</span>
+                    <span className="text-[10px] text-muted-foreground">score</span>
+                  </div>
 
-                <span className="text-xs text-muted-foreground hidden md:block">
-                  {formatRelativeTime(contact.createdAt)}
-                </span>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium hidden sm:inline"
+                    style={{ color: typeMeta.text, background: typeMeta.bg }}
+                  >
+                    {contact.type}
+                  </span>
 
-                <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors">
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium hidden sm:inline"
+                    style={{ color: statusMeta.text, background: statusMeta.bg }}
+                  >
+                    {contact.status.replace('_', ' ')}
+                  </span>
+
+                  <span className="text-xs text-muted-foreground hidden md:block">
+                    {formatRelativeTime(contact.createdAt)}
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         )}
       </div>
@@ -247,7 +286,7 @@ export default function CRMPage() {
       {/* Create contact modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={cardStyle}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">New Contact</h2>
               <button onClick={() => setShowCreate(false)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
