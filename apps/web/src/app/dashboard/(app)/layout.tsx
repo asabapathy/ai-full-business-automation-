@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, MessageSquare, Search } from 'lucide-react'
+import { Menu, MessageSquare, Monitor, Moon, Search, Sun } from 'lucide-react'
 import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
@@ -20,6 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('system')
 
   useEffect(() => {
     if (isLoading) return
@@ -41,6 +42,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    const saved = localStorage.getItem('kv-theme') as 'dark' | 'light' | 'system' | null
+    if (saved) setTheme(saved)
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'system') {
+      root.removeAttribute('data-theme')
+    } else {
+      root.setAttribute('data-theme', theme)
+    }
+    localStorage.setItem('kv-theme', theme)
+  }, [theme])
 
   if (!isAuthenticated) {
     return (
@@ -103,6 +119,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Search className="h-3.5 w-3.5" />
               <span>Search</span>
               <kbd className="text-xs" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', borderRadius: 4, padding: '0 4px' }}>⌘K</kbd>
+            </button>
+            <button
+              onClick={() => setTheme(t => t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system')}
+              title={`Theme: ${theme}`}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            >
+              {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
             </button>
             <button
               onClick={() => setChatOpen(o => !o)}
