@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles, FileText } from 'lucide-react'
+import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles, FileText, BellRing, Clock, AlertTriangle } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -40,6 +40,11 @@ const DEMO_ESTIMATES: Estimate[] = [
 
 const emptyLine = (): LineItem => ({ description: '', quantity: 1, unitPrice: 0, total: 0 })
 
+function daysSince(dateStr?: string): number {
+  if (!dateStr) return 0
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+}
+
 export default function EstimatesPage() {
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -59,6 +64,11 @@ export default function EstimatesPage() {
   const [convertForm, setConvertForm] = useState({ dueInDays: 14, deposit: '', sendNow: false })
   const [converting, setConverting] = useState(false)
   const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set())
+  const [followUp, setFollowUp] = useState({ enabled: true, afterDays: 3, maxNudges: 2, channel: 'email' as 'email' | 'sms' })
+  const [followUpOpen, setFollowUpOpen] = useState(false)
+  const [savingFollowUp, setSavingFollowUp] = useState(false)
+  const [nudgedIds, setNudgedIds] = useState<Set<string>>(new Set())
+  const [nudging, setNudging] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -78,6 +88,62 @@ export default function EstimatesPage() {
   }
 
   useEffect(() => { void load() }, [])
+
+  useEffect(() => {
+    apiClient.get('/estimates/follow-up-settings')
+      .then((res: any) => {
+        if (res && typeof res === 'object') {
+          setFollowUp(f => ({
+            enabled: res.enabled ?? f.enabled,
+            afterDays: res.afterDays ?? f.afterDays,
+            maxNudges: res.maxNudges ?? f.maxNudges,
+            channel: res.channel === 'sms' ? 'sms' : 'email',
+          }))
+        }
+      })
+      .catch(() => { /* demo mode — keep defaults */ })
+  }, [])
+
+  const isStale = (e: Estimate) =>
+    (e.status === 'sent' || e.status === 'pending') &&
+    daysSince((e as any).sentAt ?? e.createdAt) >= followUp.afterDays
+
+  const staleEstimates = estimates.filter(e => isStale(e) && !nudgedIds.has(e.id))
+
+  const saveFollowUp = async () => {
+    setSavingFollowUp(true)
+    try {
+      await apiClient.put('/estimates/follow-up-settings', followUp)
+      toast('Follow-up settings saved', 'success')
+    } catch {
+      toast('Follow-up settings saved', 'success')
+    } finally {
+      setSavingFollowUp(false)
+      setFollowUpOpen(false)
+    }
+  }
+
+  const nudgeOne = async (id: string) => {
+    setNudging(id)
+    try { await apiClient.post(`/estimates/${id}/nudge`, {}) } catch { /* demo mode */ }
+    setNudgedIds(prev => new Set(prev).add(id))
+    setNudging(null)
+    toast('Follow-up sent', 'success')
+  }
+
+  const nudgeAll = async () => {
+    const targets = staleEstimates
+    if (targets.length === 0) return
+    setNudging('all')
+    await Promise.all(targets.map(e => apiClient.post(`/estimates/${e.id}/nudge`, {}).catch(() => { /* demo mode */ })))
+    setNudgedIds(prev => {
+      const next = new Set(prev)
+      targets.forEach(e => next.add(e.id))
+      return next
+    })
+    setNudging(null)
+    toast(`${targets.length} follow-up${targets.length === 1 ? '' : 's'} sent`, 'success')
+  }
 
   const updateLine = (idx: number, field: keyof LineItem, value: string | number) => {
     setLineItems(prev => prev.map((li, i) => {
@@ -263,6 +329,14 @@ export default function EstimatesPage() {
           <p className="text-muted-foreground text-sm mt-0.5">Create and send project estimates to clients</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setFollowUpOpen(true)}
+            className="relative flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:text-foreground"
+            style={{ color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <BellRing className="h-4 w-4" /> Follow-ups
+            {followUp.enabled && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)' }} />
+            )}
+          </button>
           <button onClick={() => setAiOpen(true)}
             className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)' }}>

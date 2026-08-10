@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp, Check, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp, Check, Send, Trash2, Download } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'

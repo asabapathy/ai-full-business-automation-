@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileText, FileDown, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign, MapPin } from 'lucide-react'
+import { FileText, FileDown, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign, MapPin, Trophy } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -16,6 +16,16 @@ interface ReportData {
   pipeline: Array<{ stage: string; count: number; value: number }>
   revenueBreakdown: Array<{ label: string; amount: number; pct: number }>
 }
+
+interface TeamMember {
+  name: string
+  dealsWon: number
+  revenue: number
+  avgResponseMins: number
+  jobsCompleted: number
+}
+
+type BoardMetric = 'revenue' | 'dealsWon' | 'avgResponseMins' | 'jobsCompleted'
 
 type Period = '7d' | '30d' | '90d'
 
@@ -42,6 +52,57 @@ const LOCATIONS = [
 
 // Deterministic share of totals per location
 const LOCATION_SHARE: Record<string, number> = { all: 1, downtown: 0.45, northside: 0.32, westend: 0.23 }
+
+const DEMO_TEAM: TeamMember[] = [
+  { name: 'Sarah Chen', dealsWon: 14, revenue: 42300, avgResponseMins: 12, jobsCompleted: 31 },
+  { name: 'Mike Rodriguez', dealsWon: 11, revenue: 38900, avgResponseMins: 25, jobsCompleted: 27 },
+  { name: 'Jess Taylor', dealsWon: 9, revenue: 27400, avgResponseMins: 18, jobsCompleted: 22 },
+  { name: 'Alex Kim', dealsWon: 6, revenue: 19800, avgResponseMins: 41, jobsCompleted: 15 },
+]
+
+const BOARD_METRICS: Array<{ id: BoardMetric; label: string }> = [
+  { id: 'revenue', label: 'Revenue' },
+  { id: 'dealsWon', label: 'Deals Won' },
+  { id: 'avgResponseMins', label: 'Response Time' },
+  { id: 'jobsCompleted', label: 'Jobs Done' },
+]
+
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #06b6d4, #60a5fa)',
+  'linear-gradient(135deg, #34d399, #06b6d4)',
+  'linear-gradient(135deg, #a78bfa, #f87171)',
+  'linear-gradient(135deg, #fbbf24, #f87171)',
+]
+
+function avatarGradient(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash + name.charCodeAt(i)) % 997
+  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length]
+}
+
+function initials(name: string) {
+  return name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
+}
+
+const RANK_MEDALS = ['🥇', '🥈', '🥉']
+
+function boardMetricDisplay(m: TeamMember, metric: BoardMetric): { text: string; color?: string } {
+  switch (metric) {
+    case 'revenue': return { text: fmt(m.revenue), color: '#34d399' }
+    case 'avgResponseMins': return { text: `${m.avgResponseMins}m`, color: '#06b6d4' }
+    case 'dealsWon': return { text: String(m.dealsWon) }
+    case 'jobsCompleted': return { text: String(m.jobsCompleted) }
+  }
+}
+
+function boardSummary(m: TeamMember, activeMetric: BoardMetric) {
+  const parts: string[] = []
+  if (activeMetric !== 'dealsWon') parts.push(`${m.dealsWon} deals`)
+  if (activeMetric !== 'revenue') parts.push(fmt(m.revenue))
+  if (activeMetric !== 'avgResponseMins') parts.push(`${m.avgResponseMins}m avg response`)
+  if (activeMetric !== 'jobsCompleted') parts.push(`${m.jobsCompleted} jobs`)
+  return parts.join(' · ')
+}
 
 const DEMO_DATA: Record<Period, ReportData> = {
   '7d': {
