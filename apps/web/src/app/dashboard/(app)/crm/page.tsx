@@ -221,14 +221,33 @@ export default function CRMPage() {
           <h1 className="text-2xl font-bold text-foreground">CRM</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{total.toLocaleString()} contacts total</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
-        >
-          <Plus className="h-4 w-4" />
-          Add Contact
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadCSV(
+              contacts.map(c => ({
+                Name: `${c.firstName} ${c.lastName ?? ''}`.trim(),
+                Email: c.email ?? '',
+                Phone: c.phone ?? '',
+                Status: c.status,
+                Company: c.company?.name ?? '',
+                Score: c.score,
+              })),
+              'contacts.csv'
+            )}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <Download className="h-4 w-4" /> Export
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}
+          >
+            <Plus className="h-4 w-4" />
+            Add Contact
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
