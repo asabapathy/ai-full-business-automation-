@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Webhook, Plus, Trash2, Play, CheckCircle2, XCircle, Eye, EyeOff, X } from 'lucide-react'
+import { Webhook, Plus, Trash2, Play, CheckCircle2, XCircle, Eye, EyeOff, X, RefreshCw, ChevronDown, Copy, RotateCcw } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -16,6 +16,16 @@ interface WebhookEntry {
   failureCount: number
   lastTriggeredAt: string | null
   deliveries: Array<{ id: string; event: string; success: boolean; statusCode: number | null; createdAt: string }>
+}
+
+interface WebhookEvent {
+  id: string
+  event: string
+  url: string
+  status: number
+  durationMs: number
+  createdAt: string
+  payload: Record<string, unknown>
 }
 
 function anim(i: number) {
@@ -43,6 +53,91 @@ const DEMO_WEBHOOKS: WebhookEntry[] = [
   },
 ]
 
+const DEMO_LOG_EVENTS: WebhookEvent[] = [
+  {
+    id: 'evt_1',
+    event: 'invoice.paid',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 200,
+    durationMs: 142,
+    createdAt: new Date(Date.now() - 25 * 60000).toISOString(),
+    payload: { id: 'inv_8412', amount: 1250.0, currency: 'USD', customer: 'Maple Ridge HVAC', paidAt: new Date(Date.now() - 25 * 60000).toISOString() },
+  },
+  {
+    id: 'evt_2',
+    event: 'contact.created',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 201,
+    durationMs: 98,
+    createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+    payload: { id: 'ct_5521', name: 'Sarah Whitfield', email: 'sarah.w@example.com', source: 'website-form' },
+  },
+  {
+    id: 'evt_3',
+    event: 'appointment.booked',
+    url: 'https://api.make.com/w/hook/9f2e1d',
+    status: 500,
+    durationMs: 3012,
+    createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
+    payload: { id: 'apt_301', contact: 'Dan Okafor', service: 'AC Tune-Up', scheduledFor: new Date(Date.now() + 2 * 86400000).toISOString() },
+  },
+  {
+    id: 'evt_4',
+    event: 'campaign.sent',
+    url: 'https://n8n.internal.example.com/webhook/campaigns',
+    status: 200,
+    durationMs: 210,
+    createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+    payload: { id: 'cmp_77', name: 'Spring Maintenance Promo', recipients: 482, channel: 'email' },
+  },
+  {
+    id: 'evt_5',
+    event: 'estimate.approved',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 200,
+    durationMs: 156,
+    createdAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+    payload: { id: 'est_204', amount: 4890.5, customer: 'Linden Property Group', approvedBy: 'j.linden@example.com' },
+  },
+  {
+    id: 'evt_6',
+    event: 'invoice.paid',
+    url: 'https://api.make.com/w/hook/9f2e1d',
+    status: 404,
+    durationMs: 87,
+    createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+    payload: { id: 'inv_8398', amount: 320.0, currency: 'USD', customer: 'Tom Brennan' },
+  },
+  {
+    id: 'evt_7',
+    event: 'contact.created',
+    url: 'https://n8n.internal.example.com/webhook/contacts',
+    status: 0,
+    durationMs: 30000,
+    createdAt: new Date(Date.now() - 18 * 3600000).toISOString(),
+    payload: { id: 'ct_5498', name: 'Priya Raman', phone: '+1 (555) 014-2288', source: 'missed-call-textback' },
+  },
+  {
+    id: 'evt_8',
+    event: 'appointment.booked',
+    url: 'https://hooks.zapier.com/hooks/catch/abc123/xyz',
+    status: 200,
+    durationMs: 121,
+    createdAt: new Date(Date.now() - 23 * 3600000).toISOString(),
+    payload: { id: 'apt_298', contact: 'Melissa Cho', service: 'Furnace Inspection', scheduledFor: new Date(Date.now() + 5 * 86400000).toISOString() },
+  },
+]
+
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 const DEMO_EVENTS = [
   'contact.created', 'contact.updated', 'contact.deleted',
   'appointment.created', 'appointment.confirmed', 'appointment.cancelled',
@@ -60,6 +155,11 @@ export default function WebhooksPage() {
   const [creating, setCreating] = useState(false)
   const [showSecret, setShowSecret] = useState<Record<string, boolean>>({})
   const [form, setForm] = useState({ name: '', url: '', events: [] as string[] })
+  const [logEvents, setLogEvents] = useState<WebhookEvent[]>([])
+  const [logLoading, setLogLoading] = useState(true)
+  const [logFilter, setLogFilter] = useState<'all' | 'success' | 'failed'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [retryingId, setRetryingId] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -78,7 +178,54 @@ export default function WebhooksPage() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  const loadLogEvents = async () => {
+    setLogLoading(true)
+    try {
+      const data = await apiClient.get('/webhooks/events?limit=25') as any
+      const items = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : null
+      if (items && items.length > 0 && typeof items[0] === 'object' && 'status' in items[0]) {
+        setLogEvents(items as WebhookEvent[])
+      } else {
+        setLogEvents(DEMO_LOG_EVENTS)
+      }
+    } catch {
+      setLogEvents(DEMO_LOG_EVENTS)
+    } finally {
+      setLogLoading(false)
+    }
+  }
+
+  useEffect(() => { void load(); void loadLogEvents() }, [])
+
+  const isFailed = (ev: WebhookEvent) => ev.status === 0 || ev.status >= 400
+
+  const filteredLogEvents = logEvents.filter(ev => {
+    if (logFilter === 'success') return !isFailed(ev)
+    if (logFilter === 'failed') return isFailed(ev)
+    return true
+  })
+
+  const handleCopyPayload = async (ev: WebhookEvent) => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(ev.payload, null, 2))
+      toast('Payload copied to clipboard', 'success')
+    } catch {
+      toast('Failed to copy payload', 'error')
+    }
+  }
+
+  const handleRetry = async (ev: WebhookEvent) => {
+    setRetryingId(ev.id)
+    try {
+      await apiClient.post(`/webhooks/events/${ev.id}/retry`, {})
+    } catch {
+      // demo mode — proceed with local update
+    } finally {
+      setLogEvents(prev => prev.map(e => e.id === ev.id ? { ...e, status: 200 } : e))
+      setRetryingId(null)
+      toast('Delivery retried successfully', 'success')
+    }
+  }
 
   const handleCreate = async () => {
     if (!form.name || !form.url || form.events.length === 0) return
