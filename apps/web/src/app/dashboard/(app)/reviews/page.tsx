@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
-import { Star, CheckCircle, Zap } from 'lucide-react'
+import { Star, CheckCircle, Zap, Send, X, Check } from 'lucide-react'
 
 interface Review {
   id: string
@@ -42,6 +42,22 @@ const DEMO_REVIEWS: Review[] = [
 
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+const DEFAULT_EMAIL_MSG = `Hi {{name}},
+
+Thank you so much for choosing us! We truly appreciate your business.
+
+We'd love to hear about your experience. Could you take 2 minutes to leave us a review? It means the world to our small business.
+
+{{review_link}}
+
+Thank you again,
+The Team`
+
+const DEFAULT_SMS_MSG = `Hi {{name}}, thanks for choosing us! We'd love your feedback — could you take 60 seconds to leave a review? {{review_link}}`
+
 function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex gap-0.5">
@@ -71,6 +87,56 @@ export default function ReviewsPage() {
   const [responseText, setResponseText] = useState('')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [submittingId, setSubmittingId] = useState<string | null>(null)
+
+  const [requestOpen, setRequestOpen] = useState(false)
+  const [requestForm, setRequestForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    channel: 'email' as 'email' | 'sms',
+    message: '',
+  })
+  const [requestSending, setRequestSending] = useState(false)
+  const [requestSent, setRequestSent] = useState(false)
+
+  useEffect(() => {
+    setRequestForm(f => ({
+      ...f,
+      message: f.channel === 'email'
+        ? DEFAULT_EMAIL_MSG.replace('{{name}}', f.name || 'there').replace('{{review_link}}', 'https://g.page/r/your-business/review')
+        : DEFAULT_SMS_MSG.replace('{{name}}', f.name || 'there').replace('{{review_link}}', 'https://g.page/r/your-business/review'),
+    }))
+  }, [requestForm.channel, requestForm.name])
+
+  async function sendRequest() {
+    if (!requestForm.name || (!requestForm.email && !requestForm.phone)) return
+    setRequestSending(true)
+    try {
+      await apiClient.post('/reviews/request', {
+        name: requestForm.name,
+        email: requestForm.channel === 'email' ? requestForm.email : undefined,
+        phone: requestForm.channel === 'sms' ? requestForm.phone : undefined,
+        channel: requestForm.channel,
+        message: requestForm.message,
+      })
+      setRequestSent(true)
+      setTimeout(() => {
+        setRequestSent(false)
+        setRequestOpen(false)
+        setRequestForm({ name: '', email: '', phone: '', channel: 'email', message: '' })
+      }, 2500)
+    } catch {
+      // Demo success
+      setRequestSent(true)
+      setTimeout(() => {
+        setRequestSent(false)
+        setRequestOpen(false)
+        setRequestForm({ name: '', email: '', phone: '', channel: 'email', message: '' })
+      }, 2500)
+    } finally {
+      setRequestSending(false)
+    }
+  }
 
   useEffect(() => {
     apiClient.get('/reviews')

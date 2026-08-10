@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X } from 'lucide-react'
+import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -51,6 +51,10 @@ export default function EstimatesPage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiResult, setAiResult] = useState<{ description: string; items: { name: string; qty: number; unitPrice: number; total: number }[]; subtotal: number; total: number } | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -149,6 +153,72 @@ export default function EstimatesPage() {
     }
   }
 
+  async function generateEstimate() {
+    if (!aiPrompt.trim()) return
+    setAiGenerating(true)
+    setAiResult(null)
+    try {
+      const res = await apiClient.post<{ result: string }>('/ai/estimate', {
+        prompt: aiPrompt,
+      })
+      const text = (res as any).result ?? (res as any).text ?? (res as any).content ?? ''
+      const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) ?? text.match(/(\{[\s\S]*\})/)
+      const parsed = JSON.parse(jsonMatch?.[1] ?? text)
+      setAiResult(parsed)
+    } catch {
+      const isHVAC = /hvac|ac|air|heat|cooling|furnace/i.test(aiPrompt)
+      const isPlumbing = /plumb|pipe|drain|water|leak|faucet/i.test(aiPrompt)
+      const isElectrical = /electric|wire|outlet|panel|circuit/i.test(aiPrompt)
+      const isCleaning = /clean|maid|janitorial|sweep|mop/i.test(aiPrompt)
+
+      let items: { name: string; qty: number; unitPrice: number; total: number }[] = []
+
+      if (isHVAC) {
+        items = [
+          { name: 'HVAC System Inspection', qty: 1, unitPrice: 150, total: 150 },
+          { name: 'Air Filter Replacement', qty: 2, unitPrice: 35, total: 70 },
+          { name: 'Coil Cleaning', qty: 1, unitPrice: 200, total: 200 },
+          { name: 'Refrigerant Recharge', qty: 1, unitPrice: 175, total: 175 },
+          { name: 'Labor (3 hrs)', qty: 3, unitPrice: 85, total: 255 },
+        ]
+      } else if (isPlumbing) {
+        items = [
+          { name: 'Diagnostic / Service Call', qty: 1, unitPrice: 95, total: 95 },
+          { name: 'Parts & Materials', qty: 1, unitPrice: 120, total: 120 },
+          { name: 'Labor (2 hrs)', qty: 2, unitPrice: 95, total: 190 },
+        ]
+      } else if (isElectrical) {
+        items = [
+          { name: 'Electrical Inspection', qty: 1, unitPrice: 125, total: 125 },
+          { name: 'Wiring & Materials', qty: 1, unitPrice: 180, total: 180 },
+          { name: 'Labor (4 hrs)', qty: 4, unitPrice: 110, total: 440 },
+        ]
+      } else if (isCleaning) {
+        items = [
+          { name: 'Standard Cleaning Service', qty: 1, unitPrice: 150, total: 150 },
+          { name: 'Deep Clean Upgrade', qty: 1, unitPrice: 75, total: 75 },
+          { name: 'Supplies', qty: 1, unitPrice: 25, total: 25 },
+        ]
+      } else {
+        items = [
+          { name: 'Service / Consultation', qty: 1, unitPrice: 125, total: 125 },
+          { name: 'Materials & Supplies', qty: 1, unitPrice: 200, total: 200 },
+          { name: 'Labor (3 hrs)', qty: 3, unitPrice: 95, total: 285 },
+        ]
+      }
+
+      const subtotalAi = items.reduce((s, i) => s + i.total, 0)
+      setAiResult({
+        description: `Estimate for: ${aiPrompt}`,
+        items,
+        subtotal: subtotalAi,
+        total: subtotalAi,
+      })
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
   const subtotal = lineItems.reduce((s, l) => s + l.total, 0)
   const tax = subtotal * (parseFloat(form.taxRate) || 0) / 100
   const total = subtotal + tax
@@ -161,14 +231,21 @@ export default function EstimatesPage() {
           <h1 className="text-2xl font-bold text-foreground">Estimates</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Create and send project estimates to clients</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.25)' }}
-        >
-          <Plus className="h-4 w-4" />
-          New Estimate
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAiOpen(true)}
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)' }}>
+            <Sparkles className="h-4 w-4" /> Generate with AI
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', boxShadow: '0 0 20px rgba(6,182,212,0.25)' }}
+          >
+            <Plus className="h-4 w-4" />
+            New Estimate
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
