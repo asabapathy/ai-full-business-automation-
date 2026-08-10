@@ -191,7 +191,7 @@ export default function AppointmentsPage() {
       }
     } catch { /* ignore */ }
     api.get<{ hours: Record<string, DayHours>; booking: { slotMinutes: number; bufferMinutes: number; maxPerDay: number; leadHours: number } }>('/appointments/business-hours')
-      .then(res => {
+      .then((res: { hours?: Record<string, DayHours>; booking?: Partial<{ slotMinutes: number; bufferMinutes: number; maxPerDay: number; leadHours: number }> } | null) => {
         if (res?.hours) setHours(res.hours)
         if (res?.booking) setBookingRules(b => ({ ...b, ...res.booking }))
       })
