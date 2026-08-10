@@ -51,6 +51,20 @@ const STAGES = [
 ] as const
 type Stage = typeof STAGES[number]['key']
 
+const SOURCES = [
+  { key: 'google', label: 'Google', color: '#60a5fa' },
+  { key: 'referral', label: 'Referral', color: '#34d399' },
+  { key: 'social', label: 'Social Media', color: '#a78bfa' },
+  { key: 'website', label: 'Website', color: '#06b6d4' },
+  { key: 'walk_in', label: 'Walk-in', color: '#fbbf24' },
+  { key: 'other', label: 'Other', color: '#94a3b8' },
+]
+
+// Deterministic demo distribution used when no loaded contact carries a source
+const DEMO_SOURCE_PCT: Record<string, number> = {
+  google: 0.34, referral: 0.22, website: 0.18, social: 0.14, walk_in: 0.08, other: 0.04,
+}
+
 function toStage(status: string): Stage {
   const map: Record<string, Stage> = {
     lead: 'lead', new: 'lead',
@@ -87,7 +101,7 @@ export default function CRMPage() {
   const [sort, setSort] = useState<SortKey>('createdAt')
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD', source: '' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [view, setView] = useState<'list' | 'kanban'>('list')
@@ -96,6 +110,7 @@ export default function CRMPage() {
   const [stageOverrides, setStageOverrides] = useState<Record<string, Stage>>({})
   const [filters, setFilters] = useState({ status: '', minValue: '', maxValue: '', dateFrom: '', dateTo: '' })
   const [showFilters, setShowFilters] = useState(false)
+  const [sourcesOpen, setSourcesOpen] = useState(false)
 
   // CSV Import state
   const [importOpen, setImportOpen] = useState(false)
@@ -148,6 +163,23 @@ export default function CRMPage() {
     return true
   })
 
+  // Lead source breakdown — real counts if any contact has a source, otherwise a deterministic demo split
+  const hasRealSources = contacts.some(c => c.source)
+  const sourceCounts: Record<string, number> = {}
+  SOURCES.forEach(s => { sourceCounts[s.key] = 0 })
+  if (hasRealSources) {
+    contacts.forEach(c => {
+      const key = c.source && c.source in sourceCounts ? c.source : 'other'
+      sourceCounts[key] = (sourceCounts[key] ?? 0) + 1
+    })
+  } else {
+    SOURCES.forEach(s => { sourceCounts[s.key] = Math.round(contacts.length * (DEMO_SOURCE_PCT[s.key] ?? 0)) })
+  }
+  const sourceTotal = Object.values(sourceCounts).reduce((a, b) => a + b, 0)
+  const sourceMax = Math.max(1, ...Object.values(sourceCounts))
+  const topSource = SOURCES.reduce((best, s) => ((sourceCounts[s.key] ?? 0) > (sourceCounts[best.key] ?? 0) ? s : best), SOURCES[0]!)
+  const topSourcePct = sourceTotal > 0 ? Math.round(((sourceCounts[topSource.key] ?? 0) / sourceTotal) * 100) : 0
+
   async function createContact() {
     if (!form.firstName.trim()) return
     setCreating(true)
@@ -158,6 +190,7 @@ export default function CRMPage() {
         email: form.email || undefined,
         phone: form.phone || undefined,
         type: form.type,
+        source: form.source || undefined,
       }) as any
       const contact = res?.data?.contact ?? res?.contact
       if (contact) {
@@ -166,7 +199,7 @@ export default function CRMPage() {
         toast('Contact added', 'success')
       }
       setShowCreate(false)
-      setForm({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
+      setForm({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD', source: '' })
     } catch {
       toast('Failed to create contact', 'error')
     } finally {
@@ -513,6 +546,50 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* Lead Sources breakdown */}
+      <div className="rounded-xl overflow-hidden" style={cardStyle}>
+        <button
+          onClick={() => setSourcesOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-5 py-3.5 transition-colors hover:bg-accent/40"
+        >
+          <PieChart className="h-4 w-4" style={{ color: '#06b6d4' }} />
+          <span className="text-sm font-semibold text-foreground">Lead Sources</span>
+          <ChevronDown
+            className="h-4 w-4 text-muted-foreground ml-auto transition-transform"
+            style={{ transform: sourcesOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </button>
+        {sourcesOpen && (
+          <div className="px-5 pb-4 space-y-2.5" style={{ borderTop: '1px solid hsl(var(--border))' }}>
+            <div className="pt-3 space-y-2.5">
+              {SOURCES.map(s => {
+                const count = sourceCounts[s.key] ?? 0
+                const pct = sourceTotal > 0 ? Math.round((count / sourceTotal) * 100) : 0
+                return (
+                  <div key={s.key} className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 w-36 shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: s.color }} />
+                      <span className="text-xs text-foreground truncate">{s.label}</span>
+                      <span className="text-xs text-muted-foreground tabular ml-auto">{count}</span>
+                    </div>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${(count / sourceMax) * 100}%`, background: s.color }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground tabular w-9 text-right shrink-0">{pct}%</span>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              Top source: <span className="font-medium" style={{ color: topSource.color }}>{topSource.label}</span> — {topSourcePct}% of leads
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Contact list */}
       {view === 'list' && <div
         className="kv-anim rounded-xl border overflow-hidden"
@@ -611,6 +688,15 @@ export default function CRMPage() {
                           {contact.phone}
                         </span>
                       )}
+                      {contact.source && (() => {
+                        const src = SOURCES.find(s => s.key === contact.source) ?? SOURCES[SOURCES.length - 1]!
+                        return (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: src.color }} />
+                            {src.label}
+                          </span>
+                        )
+                      })()}
                     </div>
                   </div>
 
@@ -912,6 +998,28 @@ export default function CRMPage() {
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">How did they hear about us?</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {SOURCES.map(s => {
+                    const selected = form.source === s.key
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, source: selected ? '' : s.key }))}
+                        className="rounded-lg px-2 py-1.5 text-xs font-medium transition-all truncate"
+                        style={selected
+                          ? { background: `rgba(${hexToRgb(s.color)},0.15)`, color: s.color, border: `1px solid ${s.color}` }
+                          : { background: 'hsl(var(--background))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                        }
+                      >
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
 
