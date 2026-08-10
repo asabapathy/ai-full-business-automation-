@@ -2,7 +2,7 @@
 
 import { apiClient } from '../../../../lib/api-client'
 import { useState, useEffect } from 'react'
-import { Calendar, ChevronDown } from 'lucide-react'
+import { Calendar, ChevronDown, Filter } from 'lucide-react'
 
 interface OverviewData {
   revenue: { total: number; growth: number }
@@ -43,6 +43,34 @@ const DEMO_PIPELINE = [
 ]
 
 const PIPELINE_COLORS = ['#06b6d4', '#0ea5e9', '#38bdf8', '#7dd3fc', '#10b981']
+
+interface FunnelStage {
+  label: string
+  count: number
+  color: string
+}
+
+const DEMO_FUNNEL: FunnelStage[] = [
+  { label: 'Website visitors', count: 2840, color: '#60a5fa' },
+  { label: 'Leads captured', count: 312, color: '#06b6d4' },
+  { label: 'Contacted', count: 248, color: '#a78bfa' },
+  { label: 'Qualified', count: 121, color: '#fbbf24' },
+  { label: 'Proposal sent', count: 64, color: '#f97316' },
+  { label: 'Won', count: 38, color: '#34d399' },
+]
+
+function hexToRgba(hex: string, alpha: number) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function rateColor(rate: number) {
+  if (rate >= 50) return '#34d399'
+  if (rate >= 20) return '#fbbf24'
+  return '#f87171'
+}
 
 function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
