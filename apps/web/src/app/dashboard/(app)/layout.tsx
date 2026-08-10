@@ -75,11 +75,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setCmdOpen(prev => !prev)
+        return
       }
+
+      // Shortcuts below never fire while typing in a field
+      if ((e.target as HTMLElement)?.closest?.('input,textarea,select,[contenteditable]')) return
+
+      if (e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen(prev => !prev)
+        pendingKey.current = null
+        return
+      }
+
+      if (e.key === 'Escape') {
+        setShortcutsOpen(false)
+        pendingKey.current = null
+        return
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+
+      const key = e.key.toLowerCase()
+      const pending = pendingKey.current
+
+      if (pending && Date.now() - pending.at < 1000) {
+        const route = CHORD_ROUTES[`${pending.key}:${key}`]
+        if (route) {
+          e.preventDefault()
+          pendingKey.current = null
+          router.push(route)
+          return
+        }
+      }
+
+      pendingKey.current = key === 'g' || key === 'n' ? { key, at: Date.now() } : null
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [router])
 
   useEffect(() => {
     const saved = localStorage.getItem('kv-theme') as 'dark' | 'light' | 'system' | null
@@ -165,6 +199,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             >
               {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              title="Keyboard shortcuts (?)"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              style={cardStyle}
+            >
+              <Keyboard className="h-4 w-4" />
             </button>
             <button
               onClick={() => setChatOpen(o => !o)}

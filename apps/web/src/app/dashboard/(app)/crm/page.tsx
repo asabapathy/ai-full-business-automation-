@@ -66,6 +66,42 @@ const DEMO_SOURCE_PCT: Record<string, number> = {
   google: 0.34, referral: 0.22, website: 0.18, social: 0.14, walk_in: 0.08, other: 0.04,
 }
 
+// ---- Customer Segments (saved smart lists) ----
+const EMPTY_FILTERS = { status: '', minValue: '', maxValue: '', dateFrom: '', dateTo: '' }
+type Filters = typeof EMPTY_FILTERS
+
+interface Segment {
+  id: string
+  name: string
+  color: string
+  filters: Filters
+  search?: string
+}
+
+const SEGMENT_COLORS = ['#06b6d4', '#34d399', '#f87171', '#fbbf24', '#a78bfa', '#60a5fa']
+
+const STARTER_SEGMENTS: Segment[] = [
+  { id: 'high-value', name: 'High value', color: '#34d399', filters: { status: '', minValue: '5000', maxValue: '', dateFrom: '', dateTo: '' } },
+  { id: 'new-leads', name: 'New leads', color: '#60a5fa', filters: { status: 'lead', minValue: '', maxValue: '', dateFrom: '', dateTo: '' } },
+  { id: 'won-deals', name: 'Won', color: '#a78bfa', filters: { status: 'won', minValue: '', maxValue: '', dateFrom: '', dateTo: '' } },
+]
+
+// Single filter predicate shared by the list view and per-segment member counts
+function applyFilters(list: Contact[], f: Filters): Contact[] {
+  return list.filter(c => {
+    if (f.status && c.status?.toLowerCase() !== f.status) return false
+    if (f.minValue && (c.value ?? 0) < Number(f.minValue)) return false
+    if (f.maxValue && (c.value ?? 0) > Number(f.maxValue)) return false
+    if (f.dateFrom && c.createdAt && new Date(c.createdAt) < new Date(f.dateFrom)) return false
+    if (f.dateTo && c.createdAt && new Date(c.createdAt) > new Date(f.dateTo)) return false
+    return true
+  })
+}
+
+function sameFilters(a: Filters, b: Filters): boolean {
+  return (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).every(k => (a[k] ?? '') === (b[k] ?? ''))
+}
+
 function toStage(status: string): Stage {
   const map: Record<string, Stage> = {
     lead: 'lead', new: 'lead',
@@ -116,9 +152,17 @@ export default function CRMPage() {
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverStage, setDragOverStage] = useState<Stage | null>(null)
   const [stageOverrides, setStageOverrides] = useState<Record<string, Stage>>({})
-  const [filters, setFilters] = useState({ status: '', minValue: '', maxValue: '', dateFrom: '', dateTo: '' })
+  const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS })
   const [showFilters, setShowFilters] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
+
+  // Saved segments (smart lists)
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [segmentsLoaded, setSegmentsLoaded] = useState(false)
+  const [activeSegment, setActiveSegment] = useState<string | null>(null)
+  const [saveSegmentOpen, setSaveSegmentOpen] = useState(false)
+  const [segmentName, setSegmentName] = useState('')
+  const [segmentColor, setSegmentColor] = useState(SEGMENT_COLORS[0]!)
 
   // CSV Import state
   const [importOpen, setImportOpen] = useState(false)
@@ -156,20 +200,72 @@ export default function CRMPage() {
     return () => clearTimeout(timer)
   }, [search, statusFilter])
 
+  // Load segments from localStorage on mount (seed starters when absent)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('kv-crm-segments')
+      const parsed = raw ? JSON.parse(raw) : null
+      setSegments(Array.isArray(parsed) && parsed.length > 0
+        ? parsed.map((s: Segment) => ({ ...s, filters: { ...EMPTY_FILTERS, ...s.filters } }))
+        : STARTER_SEGMENTS)
+    } catch {
+      setSegments(STARTER_SEGMENTS)
+    }
+    setSegmentsLoaded(true)
+  }, [])
+
+  // Persist segments whenever they change
+  useEffect(() => {
+    if (!segmentsLoaded) return
+    try { localStorage.setItem('kv-crm-segments', JSON.stringify(segments)) } catch { /* storage unavailable */ }
+  }, [segments, segmentsLoaded])
+
+  // Deselect the active segment once filters no longer match its saved state
+  useEffect(() => {
+    if (!activeSegment) return
+    const seg = segments.find(s => s.id === activeSegment)
+    if (!seg || !sameFilters(seg.filters, filters)) setActiveSegment(null)
+  }, [filters, activeSegment, segments])
+
+  function selectSegment(seg: Segment) {
+    if (activeSegment === seg.id) {
+      setFilters({ ...EMPTY_FILTERS })
+      if (seg.search !== undefined) setSearch('')
+      setActiveSegment(null)
+    } else {
+      setFilters({ ...seg.filters })
+      if (seg.search !== undefined) setSearch(seg.search)
+      setActiveSegment(seg.id)
+    }
+  }
+
+  function saveSegment() {
+    const name = segmentName.trim()
+    if (!name) return
+    const seg: Segment = { id: crypto.randomUUID(), name, color: segmentColor, filters: { ...filters }, ...(search ? { search } : {}) }
+    setSegments(prev => [...prev, seg])
+    setActiveSegment(seg.id)
+    setSaveSegmentOpen(false)
+    setSegmentName('')
+    toast('Segment saved', 'success')
+    // Optional server sync — localStorage stays the source of truth
+    void Promise.resolve(apiClient.post('/crm/segments', seg)).catch(() => {})
+  }
+
+  function deleteSegment(id: string) {
+    setSegments(prev => prev.filter(s => s.id !== id))
+    if (activeSegment === id) setActiveSegment(null)
+    toast('Segment deleted', 'success')
+  }
+
   const sorted = [...contacts].sort((a, b) => {
     if (sort === 'score') return b.score - a.score
     if (sort === 'name') return `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`)
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
-  const filteredContacts = sorted.filter(c => {
-    if (filters.status && c.status?.toLowerCase() !== filters.status) return false
-    if (filters.minValue && (c.value ?? 0) < Number(filters.minValue)) return false
-    if (filters.maxValue && (c.value ?? 0) > Number(filters.maxValue)) return false
-    if (filters.dateFrom && c.createdAt && new Date(c.createdAt) < new Date(filters.dateFrom)) return false
-    if (filters.dateTo && c.createdAt && new Date(c.createdAt) > new Date(filters.dateTo)) return false
-    return true
-  })
+  const filteredContacts = applyFilters(sorted, filters)
+  const hasActiveFilters = Object.values(filters).some(v => v)
 
   // Lead source breakdown — real counts if any contact has a source, otherwise a deterministic demo split
   const hasRealSources = contacts.some(c => c.source)
@@ -482,6 +578,48 @@ export default function CRMPage() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Saved segments */}
+      <div {...anim(6)} className="kv-anim flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1">Segments</span>
+        {segments.map(seg => {
+          const active = activeSegment === seg.id
+          const count = applyFilters(contacts, seg.filters).length
+          return (
+            <span key={seg.id} className="relative inline-flex group/seg">
+              <button
+                onClick={() => selectSegment(seg)}
+                title={active ? 'Click to clear this segment' : `Apply "${seg.name}"`}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                style={active
+                  ? { background: `rgba(${hexToRgb(seg.color)},0.15)`, color: seg.color, border: `1px solid ${seg.color}` }
+                  : { ...cardStyle, color: 'hsl(var(--muted-foreground))' }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: seg.color }} />
+                {seg.name}
+                <span className="tabular" style={{ opacity: 0.7 }}>{count}</span>
+              </button>
+              <button
+                onClick={() => deleteSegment(seg.id)}
+                title={`Delete "${seg.name}"`}
+                className="absolute -top-1 -right-1 hidden group-hover/seg:flex h-4 w-4 items-center justify-center rounded-full text-[10px] leading-none text-white"
+                style={{ background: '#f87171' }}
+              >
+                ×
+              </button>
+            </span>
+          )
+        })}
+        {hasActiveFilters && !segments.some(s => sameFilters(s.filters, filters)) && (
+          <button
+            onClick={() => { setSegmentName(''); setSegmentColor(SEGMENT_COLORS[0]!); setSaveSegmentOpen(true) }}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ border: '1px dashed hsl(var(--border))', background: 'transparent' }}
+          >
+            <Plus className="h-3 w-3" /> Save current
+          </button>
+        )}
       </div>
 
       {showFilters && (
