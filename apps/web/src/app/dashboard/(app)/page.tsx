@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react'
 import {
   Users, DollarSign, TrendingUp, Calendar, Zap,
-  Brain, ArrowRight, CheckCircle2, Clock, Sparkles, ChevronDown
+  Brain, ArrowRight, CheckCircle2, Clock, Sparkles, ChevronDown, Pencil, Target, X, Settings2
 } from 'lucide-react'
 import Link from 'next/link'
 import { StatCard } from '../../../components/dashboard/stat-card'
 import { useAuthStore } from '../../../stores/auth.store'
 import { apiClient } from '../../../lib/api-client'
+import { toast } from '../../../lib/toast'
 
 interface OverviewData {
   contacts: { total: number; new30Days: number }
@@ -17,6 +18,12 @@ interface OverviewData {
   deals: { won30Days: number }
   activeTasks: number
   upcomingAppointments: number
+}
+
+interface Goals {
+  revenue: number
+  leads: number
+  appointments: number
 }
 
 interface ActivityEvent {
@@ -97,6 +104,51 @@ const RANGES = [
 ] as const
 
 const DATE_RANGE_STORAGE_KEY = 'kv-date-range'
+const GOALS_STORAGE_KEY = 'kv-goals'
+const WIDGETS_STORAGE_KEY = 'kv-dashboard-widgets'
+const DEFAULT_GOALS: Goals = { revenue: 25000, leads: 40, appointments: 30 }
+
+const WIDGETS = [
+  { key: 'insight', label: 'AI insight' },
+  { key: 'stats', label: 'Key metrics' },
+  { key: 'goals', label: 'Monthly goals' },
+  { key: 'ai', label: 'AI activity & quick actions' },
+  { key: 'mini', label: 'Mini metrics' },
+  { key: 'activity', label: 'Recent activity' },
+] as const
+
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+  return (
+    <div
+      onClick={onChange}
+      className="relative cursor-pointer w-10 h-6 rounded-full transition-all shrink-0"
+      style={enabled
+        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }
+        : { background: 'rgba(255,255,255,0.1)' }
+      }
+    >
+      <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-1'}`} style={{ background: 'white' }} />
+    </div>
+  )
+}
+
+function ProgressRing({ pct, color, size = 96 }: { pct: number; color: string; size?: number }) {
+  const r = (size - 10) / 2
+  const c = 2 * Math.PI * r
+  const clamped = Math.min(100, Math.max(0, pct))
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="8"
+        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - clamped / 100)}
+        style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+    </svg>
+  )
+}
 
 function resolveRange(range: string, customFrom: string, customTo: string) {
   const now = new Date()
@@ -238,6 +290,13 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [activityLoading, setActivityLoading] = useState(true)
   const { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo } = useDateRange()
+  const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS)
+  const [goalsOpen, setGoalsOpen] = useState(false)
+  const [goalsDraft, setGoalsDraft] = useState<Goals>(DEFAULT_GOALS)
+  const [goalsHydrated, setGoalsHydrated] = useState(false)
+  const [visibleWidgets, setVisibleWidgets] = useState<Record<string, boolean>>({})
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [widgetsHydrated, setWidgetsHydrated] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -279,6 +338,70 @@ export default function DashboardPage() {
     return () => clearInterval(refreshInterval)
   }, [])
 
+  // Monthly goals: hydrate from localStorage, then try the API (silent fallback).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(GOALS_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Goals>
+        if (typeof saved.revenue === 'number' && typeof saved.leads === 'number' && typeof saved.appointments === 'number') {
+          setGoals({ revenue: saved.revenue, leads: saved.leads, appointments: saved.appointments })
+        }
+      }
+    } catch { /* ignore corrupt storage */ }
+    setGoalsHydrated(true)
+    apiClient.get<Goals>('/goals')
+      .then(g => {
+        if (g && typeof g.revenue === 'number' && typeof g.leads === 'number' && typeof g.appointments === 'number') {
+          setGoals({ revenue: g.revenue, leads: g.leads, appointments: g.appointments })
+        }
+      })
+      .catch(() => { /* endpoint optional */ })
+  }, [])
+
+  useEffect(() => {
+    if (!goalsHydrated) return
+    try {
+      localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals))
+    } catch { /* storage unavailable */ }
+  }, [goalsHydrated, goals])
+
+  // Widget visibility: hydrate from localStorage (guarded so defaults don't clobber), then persist changes.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WIDGETS_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as Record<string, boolean>
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+          setVisibleWidgets(saved)
+        }
+      }
+    } catch { /* ignore corrupt storage */ }
+    setWidgetsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!widgetsHydrated) return
+    try {
+      localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(visibleWidgets))
+    } catch { /* storage unavailable */ }
+  }, [widgetsHydrated, visibleWidgets])
+
+  const show = (key: string) => visibleWidgets[key] !== false
+  const allHidden = WIDGETS.every(w => !show(w.key))
+
+  function saveGoals() {
+    const next: Goals = {
+      revenue: Math.max(0, goalsDraft.revenue || 0),
+      leads: Math.max(0, goalsDraft.leads || 0),
+      appointments: Math.max(0, goalsDraft.appointments || 0),
+    }
+    setGoals(next)
+    apiClient.put('/goals', next).catch(() => { /* endpoint optional */ })
+    setGoalsOpen(false)
+    toast('Goals updated', 'success')
+  }
+
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
@@ -288,6 +411,21 @@ export default function DashboardPage() {
   const scaleMetric = (n: number) => Math.round(n * metricScale)
   const activeRange = RANGES.find(r => r.key === range) ?? RANGES[1]
   const rangeLabel = range === 'custom' && customFrom && customTo ? `${customFrom} → ${customTo}` : activeRange.label
+
+  // Monthly goals progress — always month-to-date, independent of the date-range picker.
+  const today = new Date()
+  const monthName = today.toLocaleString('en-US', { month: 'long' })
+  const dayOfMonth = today.getDate()
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  const daysLeft = daysInMonth - dayOfMonth
+  const expectedPct = (dayOfMonth / daysInMonth) * 100
+  const goalProgress = [
+    { key: 'revenue', label: 'Revenue', color: '#06b6d4', current: overview?.revenue.last30Days ?? 16420, target: goals.revenue, currency: true },
+    { key: 'leads', label: 'Leads', color: '#a78bfa', current: overview?.contacts.new30Days ?? 27, target: goals.leads, currency: false },
+    { key: 'appointments', label: 'Appointments', color: '#34d399', current: overview?.upcomingAppointments ?? 19, target: goals.appointments, currency: false },
+  ].map(g => ({ ...g, pct: g.target > 0 ? (g.current / g.target) * 100 : 0 }))
+  const avgGoalPct = goalProgress.reduce((sum, g) => sum + Math.min(100, g.pct), 0) / goalProgress.length
+  const onPace = avgGoalPct >= expectedPct
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-[1400px]">
@@ -312,6 +450,48 @@ export default function DashboardPage() {
             customTo={customTo}
             onChange={next => { setRange(next.range); setCustomFrom(next.customFrom); setCustomTo(next.customTo) }}
           />
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setCustomizeOpen(o => !o)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
+              aria-label="Customize dashboard widgets"
+            >
+              <Settings2 className="h-4 w-4" />
+              <span className="whitespace-nowrap hidden sm:inline">Customize</span>
+            </button>
+            {customizeOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setCustomizeOpen(false)} />
+                <div
+                  className="absolute right-0 top-full mt-2 z-40 w-64 rounded-xl p-3"
+                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+                >
+                  <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    Dashboard widgets
+                  </p>
+                  <div className="space-y-1">
+                    {WIDGETS.map(w => (
+                      <div key={w.key} className="flex items-center justify-between gap-3 rounded-lg px-1 py-1.5">
+                        <span className="text-sm text-foreground/80">{w.label}</span>
+                        <Toggle
+                          enabled={show(w.key)}
+                          onChange={() => setVisibleWidgets(v => ({ ...v, [w.key]: !show(w.key) }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setVisibleWidgets({})}
+                    className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    style={{ borderTop: '1px solid hsl(var(--border))' }}
+                  >
+                    Reset — show all widgets
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <Link href="/dashboard/brain">
             <button
               className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
@@ -324,7 +504,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* All widgets hidden */}
+      {allHidden && (
+        <div className="rounded-xl p-8 text-center" style={cardStyle}>
+          <Settings2 className="mx-auto h-6 w-6 text-muted-foreground" />
+          <p className="mt-3 text-sm text-muted-foreground">
+            All widgets hidden — click <span className="font-medium" style={{ color: '#06b6d4' }}>Customize</span> to bring them back.
+          </p>
+        </div>
+      )}
+
       {/* AI Alert */}
+      {show('insight') && (
       <div
         {...anim(1)}
         className="kv-anim kv-glow-pulse relative overflow-hidden rounded-xl border p-4 flex items-start gap-3"
@@ -354,8 +545,10 @@ export default function DashboardPage() {
           </button>
         </Link>
       </div>
+      )}
 
       {/* Stat cards */}
+      {show('stats') && (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -388,11 +581,64 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      )}
+
+      {/* Monthly Goals */}
+      {show('goals') && (
+      <div {...anim(6)} className="kv-anim rounded-xl p-5" style={cardStyle}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4" style={{ color: '#06b6d4' }} />
+            <h2 className="text-sm font-semibold text-foreground">Monthly Goals</h2>
+            <span className="text-xs text-muted-foreground">{monthName}</span>
+          </div>
+          <button
+            onClick={() => { setGoalsDraft(goals); setGoalsOpen(true) }}
+            className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            aria-label="Edit goals"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {goalProgress.map(g => {
+            const fmt = (n: number) => (g.currency ? `$${Math.round(n).toLocaleString()}` : Math.round(n).toLocaleString())
+            return (
+              <div key={g.key} className="flex flex-col items-center py-2">
+                <div className="relative">
+                  <ProgressRing pct={g.pct} color={g.color} />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-lg font-bold text-foreground tabular-nums leading-none">{Math.round(g.pct)}%</span>
+                    <span className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">{g.label}</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground tabular-nums">{fmt(g.current)} / {fmt(g.target)}</p>
+                {g.pct >= 100 && (
+                  <p className="mt-1 text-xs font-medium" style={{ color: '#34d399' }}>🎉 Goal reached!</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t pt-4" style={{ borderColor: 'hsl(var(--border))' }}>
+          <p className="text-xs text-muted-foreground">
+            {daysLeft} day{daysLeft === 1 ? '' : 's'} left in {monthName}
+          </p>
+          <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+            style={onPace
+              ? { color: '#34d399', background: 'rgba(52,211,153,0.12)' }
+              : { color: '#fbbf24', background: 'rgba(251,191,36,0.12)' }}>
+            {onPace ? 'On pace' : 'Behind pace'}
+          </span>
+        </div>
+      </div>
+      )}
 
       {/* Main 2-col layout */}
+      {show('ai') && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* AI Activity feed */}
-        <div {...anim(6)} className="kv-anim lg:col-span-2 rounded-xl border overflow-hidden"
+        <div {...anim(7)} className="kv-anim lg:col-span-2 rounded-xl border overflow-hidden"
           style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
             <div className="flex items-center gap-2">
@@ -441,7 +687,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick actions */}
-        <div {...anim(7)} className="kv-anim rounded-xl border overflow-hidden"
+        <div {...anim(8)} className="kv-anim rounded-xl border overflow-hidden"
           style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
           <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
             <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
@@ -465,11 +711,13 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Mini metrics row */}
+      {show('mini') && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {miniMetrics.map((m, i) => (
-          <div key={m.label} {...anim(8 + i)} className="kv-anim rounded-xl border px-5 py-4"
+          <div key={m.label} {...anim(9 + i)} className="kv-anim rounded-xl border px-5 py-4"
             style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{m.label}</p>
             <p className="mt-1 text-2xl font-bold text-foreground tabular-nums">{m.value}</p>
@@ -477,8 +725,10 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Recent Activity */}
+      {show('activity') && (
       <div className="kv-anim" style={{ animationDelay: '0.45s' }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-foreground">Recent Activity</h2>
@@ -538,6 +788,57 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      )}
+
+      {/* Edit goals modal */}
+      {goalsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-5" style={cardStyle}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Edit Monthly Goals</h2>
+              <button onClick={() => setGoalsOpen(false)}
+                className="p-1 text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Revenue ($)</label>
+                <input type="number" min={0} className={inputCls} style={inputStyle}
+                  value={goalsDraft.revenue}
+                  onChange={e => setGoalsDraft(d => ({ ...d, revenue: Number(e.target.value) }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Leads</label>
+                <input type="number" min={0} className={inputCls} style={inputStyle}
+                  value={goalsDraft.leads}
+                  onChange={e => setGoalsDraft(d => ({ ...d, leads: Number(e.target.value) }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Appointments</label>
+                <input type="number" min={0} className={inputCls} style={inputStyle}
+                  value={goalsDraft.appointments}
+                  onChange={e => setGoalsDraft(d => ({ ...d, appointments: Number(e.target.value) }))} />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button onClick={() => setGoalsOpen(false)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={saveGoals}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                Save Goals
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

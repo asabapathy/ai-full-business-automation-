@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, MessageSquare, Monitor, Moon, Search, Sun } from 'lucide-react'
+import { Check, ChevronRight, Keyboard, Menu, MessageSquare, Monitor, Moon, Search, Sun, X } from 'lucide-react'
 import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
@@ -13,6 +13,52 @@ import { ImpersonateBanner } from '../../../components/layout/impersonate-banner
 import { TrialExpiredGate } from '../../../components/layout/trial-expired-gate'
 import { Toaster } from '../../../components/ui/Toaster'
 import { CommandPalette } from '../../../components/ui/CommandPalette'
+import { toast } from '../../../lib/toast'
+
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+
+const CHECKLIST_STEPS = [
+  { key: 'contact', label: 'Add your first contact', href: '/dashboard/crm' },
+  { key: 'invoice', label: 'Create an invoice', href: '/dashboard/invoices' },
+  { key: 'appointment', label: 'Book an appointment', href: '/dashboard/appointments' },
+  { key: 'campaign', label: 'Send a campaign', href: '/dashboard/campaigns' },
+  { key: 'automation', label: 'Set up an automation', href: '/dashboard/automations' },
+  { key: 'goals', label: 'Set monthly goals', href: '/dashboard' },
+]
+
+const SHORTCUTS: { keys: string[]; label: string; group: string }[] = [
+  { keys: ['⌘', 'K'], label: 'Search everything', group: 'General' },
+  { keys: ['?'], label: 'Show this panel', group: 'General' },
+  { keys: ['Esc'], label: 'Close any panel', group: 'General' },
+  { keys: ['G', 'D'], label: 'Go to Dashboard', group: 'Navigation' },
+  { keys: ['G', 'C'], label: 'Go to CRM', group: 'Navigation' },
+  { keys: ['G', 'I'], label: 'Go to Invoices', group: 'Navigation' },
+  { keys: ['G', 'A'], label: 'Go to Appointments', group: 'Navigation' },
+  { keys: ['G', 'M'], label: 'Go to Campaigns', group: 'Navigation' },
+  { keys: ['G', 'R'], label: 'Go to Reports', group: 'Navigation' },
+  { keys: ['N', 'C'], label: 'New contact (opens CRM)', group: 'Actions' },
+  { keys: ['N', 'I'], label: 'New invoice (opens Invoices)', group: 'Actions' },
+]
+
+const CHORD_ROUTES: Record<string, string> = {
+  'g:d': '/dashboard',
+  'g:c': '/dashboard/crm',
+  'g:i': '/dashboard/invoices',
+  'g:a': '/dashboard/appointments',
+  'g:m': '/dashboard/campaigns',
+  'g:r': '/dashboard/reports',
+  'n:c': '/dashboard/crm',
+  'n:i': '/dashboard/invoices',
+}
+
+const kbdStyle: React.CSSProperties = {
+  background: 'hsl(var(--muted))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 4,
+  padding: '2px 7px',
+  fontSize: 11,
+  fontFamily: 'monospace',
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user, organization } = useAuthStore()
@@ -20,7 +66,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const pendingKey = useRef<{ key: string; at: number } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('system')
+  const [checklist, setChecklist] = useState<Record<string, boolean>>({})
+  const [checklistOpen, setChecklistOpen] = useState(false)
+  const [checklistDismissed, setChecklistDismissed] = useState(false)
+  const checklistLoaded = useRef(false)
 
   useEffect(() => {
     if (isLoading) return
@@ -37,16 +89,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setCmdOpen(prev => !prev)
+        return
       }
+
+      // Shortcuts below never fire while typing in a field
+      if ((e.target as HTMLElement)?.closest?.('input,textarea,select,[contenteditable]')) return
+
+      if (e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen(prev => !prev)
+        pendingKey.current = null
+        return
+      }
+
+      if (e.key === 'Escape') {
+        setShortcutsOpen(false)
+        pendingKey.current = null
+        return
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+
+      const key = e.key.toLowerCase()
+      const pending = pendingKey.current
+
+      if (pending && Date.now() - pending.at < 1000) {
+        const route = CHORD_ROUTES[`${pending.key}:${key}`]
+        if (route) {
+          e.preventDefault()
+          pendingKey.current = null
+          router.push(route)
+          return
+        }
+      }
+
+      pendingKey.current = key === 'g' || key === 'n' ? { key, at: Date.now() } : null
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [router])
 
   useEffect(() => {
     const saved = localStorage.getItem('kv-theme') as 'dark' | 'light' | 'system' | null
     if (saved) setTheme(saved)
   }, [])
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('kv-checklist')
+      if (saved) setChecklist(JSON.parse(saved))
+      if (localStorage.getItem('kv-checklist-dismissed') === 'true') setChecklistDismissed(true)
+    } catch { /* corrupted storage — start fresh */ }
+    checklistLoaded.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!checklistLoaded.current) return
+    localStorage.setItem('kv-checklist', JSON.stringify(checklist))
+  }, [checklist])
+
+  useEffect(() => {
+    if (!checklistLoaded.current) return
+    localStorage.setItem('kv-checklist-dismissed', String(checklistDismissed))
+  }, [checklistDismissed])
+
+  // Auto-dismiss permanently once every step is complete (brief delay so the 🎉 state is visible)
+  useEffect(() => {
+    if (!checklistLoaded.current || checklistDismissed) return
+    if (!CHECKLIST_STEPS.every(s => checklist[s.key])) return
+    const t = setTimeout(() => setChecklistDismissed(true), 2500)
+    return () => clearTimeout(t)
+  }, [checklist, checklistDismissed])
 
   useEffect(() => {
     const root = document.documentElement
@@ -129,6 +242,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
             </button>
             <button
+              onClick={() => setShortcutsOpen(true)}
+              title="Keyboard shortcuts (?)"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              style={cardStyle}
+            >
+              <Keyboard className="h-4 w-4" />
+            </button>
+            <button
               onClick={() => setChatOpen(o => !o)}
               title="Ask AI"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.03]"
@@ -155,6 +276,177 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </TrialExpiredGate>
         </main>
       </div>
+
+      {shortcutsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setShortcutsOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl shadow-2xl"
+            style={cardStyle}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ borderBottom: '1px solid hsl(var(--border))' }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Keyboard Shortcuts</span>
+                <kbd style={kbdStyle}>?</kbd>
+              </div>
+              <button
+                onClick={() => setShortcutsOpen(false)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-4 py-3 max-h-[60vh] overflow-y-auto">
+              {['General', 'Navigation', 'Actions'].map(group => (
+                <div key={group} className="mb-3 last:mb-0">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">{group}</div>
+                  {SHORTCUTS.filter(s => s.group === group).map(s => (
+                    <div key={s.label} className="flex items-center justify-between py-1.5">
+                      <span className="text-sm text-foreground">{s.label}</span>
+                      <span className="flex items-center gap-1.5">
+                        {s.keys.map((k, i) => (
+                          <span key={i} className="flex items-center gap-1.5">
+                            {i > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {s.keys[0] === '⌘' ? '+' : 'then'}
+                              </span>
+                            )}
+                            <kbd style={kbdStyle}>{k}</kbd>
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div
+              className="px-4 py-2.5 text-xs text-muted-foreground"
+              style={{ borderTop: '1px solid hsl(var(--border))' }}
+            >
+              Press ? anywhere to open this panel
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!checklistDismissed && (() => {
+        const done = CHECKLIST_STEPS.filter(s => checklist[s.key]).length
+        const total = CHECKLIST_STEPS.length
+        const allDone = done === total
+        const pct = (done / total) * 100
+        const r = 8
+        const circ = 2 * Math.PI * r
+        return (
+          <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+            {checklistOpen && (
+              <div className="w-80 rounded-xl shadow-2xl overflow-hidden" style={cardStyle}>
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderBottom: '1px solid hsl(var(--border))' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-foreground">Getting started</span>
+                    <span className="text-xs font-semibold" style={{ color: '#06b6d4' }}>{done}/{total}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setChecklistDismissed(true)
+                      toast("You can't reopen this — checklist dismissed", 'info')
+                    }}
+                    title="Dismiss checklist"
+                    className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="px-4 pt-3">
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #06b6d4, #0ea5e9)' }}
+                    />
+                  </div>
+                </div>
+                <div className="px-2 py-2">
+                  {CHECKLIST_STEPS.map(step => {
+                    const isDone = !!checklist[step.key]
+                    return (
+                      <div
+                        key={step.key}
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                      >
+                        <button
+                          onClick={() => setChecklist(prev => ({ ...prev, [step.key]: !prev[step.key] }))}
+                          title={isDone ? 'Mark as not done' : 'Mark as done'}
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
+                          style={isDone
+                            ? { background: 'rgba(52,211,153,0.15)', border: '1px solid #34d399' }
+                            : { border: '1px solid hsl(var(--border))' }
+                          }
+                        >
+                          {isDone && <Check className="h-3 w-3" style={{ color: '#34d399' }} />}
+                        </button>
+                        <span
+                          className={`flex-1 text-sm ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+                        >
+                          {step.label}
+                        </span>
+                        <button
+                          onClick={() => router.push(step.href)}
+                          title={`Go to ${step.label}`}
+                          className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div
+                  className="px-4 py-2.5 text-xs"
+                  style={{
+                    borderTop: '1px solid hsl(var(--border))',
+                    color: allDone ? '#34d399' : 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  {allDone ? '🎉 All done!' : 'Complete these to get the most out of Kanavu'}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setChecklistOpen(o => !o)}
+              className="flex items-center gap-2 rounded-full pl-2.5 pr-4 py-2 text-sm font-medium text-foreground shadow-lg transition-all hover:scale-[1.03]"
+              style={cardStyle}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0">
+                <circle cx="10" cy="10" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                <circle
+                  cx="10"
+                  cy="10"
+                  r={r}
+                  fill="none"
+                  stroke="#06b6d4"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={circ}
+                  strokeDashoffset={circ * (1 - done / total)}
+                  transform="rotate(-90 10 10)"
+                  style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+                />
+              </svg>
+              <span>Getting started · {done}/{total}</span>
+            </button>
+          </div>
+        )
+      })()}
 
       <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />

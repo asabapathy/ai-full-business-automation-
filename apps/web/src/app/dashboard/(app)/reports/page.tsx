@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileText, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign, MapPin } from 'lucide-react'
+import { FileText, FileDown, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign, MapPin, Trophy, Landmark, CheckCircle2 } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -15,6 +15,26 @@ interface ReportData {
   topContacts: Array<{ name: string; revenue: number }>
   pipeline: Array<{ stage: string; count: number; value: number }>
   revenueBreakdown: Array<{ label: string; amount: number; pct: number }>
+}
+
+interface TeamMember {
+  name: string
+  dealsWon: number
+  revenue: number
+  avgResponseMins: number
+  jobsCompleted: number
+}
+
+type BoardMetric = 'revenue' | 'dealsWon' | 'avgResponseMins' | 'jobsCompleted'
+
+interface QuarterTax {
+  quarter: string
+  revenue: number
+  deductible: number
+  taxableIncome: number
+  estimatedTax: number
+  paid: boolean
+  dueDate: string
 }
 
 type Period = '7d' | '30d' | '90d'
@@ -42,6 +62,73 @@ const LOCATIONS = [
 
 // Deterministic share of totals per location
 const LOCATION_SHARE: Record<string, number> = { all: 1, downtown: 0.45, northside: 0.32, westend: 0.23 }
+
+const DEMO_TEAM: TeamMember[] = [
+  { name: 'Sarah Chen', dealsWon: 14, revenue: 42300, avgResponseMins: 12, jobsCompleted: 31 },
+  { name: 'Mike Rodriguez', dealsWon: 11, revenue: 38900, avgResponseMins: 25, jobsCompleted: 27 },
+  { name: 'Jess Taylor', dealsWon: 9, revenue: 27400, avgResponseMins: 18, jobsCompleted: 22 },
+  { name: 'Alex Kim', dealsWon: 6, revenue: 19800, avgResponseMins: 41, jobsCompleted: 15 },
+]
+
+const TAX_RATE = 0.25 // 25% effective rate (demo)
+const TAX_YEAR = new Date().getFullYear()
+const Q4_PROJECTED_REVENUE = 68000
+
+function makeQuarter(quarter: string, revenue: number, deductible: number, paid: boolean, dueDate: string): QuarterTax {
+  const taxableIncome = Math.max(0, revenue - deductible)
+  return { quarter, revenue, deductible, taxableIncome, estimatedTax: Math.round(taxableIncome * TAX_RATE), paid, dueDate }
+}
+
+const DEMO_TAX: QuarterTax[] = [
+  makeQuarter('Q1', 58200, 14300, true, `Apr 15, ${TAX_YEAR}`),
+  makeQuarter('Q2', 63400, 16800, true, `Jun 15, ${TAX_YEAR}`),
+  makeQuarter('Q3', 71800, 18200, false, `Sep 15, ${TAX_YEAR}`),
+  makeQuarter('Q4', 0, 0, false, `Jan 15, ${TAX_YEAR + 1}`),
+]
+
+const BOARD_METRICS: Array<{ id: BoardMetric; label: string }> = [
+  { id: 'revenue', label: 'Revenue' },
+  { id: 'dealsWon', label: 'Deals Won' },
+  { id: 'avgResponseMins', label: 'Response Time' },
+  { id: 'jobsCompleted', label: 'Jobs Done' },
+]
+
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #06b6d4, #60a5fa)',
+  'linear-gradient(135deg, #34d399, #06b6d4)',
+  'linear-gradient(135deg, #a78bfa, #f87171)',
+  'linear-gradient(135deg, #fbbf24, #f87171)',
+]
+
+function avatarGradient(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash + name.charCodeAt(i)) % 997
+  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length]
+}
+
+function initials(name: string) {
+  return name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
+}
+
+const RANK_MEDALS = ['🥇', '🥈', '🥉']
+
+function boardMetricDisplay(m: TeamMember, metric: BoardMetric): { text: string; color?: string } {
+  switch (metric) {
+    case 'revenue': return { text: fmt(m.revenue), color: '#34d399' }
+    case 'avgResponseMins': return { text: `${m.avgResponseMins}m`, color: '#06b6d4' }
+    case 'dealsWon': return { text: String(m.dealsWon) }
+    case 'jobsCompleted': return { text: String(m.jobsCompleted) }
+  }
+}
+
+function boardSummary(m: TeamMember, activeMetric: BoardMetric) {
+  const parts: string[] = []
+  if (activeMetric !== 'dealsWon') parts.push(`${m.dealsWon} deals`)
+  if (activeMetric !== 'revenue') parts.push(fmt(m.revenue))
+  if (activeMetric !== 'avgResponseMins') parts.push(`${m.avgResponseMins}m avg response`)
+  if (activeMetric !== 'jobsCompleted') parts.push(`${m.jobsCompleted} jobs`)
+  return parts.join(' · ')
+}
 
 const DEMO_DATA: Record<Period, ReportData> = {
   '7d': {
@@ -154,12 +241,139 @@ function downloadCSV(report: ReportData, period: Period) {
   URL.revokeObjectURL(url)
 }
 
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+function buildReportHTML(report: ReportData, period: Period, locationName: string): string {
+  const generated = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const periodLine = locationName === 'All Locations'
+    ? PERIOD_LABELS[period]
+    : `${PERIOD_LABELS[period]} · ${esc(locationName)}`
+
+  const kpis = [
+    { label: 'Revenue', value: fmt(report.revenue), accent: true },
+    { label: 'New Contacts', value: String(report.newContacts), accent: false },
+    { label: 'Appointments', value: String(report.appointments), accent: false },
+    { label: 'Deals Won', value: String(report.dealsWon), accent: false },
+  ]
+
+  const kpiTiles = kpis.map(k => `
+        <div style="background:#f5f5f5;border-radius:8px;padding:16px 18px;">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin-bottom:6px;">${k.label}</div>
+          <div style="font-size:24px;font-weight:bold;color:${k.accent ? '#06b6d4' : '#111'};">${k.value}</div>
+        </div>`).join('')
+
+  const thStyle = 'font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#999;text-align:left;padding:8px 12px;'
+  const thRightStyle = thStyle.replace('text-align:left', 'text-align:right')
+  const tdStyle = 'font-size:13px;color:#333;padding:8px 12px;border-bottom:1px solid #eee;'
+  const tdRightStyle = tdStyle + 'text-align:right;'
+
+  const breakdownRows = report.revenueBreakdown.map(r => `
+          <tr>
+            <td style="${tdStyle}">${esc(r.label)}</td>
+            <td style="${tdRightStyle}">${r.pct}%</td>
+            <td style="${tdRightStyle}font-weight:bold;">${fmt(r.amount)}</td>
+          </tr>`).join('')
+
+  const breakdownSection = report.revenueBreakdown.length > 0 ? `
+      <div style="margin-top:32px;">
+        <h2 style="font-size:14px;font-weight:bold;color:#111;margin:0 0 10px;">Revenue Breakdown</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f9f9f9;">
+              <th style="${thStyle}">Category</th>
+              <th style="${thRightStyle}">Share</th>
+              <th style="${thRightStyle}">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${breakdownRows}
+          </tbody>
+        </table>
+      </div>` : ''
+
+  const customerRows = report.topContacts.map((c, i) => `
+          <tr>
+            <td style="${tdStyle}color:#999;width:40px;">${i + 1}</td>
+            <td style="${tdStyle}">${esc(c.name)}</td>
+            <td style="${tdRightStyle}font-weight:bold;">${fmt(c.revenue)}</td>
+          </tr>`).join('')
+
+  const customersSection = report.topContacts.length > 0 ? `
+      <div style="margin-top:32px;">
+        <h2 style="font-size:14px;font-weight:bold;color:#111;margin:0 0 10px;">Top Customers by Revenue</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f9f9f9;">
+              <th style="${thStyle}">#</th>
+              <th style="${thStyle}">Customer</th>
+              <th style="${thRightStyle}">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>${customerRows}
+          </tbody>
+        </table>
+      </div>` : ''
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Business Report — ${PERIOD_LABELS[period]}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; background: #fff; color: #111; padding: 40px; }
+        @media print { body { padding: 20px; } }
+      </style>
+    </head>
+    <body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:2px solid #06b6d4;">
+        <div>
+          <div style="font-size:22px;font-weight:bold;color:#06b6d4;">Your Business</div>
+          <div style="font-size:12px;color:#666;margin-top:6px;">${periodLine}</div>
+          <div style="font-size:12px;color:#999;margin-top:2px;">Generated ${generated}</div>
+        </div>
+        <div style="font-size:28px;font-weight:300;color:#ccc;text-align:right;">Monthly Business Report</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:28px;">${kpiTiles}
+      </div>
+${breakdownSection}
+${customersSection}
+      <div style="margin-top:40px;padding-top:14px;border-top:1px solid #eee;text-align:center;font-size:11px;color:#999;">
+        Generated by Kanavu Business OS · ${generated}
+      </div>
+    </body>
+    </html>`
+}
+
 export default function ReportsPage() {
   const [period, setPeriod] = useState<Period>('30d')
   const [location, setLocation] = useState('all')
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [emailing, setEmailing] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const [team, setTeam] = useState<TeamMember[]>(DEMO_TEAM)
+  const [boardMetric, setBoardMetric] = useState<BoardMetric>('revenue')
+  const [taxQuarters, setTaxQuarters] = useState<QuarterTax[]>(DEMO_TAX)
+
+  useEffect(() => {
+    apiClient.get<{ team: TeamMember[] }>('/reports/team-leaderboard')
+      .then((d: any) => {
+        const list = Array.isArray(d) ? d : d?.team
+        if (Array.isArray(list) && list.length > 0) setTeam(list)
+      })
+      .catch(() => { /* keep demo data */ })
+  }, [])
+
+  useEffect(() => {
+    apiClient.get<{ quarters: QuarterTax[] }>('/reports/tax-summary')
+      .then((d: any) => {
+        const list = Array.isArray(d) ? d : d?.quarters
+        if (Array.isArray(list) && list.length > 0) setTaxQuarters(list)
+      })
+      .catch(() => { /* keep demo data */ })
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -189,6 +403,43 @@ export default function ReportsPage() {
 
   const selectedLocation = LOCATIONS.find(l => l.id === location) ?? LOCATIONS[0]
 
+  // Leaderboard sorted by the active metric (lower is better for response time)
+  const sortedTeam = useMemo(() => {
+    const sorted = [...team]
+    sorted.sort((a, b) => boardMetric === 'avgResponseMins'
+      ? a[boardMetric] - b[boardMetric]
+      : b[boardMetric] - a[boardMetric])
+    return sorted
+  }, [team, boardMetric])
+
+  const boardBestValue = useMemo(() => {
+    if (sortedTeam.length === 0) return 0
+    return sortedTeam[0][boardMetric]
+  }, [sortedTeam, boardMetric])
+
+  // Tax summary derived values
+  const nextDueQuarter = useMemo(
+    () => taxQuarters.find(q => !q.paid && q.revenue > 0) ?? null,
+    [taxQuarters]
+  )
+  const ytdEstimatedTax = useMemo(
+    () => taxQuarters.filter(q => q.revenue > 0).reduce((a, q) => a + q.estimatedTax, 0),
+    [taxQuarters]
+  )
+  const taxPaidSoFar = useMemo(
+    () => taxQuarters.filter(q => q.paid).reduce((a, q) => a + q.estimatedTax, 0),
+    [taxQuarters]
+  )
+  const maxTaxableIncome = useMemo(
+    () => Math.max(...taxQuarters.map(q => q.taxableIncome), 1),
+    [taxQuarters]
+  )
+
+  const markQuarterPaid = (quarter: string) => {
+    setTaxQuarters(prev => prev.map(q => (q.quarter === quarter ? { ...q, paid: true } : q)))
+    toast(`${quarter} marked paid`, 'success')
+  }
+
   const handleEmail = async () => {
     setEmailing(true)
     try {
@@ -205,6 +456,23 @@ export default function ReportsPage() {
     if (!displayReport) return
     downloadCSV(displayReport, period)
     toast('CSV downloaded', 'success')
+  }
+
+  const printReport = () => {
+    if (!displayReport) return
+    setPrinting(true)
+    try {
+      const win = window.open('', '_blank', 'width=800,height=600')
+      if (!win) {
+        toast('Pop-up blocked — allow pop-ups to export PDF', 'error')
+        return
+      }
+      win.document.write(buildReportHTML(displayReport, period, selectedLocation.name))
+      win.document.close()
+      win.print()
+    } finally {
+      setPrinting(false)
+    }
   }
 
   const stats = displayReport ? [
@@ -269,6 +537,16 @@ export default function ReportsPage() {
           >
             <Download className="h-4 w-4" />
             CSV
+          </button>
+
+          <button
+            onClick={printReport}
+            disabled={printing || loading || !report}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] disabled:opacity-50"
+            style={{ ...cardStyle, color: 'hsl(var(--muted-foreground))' }}
+          >
+            <FileDown className="h-4 w-4" />
+            PDF
           </button>
 
           <button
@@ -393,6 +671,202 @@ export default function ReportsPage() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Team Leaderboard */}
+          <div
+            {...anim(4)}
+            className="kv-anim rounded-xl overflow-hidden"
+            style={{ ...cardStyle, animationDelay: '0.39s' }}
+          >
+            <div className="px-5 py-4 border-b flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: 'hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4" style={{ color: '#fbbf24' }} />
+                <h2 className="text-sm font-semibold text-foreground">Team Leaderboard</h2>
+              </div>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+                {BOARD_METRICS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setBoardMetric(m.id)}
+                    className="px-3 py-1.5 text-xs font-medium transition-all"
+                    style={boardMetric === m.id
+                      ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                      : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }
+                    }
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+              {sortedTeam.map((m, i) => {
+                const display = boardMetricDisplay(m, boardMetric)
+                const value = m[boardMetric]
+                const barPct = boardBestValue > 0
+                  ? boardMetric === 'avgResponseMins'
+                    ? (value > 0 ? (boardBestValue / value) * 100 : 100)
+                    : (value / boardBestValue) * 100
+                  : 0
+                return (
+                  <div
+                    key={m.name}
+                    className="px-5 py-3 transition-colors"
+                    style={i === 0 ? { background: 'rgba(251,191,36,0.06)' } : undefined}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 text-center text-base tabular shrink-0">
+                        {i < RANK_MEDALS.length
+                          ? RANK_MEDALS[i]
+                          : <span className="text-xs font-semibold text-muted-foreground">#{i + 1}</span>
+                        }
+                      </span>
+                      <div
+                        className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        style={{ background: avatarGradient(m.name) }}
+                      >
+                        {initials(m.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-foreground truncate">{m.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{boardSummary(m, boardMetric)}</p>
+                      </div>
+                      <p
+                        className="text-lg font-bold tabular shrink-0"
+                        style={display.color ? { color: display.color } : { color: 'hsl(var(--foreground))' }}
+                      >
+                        {display.text}
+                      </p>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden mt-2" style={{ background: 'hsl(var(--muted))' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.max(0, Math.min(100, barPct))}%`, background: '#06b6d4' }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Tax Summary */}
+          <div
+            {...anim(5)}
+            className="kv-anim rounded-xl overflow-hidden"
+            style={{ ...cardStyle, animationDelay: '0.46s' }}
+          >
+            <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Landmark className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Tax Summary</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Estimated quarterly taxes · {TAX_YEAR} · 25% effective rate (demo)
+              </p>
+            </div>
+
+            {/* Headline tiles */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-5 pt-4 pb-1">
+              <div className="rounded-lg p-3" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)' }}>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">YTD estimated tax</p>
+                <p className="text-lg font-bold tabular" style={{ color: '#fbbf24' }}>{fmt(ytdEstimatedTax)}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.15)' }}>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Paid so far</p>
+                <p className="text-lg font-bold tabular" style={{ color: '#34d399' }}>{fmt(taxPaidSoFar)}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Next payment due</p>
+                {nextDueQuarter ? (
+                  <p className="text-lg font-bold tabular" style={{ color: '#f87171' }}>
+                    {fmt(nextDueQuarter.estimatedTax)}
+                    <span className="text-xs font-medium text-muted-foreground ml-1.5">{nextDueQuarter.dueDate}</span>
+                  </p>
+                ) : (
+                  <p className="text-lg font-bold" style={{ color: '#34d399' }}>All caught up</p>
+                )}
+              </div>
+            </div>
+
+            {/* Quarter rows */}
+            <div className="divide-y px-0 py-2" style={{ borderColor: 'hsl(var(--border))' }}>
+              {taxQuarters.map(q => {
+                const isProjected = q.revenue === 0
+                const isNextDue = nextDueQuarter?.quarter === q.quarter
+                const barPct = (q.taxableIncome / maxTaxableIncome) * 100
+                return (
+                  <div key={q.quarter} className="group px-5 py-3 hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <p className="text-sm font-bold text-foreground w-7 shrink-0">{q.quarter}</p>
+                      <p className="text-xs text-muted-foreground min-w-0 flex-1 truncate">
+                        {isProjected
+                          ? <>{fmt(Q4_PROJECTED_REVENUE)} <span className="italic">projected</span></>
+                          : <>{fmt(q.revenue)} rev · {fmt(q.deductible)} deductible</>
+                        }
+                      </p>
+                      {isNextDue && (
+                        <button
+                          onClick={() => markQuarterPaid(q.quarter)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)', color: '#34d399' }}
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                          Mark paid
+                        </button>
+                      )}
+                      <p className="text-sm font-bold tabular shrink-0 text-foreground">{fmt(q.estimatedTax)}</p>
+                      {q.paid ? (
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                          style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399' }}
+                        >
+                          Paid
+                        </span>
+                      ) : isProjected ? (
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                          style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
+                        >
+                          Projected
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                          style={isNextDue
+                            ? { background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }
+                            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                          }
+                        >
+                          Due {q.dueDate}
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-1 rounded-full overflow-hidden mt-2" style={{ background: 'hsl(var(--muted))' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.max(0, Math.min(100, barPct))}%`, background: '#06b6d4' }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Deduction note */}
+            <div className="px-5 py-3 border-t flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: 'hsl(var(--border))' }}>
+              <p className="text-xs text-muted-foreground">
+                Deductibles pulled from Expenses. Estimates only — consult your accountant.
+              </p>
+              <a
+                href="/dashboard/expenses"
+                className="text-xs font-semibold transition-opacity hover:opacity-80"
+                style={{ color: '#06b6d4' }}
+              >
+                Track expenses →
+              </a>
             </div>
           </div>
         </>

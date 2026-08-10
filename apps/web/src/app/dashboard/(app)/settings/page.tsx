@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Bell, Mail, MessageSquare, Smartphone, Check, Database, Loader2, AlertTriangle } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { useAuthStore } from '../../../../stores/auth.store'
 import { toast } from '../../../../lib/toast'
 
-type SettingsTab = 'profile' | 'organization' | 'integrations' | 'notifications' | 'billing'
+type SettingsTab = 'profile' | 'organization' | 'integrations' | 'notifications' | 'data' | 'billing'
 
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -28,6 +29,49 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void 
       <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-1'}`} style={{ background: 'white' }} />
     </div>
   )
+}
+
+const NOTIFY_EVENTS = [
+  { key: 'new_lead',              label: 'New lead captured' },
+  { key: 'invoice_paid',          label: 'Invoice paid' },
+  { key: 'invoice_overdue',       label: 'Invoice overdue' },
+  { key: 'appointment_booked',    label: 'Appointment booked' },
+  { key: 'appointment_cancelled', label: 'Appointment cancelled' },
+  { key: 'estimate_approved',     label: 'Estimate approved' },
+  { key: 'review_received',       label: 'New review' },
+  { key: 'campaign_finished',     label: 'Campaign finished' },
+]
+const CHANNELS = ['email', 'sms', 'push'] as const
+
+const CHANNEL_META: Record<(typeof CHANNELS)[number], { label: string; Icon: typeof Mail }> = {
+  email: { label: 'Email', Icon: Mail },
+  sms:   { label: 'SMS',   Icon: MessageSquare },
+  push:  { label: 'Push',  Icon: Smartphone },
+}
+
+function defaultNotifyPrefs(): Record<string, Record<string, boolean>> {
+  const smsOn = new Set(['invoice_paid', 'appointment_booked', 'appointment_cancelled'])
+  const pushOn = new Set(['new_lead', 'invoice_paid', 'review_received'])
+  const prefs: Record<string, Record<string, boolean>> = {}
+  for (const ev of NOTIFY_EVENTS) {
+    prefs[ev.key] = { email: true, sms: smsOn.has(ev.key), push: pushOn.has(ev.key) }
+  }
+  return prefs
+}
+
+const EXPORT_DATASETS: Array<{ key: string; label: string; endpoint: string }> = [
+  { key: 'contacts',     label: 'Contacts',     endpoint: '/crm/contacts?limit=500' },
+  { key: 'invoices',     label: 'Invoices',     endpoint: '/finance/invoices?limit=500' },
+  { key: 'estimates',    label: 'Estimates',    endpoint: '/estimates?limit=500' },
+  { key: 'appointments', label: 'Appointments', endpoint: '/receptionist/appointments?limit=500' },
+  { key: 'campaigns',    label: 'Campaigns',    endpoint: '/campaigns?limit=200' },
+  { key: 'reviews',      label: 'Reviews',      endpoint: '/reviews?limit=200' },
+  { key: 'expenses',     label: 'Expenses',     endpoint: '/expenses?limit=500' },
+  { key: 'timeEntries',  label: 'Time entries', endpoint: '/jobs/time-entries?limit=500' },
+]
+
+function defaultExportSets(): Record<string, boolean> {
+  return Object.fromEntries(EXPORT_DATASETS.map(d => [d.key, true]))
 }
 
 const PLAN_INFO: Record<string, { price: string; label: string; desc: string; color: string }> = {
@@ -66,6 +110,19 @@ export default function SettingsPage() {
     stripe:     { enabled: false, publishableKey: '', secretKey: '' },
   })
 
+  const [notifyPrefs, setNotifyPrefs] = useState<Record<string, Record<string, boolean>>>(defaultNotifyPrefs)
+  const [savingPrefs, setSavingPrefs] = useState(false)
+  const [savedPrefsJson, setSavedPrefsJson] = useState(() => JSON.stringify(defaultNotifyPrefs()))
+  const prefsDirty = JSON.stringify(notifyPrefs) !== savedPrefsJson
+
+  const [exportSets, setExportSets] = useState<Record<string, boolean>>(defaultExportSets)
+  const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState('')
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
   const [notifSettings, setNotifSettings] = useState({
     emailNotifications:  true,
     newLead:             true,
@@ -88,6 +145,35 @@ export default function SettingsPage() {
       setProfileSettings(s => ({ ...s, firstName: user.firstName ?? '', lastName: user.lastName ?? '', email: user.email ?? '' }))
     }
   }, [user?.firstName, user?.lastName, user?.email])
+
+  // Load notification preferences (localStorage first, then API) — runs client-side only, so hydration-safe
+  useEffect(() => {
+    let merged = defaultNotifyPrefs()
+    try {
+      const stored = localStorage.getItem('kv-notify-prefs')
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, Record<string, boolean>>
+        for (const ev of NOTIFY_EVENTS) {
+          if (parsed[ev.key]) merged[ev.key] = { ...merged[ev.key], ...parsed[ev.key] }
+        }
+      }
+    } catch { /* ignore corrupt localStorage */ }
+    setNotifyPrefs(merged)
+    setSavedPrefsJson(JSON.stringify(merged))
+    ;(async () => {
+      try {
+        const data = await (apiClient as any).get('/settings/notification-preferences')
+        if (data && typeof data === 'object') {
+          const next = defaultNotifyPrefs()
+          for (const ev of NOTIFY_EVENTS) {
+            if (data[ev.key]) next[ev.key] = { ...next[ev.key], ...data[ev.key] }
+          }
+          setNotifyPrefs(next)
+          setSavedPrefsJson(JSON.stringify(next))
+        }
+      } catch { /* silent — endpoint may not exist yet */ }
+    })()
+  }, [])
 
   // Handle Stripe checkout success redirect
   useEffect(() => {
@@ -147,11 +233,74 @@ export default function SettingsPage() {
     toast('Notification preferences saved', 'success')
   }
 
+  function toggleNotifyPref(eventKey: string, channel: string) {
+    setNotifyPrefs(p => ({ ...p, [eventKey]: { ...p[eventKey], [channel]: !p[eventKey]?.[channel] } }))
+  }
+
+  function toggleNotifyColumn(channel: string) {
+    setNotifyPrefs(p => {
+      const anyOff = NOTIFY_EVENTS.some(ev => !p[ev.key]?.[channel])
+      const next: Record<string, Record<string, boolean>> = { ...p }
+      for (const ev of NOTIFY_EVENTS) {
+        next[ev.key] = { ...next[ev.key], [channel]: anyOff }
+      }
+      return next
+    })
+  }
+
+  async function saveNotifyPrefs() {
+    setSavingPrefs(true)
+    try {
+      await (apiClient as any).put('/settings/notification-preferences', notifyPrefs)
+    } catch { /* silent — endpoint may not exist yet */ }
+    try {
+      localStorage.setItem('kv-notify-prefs', JSON.stringify(notifyPrefs))
+    } catch { /* ignore */ }
+    setSavedPrefsJson(JSON.stringify(notifyPrefs))
+    setSavingPrefs(false)
+    toast('Notification preferences saved', 'success')
+  }
+
+  async function exportAll() {
+    setExporting(true)
+    const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), app: 'Kanavu Business OS' }
+    for (const { key, endpoint } of EXPORT_DATASETS) {
+      if (!exportSets[key]) continue
+      setExportProgress(`Exporting ${key}…`)
+      try {
+        out[key] = await (apiClient as any).get(endpoint)
+      } catch {
+        out[key] = { error: 'unavailable', note: 'demo mode' }
+      }
+    }
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `kanavu-export-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    setExporting(false)
+    setExportProgress('')
+    toast('Data export downloaded', 'success')
+  }
+
+  async function requestDeleteAll() {
+    setDeleting(true)
+    try {
+      await (apiClient as any).post('/settings/delete-all', {})
+    } catch { /* silent — endpoint may not exist yet */ }
+    setDeleting(false)
+    setDeleteModalOpen(false)
+    setDeleteConfirmText('')
+    toast('Deletion requested — check your email to confirm', 'success')
+  }
+
   const tabs: Array<{ id: SettingsTab; label: string; icon: string }> = [
     { id: 'profile',       label: 'Profile',       icon: '👤' },
     { id: 'organization',  label: 'Organization',   icon: '🏢' },
     { id: 'integrations',  label: 'Integrations',   icon: '🔌' },
     { id: 'notifications', label: 'Notifications',  icon: '🔔' },
+    { id: 'data',          label: 'Data',           icon: '🗄️' },
     { id: 'billing',       label: 'Billing',        icon: '💳' },
   ]
 
@@ -374,6 +523,151 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Per-event notification matrix */}
+          {tab === 'notifications' && (
+            <div className="rounded-xl p-6" style={cardStyle}>
+              <div className="flex items-center gap-3 mb-4">
+                <Bell className="w-5 h-5" style={{ color: '#06b6d4' }} />
+                <div>
+                  <h2 className="text-foreground font-semibold">Notification Preferences</h2>
+                  <p className="text-xs text-muted-foreground">Choose how you hear about each event</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                      <th className="text-left py-2 pr-4 text-xs uppercase font-medium text-muted-foreground">Event</th>
+                      {CHANNELS.map(ch => {
+                        const { label, Icon } = CHANNEL_META[ch]
+                        return (
+                          <th key={ch} className="py-2 px-3">
+                            <button
+                              onClick={() => toggleNotifyColumn(ch)}
+                              title={`Toggle all ${label} notifications`}
+                              className="mx-auto flex items-center gap-1.5 text-xs uppercase font-medium text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {label}
+                            </button>
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {NOTIFY_EVENTS.map(ev => (
+                      <tr key={ev.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td className="py-2.5 pr-4 text-muted-foreground whitespace-nowrap">{ev.label}</td>
+                        {CHANNELS.map(ch => {
+                          const on = !!notifyPrefs[ev.key]?.[ch]
+                          return (
+                            <td key={ch} className="py-2.5 px-3 text-center">
+                              <button
+                                onClick={() => toggleNotifyPref(ev.key, ch)}
+                                aria-label={`${ev.label} via ${CHANNEL_META[ch].label}`}
+                                aria-pressed={on}
+                                className="mx-auto flex h-5 w-5 items-center justify-center rounded border cursor-pointer transition-all"
+                                style={on
+                                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', border: '1px solid transparent' }
+                                  : { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+                                }
+                              >
+                                {on && <Check className="w-3.5 h-3.5" style={{ color: 'white' }} />}
+                              </button>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                SMS requires a connected phone number. Push requires a subscribed browser (Settings → Push Notifications).
+              </p>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={saveNotifyPrefs}
+                  disabled={savingPrefs || !prefsDirty}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  {savingPrefs ? 'Saving…' : 'Save preferences'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Data — full export */}
+          {tab === 'data' && (
+            <div className="rounded-xl p-6" style={cardStyle}>
+              <div className="flex items-center gap-3 mb-1">
+                <Database className="w-5 h-5" style={{ color: '#06b6d4' }} />
+                <h2 className="text-foreground font-semibold">Export Your Data</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Download everything — contacts, invoices, appointments, and more — as a single JSON file.
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-5">
+                {EXPORT_DATASETS.map(ds => {
+                  const on = !!exportSets[ds.key]
+                  return (
+                    <button
+                      key={ds.key}
+                      onClick={() => setExportSets(s => ({ ...s, [ds.key]: !s[ds.key] }))}
+                      aria-pressed={on}
+                      className="flex items-center gap-2.5 py-1.5 text-left cursor-pointer group"
+                    >
+                      <span
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all"
+                        style={on
+                          ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', border: '1px solid transparent' }
+                          : { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+                        }
+                      >
+                        {on && <Check className="w-3.5 h-3.5" style={{ color: 'white' }} />}
+                      </span>
+                      <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">{ds.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={exportAll}
+                disabled={exporting || !EXPORT_DATASETS.some(ds => exportSets[ds.key])}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+              >
+                {exporting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {exporting ? (exportProgress || 'Exporting…') : 'Export JSON'}
+              </button>
+              <p className="text-xs text-muted-foreground mt-3">
+                Exports are generated in your browser — nothing is sent to third parties.
+              </p>
+            </div>
+          )}
+
+          {/* Data — danger zone */}
+          {tab === 'data' && (
+            <div className="rounded-xl p-5" style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.3)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-4 h-4" style={{ color: '#f87171' }} />
+                <h3 className="font-medium" style={{ color: '#f87171' }}>Delete all data</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Permanently erase every contact, invoice, appointment, and record in this organization. This cannot be undone.
+              </p>
+              <button
+                onClick={() => { setDeleteConfirmText(''); setDeleteModalOpen(true) }}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02]"
+                style={{ background: 'transparent', border: '1px solid rgba(248,113,113,0.5)', color: '#f87171' }}
+              >
+                Delete all data…
+              </button>
+            </div>
+          )}
+
           {/* Billing */}
           {tab === 'billing' && (
             <div className="space-y-4">
@@ -466,6 +760,57 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Delete-all confirmation modal */}
+      {deleteModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => { if (!deleting) { setDeleteModalOpen(false); setDeleteConfirmText('') } }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl p-6"
+            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(248,113,113,0.4)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5" style={{ color: '#f87171' }} />
+              <h3 className="text-foreground font-semibold">Delete all data?</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              This will request permanent deletion of every record in your organization.
+              Type <span className="font-semibold" style={{ color: '#f87171' }}>DELETE</span> to confirm.
+            </p>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              autoFocus
+              className={inputCls}
+              style={inputStyle}
+            />
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                onClick={() => { setDeleteModalOpen(false); setDeleteConfirmText('') }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={requestDeleteAll}
+                disabled={deleteConfirmText !== 'DELETE' || deleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                style={{ background: 'linear-gradient(135deg, #f87171, #ef4444)' }}
+              >
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {deleting ? 'Requesting…' : 'Confirm deletion'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

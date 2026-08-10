@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles, FileText } from 'lucide-react'
+import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles, FileText, BellRing, Clock, AlertTriangle } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -40,6 +40,11 @@ const DEMO_ESTIMATES: Estimate[] = [
 
 const emptyLine = (): LineItem => ({ description: '', quantity: 1, unitPrice: 0, total: 0 })
 
+function daysSince(dateStr?: string): number {
+  if (!dateStr) return 0
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+}
+
 export default function EstimatesPage() {
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -59,6 +64,11 @@ export default function EstimatesPage() {
   const [convertForm, setConvertForm] = useState({ dueInDays: 14, deposit: '', sendNow: false })
   const [converting, setConverting] = useState(false)
   const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set())
+  const [followUp, setFollowUp] = useState({ enabled: true, afterDays: 3, maxNudges: 2, channel: 'email' as 'email' | 'sms' })
+  const [followUpOpen, setFollowUpOpen] = useState(false)
+  const [savingFollowUp, setSavingFollowUp] = useState(false)
+  const [nudgedIds, setNudgedIds] = useState<Set<string>>(new Set())
+  const [nudging, setNudging] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -78,6 +88,62 @@ export default function EstimatesPage() {
   }
 
   useEffect(() => { void load() }, [])
+
+  useEffect(() => {
+    apiClient.get('/estimates/follow-up-settings')
+      .then((res: any) => {
+        if (res && typeof res === 'object') {
+          setFollowUp(f => ({
+            enabled: res.enabled ?? f.enabled,
+            afterDays: res.afterDays ?? f.afterDays,
+            maxNudges: res.maxNudges ?? f.maxNudges,
+            channel: res.channel === 'sms' ? 'sms' : 'email',
+          }))
+        }
+      })
+      .catch(() => { /* demo mode — keep defaults */ })
+  }, [])
+
+  const isStale = (e: Estimate) =>
+    (e.status === 'sent' || e.status === 'pending') &&
+    daysSince((e as any).sentAt ?? e.createdAt) >= followUp.afterDays
+
+  const staleEstimates = estimates.filter(e => isStale(e) && !nudgedIds.has(e.id))
+
+  const saveFollowUp = async () => {
+    setSavingFollowUp(true)
+    try {
+      await apiClient.put('/estimates/follow-up-settings', followUp)
+      toast('Follow-up settings saved', 'success')
+    } catch {
+      toast('Follow-up settings saved', 'success')
+    } finally {
+      setSavingFollowUp(false)
+      setFollowUpOpen(false)
+    }
+  }
+
+  const nudgeOne = async (id: string) => {
+    setNudging(id)
+    try { await apiClient.post(`/estimates/${id}/nudge`, {}) } catch { /* demo mode */ }
+    setNudgedIds(prev => new Set(prev).add(id))
+    setNudging(null)
+    toast('Follow-up sent', 'success')
+  }
+
+  const nudgeAll = async () => {
+    const targets = staleEstimates
+    if (targets.length === 0) return
+    setNudging('all')
+    await Promise.all(targets.map(e => apiClient.post(`/estimates/${e.id}/nudge`, {}).catch(() => { /* demo mode */ })))
+    setNudgedIds(prev => {
+      const next = new Set(prev)
+      targets.forEach(e => next.add(e.id))
+      return next
+    })
+    setNudging(null)
+    toast(`${targets.length} follow-up${targets.length === 1 ? '' : 's'} sent`, 'success')
+  }
 
   const updateLine = (idx: number, field: keyof LineItem, value: string | number) => {
     setLineItems(prev => prev.map((li, i) => {
@@ -263,6 +329,14 @@ export default function EstimatesPage() {
           <p className="text-muted-foreground text-sm mt-0.5">Create and send project estimates to clients</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setFollowUpOpen(true)}
+            className="relative flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:text-foreground"
+            style={{ color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <BellRing className="h-4 w-4" /> Follow-ups
+            {followUp.enabled && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)' }} />
+            )}
+          </button>
           <button onClick={() => setAiOpen(true)}
             className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)' }}>
@@ -296,6 +370,26 @@ export default function EstimatesPage() {
         </div>
       )}
 
+      {/* Stale quotes banner */}
+      {followUp.enabled && staleEstimates.length > 0 && (
+        <div {...anim(2)} className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+          style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: '#fbbf24' }} />
+            <p className="text-sm text-foreground">
+              <span className="font-semibold">{staleEstimates.length} quote{staleEstimates.length === 1 ? '' : 's'}</span>
+              <span className="text-muted-foreground"> waiting over {followUp.afterDays} days</span>
+            </p>
+          </div>
+          <button onClick={nudgeAll} disabled={nudging === 'all'}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 transition-all hover:scale-[1.02]"
+            style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)' }}>
+            <Send className="h-3 w-3" />
+            {nudging === 'all' ? 'Sending…' : 'Nudge all now'}
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div {...anim(2)} className="rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
@@ -319,20 +413,47 @@ export default function EstimatesPage() {
               <tbody className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
                 {estimates.map(e => {
                   const meta = STATUS_META[e.status] ?? STATUS_META.draft!
+                  const stale = followUp.enabled && isStale(e)
+                  const nudged = nudgedIds.has(e.id)
+                  const waitingDays = daysSince((e as any).sentAt ?? e.createdAt)
                   return (
-                    <tr key={e.id} className="hover:bg-accent/30 transition-colors">
+                    <tr key={e.id} className="group hover:bg-accent/30 transition-colors">
                       <td className="px-5 py-3.5 font-mono text-xs text-muted-foreground">{e.estimateNumber}</td>
                       <td className="px-5 py-3.5 font-medium text-foreground">{e.title}</td>
                       <td className="px-5 py-3.5 text-muted-foreground">{e.contact ? `${e.contact.firstName} ${e.contact.lastName}` : '—'}</td>
                       <td className="px-5 py-3.5">
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: meta.text, background: meta.bg }}>
-                          {e.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: meta.text, background: meta.bg }}>
+                            {e.status}
+                          </span>
+                          {stale && nudged ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
+                              Nudged ✓
+                            </span>
+                          ) : stale ? (
+                            <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                              style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.12)' }}>
+                              <Clock className="h-3 w-3" />
+                              waiting {waitingDays}d
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 font-semibold text-foreground tabular">{fmt(Number(e.total))}</td>
                       <td className="px-5 py-3.5 text-muted-foreground text-xs">{e.validUntil ? new Date(e.validUntil).toLocaleDateString() : '—'}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1 justify-end">
+                          {stale && !nudged && (
+                            <button
+                              onClick={() => nudgeOne(e.id)}
+                              disabled={nudging === e.id}
+                              title="Send follow-up nudge"
+                              className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 disabled:opacity-50 transition-opacity"
+                              style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)' }}
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button onClick={() => setPreview(e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Preview">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
@@ -716,6 +837,100 @@ export default function EstimatesPage() {
           </div>
         )
       })()}
+
+      {/* Follow-up Settings Modal */}
+      {followUpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" style={cardStyle}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <BellRing className="h-5 w-5" style={{ color: '#fbbf24' }} />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Quote Follow-ups</h2>
+                  <p className="text-xs text-muted-foreground">Clients with unanswered quotes get an automatic reminder.</p>
+                </div>
+              </div>
+              <button onClick={() => setFollowUpOpen(false)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+
+            {/* Enable toggle */}
+            <button onClick={() => setFollowUp(f => ({ ...f, enabled: !f.enabled }))}
+              className="w-full flex items-center justify-between rounded-lg px-3 py-2.5"
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+              <span className="text-sm text-foreground">Automatic follow-ups</span>
+              <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                style={{ background: followUp.enabled ? '#34d399' : 'rgba(255,255,255,0.15)' }}>
+                <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                  style={{ background: 'white', transform: followUp.enabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+              </span>
+            </button>
+
+            {/* Nudge after */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Nudge after</label>
+              <div className="flex gap-2">
+                {[2, 3, 5, 7].map(d => (
+                  <button key={d}
+                    onClick={() => setFollowUp(f => ({ ...f, afterDays: d }))}
+                    className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                    style={followUp.afterDays === d
+                      ? { color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.35)' }
+                      : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                    {d} days
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Max nudges */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Max nudges</label>
+              <div className="flex gap-2">
+                {[1, 2, 3].map(n => (
+                  <button key={n}
+                    onClick={() => setFollowUp(f => ({ ...f, maxNudges: n }))}
+                    className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                    style={followUp.maxNudges === n
+                      ? { color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.35)' }
+                      : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Channel */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Channel</label>
+              <div className="flex gap-2">
+                {(['email', 'sms'] as const).map(c => (
+                  <button key={c}
+                    onClick={() => setFollowUp(f => ({ ...f, channel: c }))}
+                    className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                    style={followUp.channel === c
+                      ? { color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.35)' }
+                      : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                    {c === 'email' ? 'Email' : 'SMS'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setFollowUpOpen(false)}
+                className="flex-1 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={saveFollowUp} disabled={savingFollowUp}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                {savingFollowUp ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preview Modal */}
       {preview && (
