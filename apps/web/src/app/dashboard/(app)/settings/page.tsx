@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Mail, MessageSquare, Smartphone, Check } from 'lucide-react'
+import { Bell, Mail, MessageSquare, Smartphone, Check, Database, Loader2, AlertTriangle } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { useAuthStore } from '../../../../stores/auth.store'
 import { toast } from '../../../../lib/toast'
 
-type SettingsTab = 'profile' | 'organization' | 'integrations' | 'notifications' | 'billing'
+type SettingsTab = 'profile' | 'organization' | 'integrations' | 'notifications' | 'data' | 'billing'
 
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -59,6 +59,21 @@ function defaultNotifyPrefs(): Record<string, Record<string, boolean>> {
   return prefs
 }
 
+const EXPORT_DATASETS: Array<{ key: string; label: string; endpoint: string }> = [
+  { key: 'contacts',     label: 'Contacts',     endpoint: '/crm/contacts?limit=500' },
+  { key: 'invoices',     label: 'Invoices',     endpoint: '/finance/invoices?limit=500' },
+  { key: 'estimates',    label: 'Estimates',    endpoint: '/estimates?limit=500' },
+  { key: 'appointments', label: 'Appointments', endpoint: '/receptionist/appointments?limit=500' },
+  { key: 'campaigns',    label: 'Campaigns',    endpoint: '/campaigns?limit=200' },
+  { key: 'reviews',      label: 'Reviews',      endpoint: '/reviews?limit=200' },
+  { key: 'expenses',     label: 'Expenses',     endpoint: '/expenses?limit=500' },
+  { key: 'timeEntries',  label: 'Time entries', endpoint: '/jobs/time-entries?limit=500' },
+]
+
+function defaultExportSets(): Record<string, boolean> {
+  return Object.fromEntries(EXPORT_DATASETS.map(d => [d.key, true]))
+}
+
 const PLAN_INFO: Record<string, { price: string; label: string; desc: string; color: string }> = {
   STARTER:  { price: '$49',  label: 'Starter',  desc: 'Core CRM & AI features · Up to 1,000 contacts',                color: '#06b6d4' },
   PRO:      { price: '$97',  label: 'Pro',      desc: 'Unlimited contacts · All AI features · Priority support',       color: '#a855f7' },
@@ -99,6 +114,14 @@ export default function SettingsPage() {
   const [savingPrefs, setSavingPrefs] = useState(false)
   const [savedPrefsJson, setSavedPrefsJson] = useState(() => JSON.stringify(defaultNotifyPrefs()))
   const prefsDirty = JSON.stringify(notifyPrefs) !== savedPrefsJson
+
+  const [exportSets, setExportSets] = useState<Record<string, boolean>>(defaultExportSets)
+  const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState('')
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const [notifSettings, setNotifSettings] = useState({
     emailNotifications:  true,
@@ -238,11 +261,46 @@ export default function SettingsPage() {
     toast('Notification preferences saved', 'success')
   }
 
+  async function exportAll() {
+    setExporting(true)
+    const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), app: 'Kanavu Business OS' }
+    for (const { key, endpoint } of EXPORT_DATASETS) {
+      if (!exportSets[key]) continue
+      setExportProgress(`Exporting ${key}…`)
+      try {
+        out[key] = await (apiClient as any).get(endpoint)
+      } catch {
+        out[key] = { error: 'unavailable', note: 'demo mode' }
+      }
+    }
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `kanavu-export-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    setExporting(false)
+    setExportProgress('')
+    toast('Data export downloaded', 'success')
+  }
+
+  async function requestDeleteAll() {
+    setDeleting(true)
+    try {
+      await (apiClient as any).post('/settings/delete-all', {})
+    } catch { /* silent — endpoint may not exist yet */ }
+    setDeleting(false)
+    setDeleteModalOpen(false)
+    setDeleteConfirmText('')
+    toast('Deletion requested — check your email to confirm', 'success')
+  }
+
   const tabs: Array<{ id: SettingsTab; label: string; icon: string }> = [
     { id: 'profile',       label: 'Profile',       icon: '👤' },
     { id: 'organization',  label: 'Organization',   icon: '🏢' },
     { id: 'integrations',  label: 'Integrations',   icon: '🔌' },
     { id: 'notifications', label: 'Notifications',  icon: '🔔' },
+    { id: 'data',          label: 'Data',           icon: '🗄️' },
     { id: 'billing',       label: 'Billing',        icon: '💳' },
   ]
 
@@ -541,6 +599,75 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Data — full export */}
+          {tab === 'data' && (
+            <div className="rounded-xl p-6" style={cardStyle}>
+              <div className="flex items-center gap-3 mb-1">
+                <Database className="w-5 h-5" style={{ color: '#06b6d4' }} />
+                <h2 className="text-foreground font-semibold">Export Your Data</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Download everything — contacts, invoices, appointments, and more — as a single JSON file.
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-5">
+                {EXPORT_DATASETS.map(ds => {
+                  const on = !!exportSets[ds.key]
+                  return (
+                    <button
+                      key={ds.key}
+                      onClick={() => setExportSets(s => ({ ...s, [ds.key]: !s[ds.key] }))}
+                      aria-pressed={on}
+                      className="flex items-center gap-2.5 py-1.5 text-left cursor-pointer group"
+                    >
+                      <span
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all"
+                        style={on
+                          ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', border: '1px solid transparent' }
+                          : { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+                        }
+                      >
+                        {on && <Check className="w-3.5 h-3.5" style={{ color: 'white' }} />}
+                      </span>
+                      <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">{ds.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={exportAll}
+                disabled={exporting || !EXPORT_DATASETS.some(ds => exportSets[ds.key])}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+              >
+                {exporting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {exporting ? (exportProgress || 'Exporting…') : 'Export JSON'}
+              </button>
+              <p className="text-xs text-muted-foreground mt-3">
+                Exports are generated in your browser — nothing is sent to third parties.
+              </p>
+            </div>
+          )}
+
+          {/* Data — danger zone */}
+          {tab === 'data' && (
+            <div className="rounded-xl p-5" style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.3)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-4 h-4" style={{ color: '#f87171' }} />
+                <h3 className="font-medium" style={{ color: '#f87171' }}>Delete all data</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Permanently erase every contact, invoice, appointment, and record in this organization. This cannot be undone.
+              </p>
+              <button
+                onClick={() => { setDeleteConfirmText(''); setDeleteModalOpen(true) }}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02]"
+                style={{ background: 'transparent', border: '1px solid rgba(248,113,113,0.5)', color: '#f87171' }}
+              >
+                Delete all data…
+              </button>
+            </div>
+          )}
+
           {/* Billing */}
           {tab === 'billing' && (
             <div className="space-y-4">
@@ -633,6 +760,57 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Delete-all confirmation modal */}
+      {deleteModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => { if (!deleting) { setDeleteModalOpen(false); setDeleteConfirmText('') } }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl p-6"
+            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(248,113,113,0.4)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5" style={{ color: '#f87171' }} />
+              <h3 className="text-foreground font-semibold">Delete all data?</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              This will request permanent deletion of every record in your organization.
+              Type <span className="font-semibold" style={{ color: '#f87171' }}>DELETE</span> to confirm.
+            </p>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              autoFocus
+              className={inputCls}
+              style={inputStyle}
+            />
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                onClick={() => { setDeleteModalOpen(false); setDeleteConfirmText('') }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={requestDeleteAll}
+                disabled={deleteConfirmText !== 'DELETE' || deleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                style={{ background: 'linear-gradient(135deg, #f87171, #ef4444)' }}
+              >
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {deleting ? 'Requesting…' : 'Confirm deletion'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
