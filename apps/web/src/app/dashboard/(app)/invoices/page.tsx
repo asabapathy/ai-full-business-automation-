@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X } from 'lucide-react'
-import { Skeleton } from '../../../../../components/ui/skeleton'
-import { api } from '../../../../../lib/api-client'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2 } from 'lucide-react'
+import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
 
@@ -57,6 +56,9 @@ export default function InvoicesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [remindingId, setRemindingId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkReminding, setBulkReminding] = useState(false)
   const [form, setForm] = useState({
     title: '',
     clientName: '',
@@ -72,8 +74,8 @@ export default function InvoicesPage() {
       setIsLoading(true)
       try {
         const [invoiceData, summaryData] = await Promise.all([
-          api.get<{ invoices: Invoice[] }>('/finance/invoices', { status: statusFilter || undefined }),
-          api.get<FinancialSummary>('/finance/summary'),
+          apiClient.get<{ invoices: Invoice[] }>('/finance/invoices', { status: statusFilter || undefined }),
+          apiClient.get<FinancialSummary>('/finance/summary'),
         ])
         setInvoices(invoiceData.invoices)
         setSummary(summaryData)
@@ -95,7 +97,7 @@ export default function InvoicesPage() {
     if (!form.title.trim() || !form.unitPrice) return
     setCreating(true)
     try {
-      const res = await api.post<{ data: { invoice: Invoice } }>('/finance/invoices', {
+      const res = await apiClient.post<{ data: { invoice: Invoice } }>('/finance/invoices', {
         title: form.title,
         lineItems: [{
           description: form.description || form.title,
@@ -122,12 +124,59 @@ export default function InvoicesPage() {
   async function handleRemind(id: string) {
     setRemindingId(id)
     try {
-      await api.post(`/finance/invoices/${id}/remind`, {})
+      await apiClient.post(`/finance/invoices/${id}/remind`, {})
       toast('Reminder sent to client', 'success')
     } catch {
       toast('Failed to send reminder', 'error')
     } finally {
       setRemindingId(null)
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === invoices.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(invoices.map(inv => inv.id)))
+    }
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    setBulkDeleting(true)
+    try {
+      await Promise.all([...selectedIds].map(id => apiClient.delete(`/finance/invoices/${id}`)))
+      setInvoices(prev => prev.filter(inv => !selectedIds.has(inv.id)))
+      toast(`Deleted ${selectedIds.size} invoice${selectedIds.size > 1 ? 's' : ''}`, 'success')
+      setSelectedIds(new Set())
+    } catch {
+      toast('Some invoices could not be deleted', 'error')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  async function bulkRemind() {
+    if (selectedIds.size === 0) return
+    const remindable = invoices.filter(inv => selectedIds.has(inv.id) && ['SENT', 'OVERDUE'].includes(inv.status))
+    if (remindable.length === 0) { toast('No sent/overdue invoices selected', 'error'); return }
+    setBulkReminding(true)
+    try {
+      await Promise.all(remindable.map(inv => apiClient.post(`/finance/invoices/${inv.id}/remind`, {})))
+      toast(`Reminder sent for ${remindable.length} invoice${remindable.length > 1 ? 's' : ''}`, 'success')
+      setSelectedIds(new Set())
+    } catch {
+      toast('Some reminders could not be sent', 'error')
+    } finally {
+      setBulkReminding(false)
     }
   }
 
@@ -141,7 +190,8 @@ export default function InvoicesPage() {
         </div>
         <div className="flex gap-2">
           <button
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
+            style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.2)' }}
             style={{ border: '1px solid rgba(6,182,212,0.3)' }}
           >
             <Zap className="h-4 w-4" />
@@ -161,10 +211,10 @@ export default function InvoicesPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Revenue (30d)', value: summary ? `$${(summary.revenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: 'text-emerald-400' },
-          { label: 'Outstanding', value: summary ? `$${(summary.outstanding / 1000).toFixed(1)}k` : '--', icon: Clock, color: 'text-amber-400' },
-          { label: 'Overdue', value: summary?.overdueInvoices ?? '--', icon: AlertTriangle, color: 'text-red-400' },
-          { label: 'Net Profit', value: summary ? `$${(summary.profit / 1000).toFixed(1)}k` : '--', icon: CheckCircle, color: 'text-primary' },
+          { label: 'Revenue (30d)', value: summary ? `$${(summary.revenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: '#34d399' },
+          { label: 'Outstanding', value: summary ? `$${(summary.outstanding / 1000).toFixed(1)}k` : '--', icon: Clock, color: '#fbbf24' },
+          { label: 'Overdue', value: summary?.overdueInvoices ?? '--', icon: AlertTriangle, color: '#f87171' },
+          { label: 'Net Profit', value: summary ? `$${(summary.profit / 1000).toFixed(1)}k` : '--', icon: CheckCircle, color: '#06b6d4' },
         ].map((stat, i) => (
           <div
             key={stat.label}
@@ -176,12 +226,12 @@ export default function InvoicesPage() {
             }}
           >
             <div className="flex items-center gap-2 mb-1">
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <stat.icon className="h-4 w-4" style={{ color: stat.color }} />
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>
             {isLoading
-              ? <Skeleton className="h-8 w-16 mt-1" />
-              : <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+              ? <div className="h-8 w-16 mt-1 animate-pulse rounded" style={{ background: 'hsl(var(--muted))' }} />
+              : <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>
             }
           </div>
         ))}
@@ -206,8 +256,8 @@ export default function InvoicesPage() {
             }}
           >
             {summary.cashFlowHealth === 'positive'
-              ? <CheckCircle className="h-4 w-4 text-emerald-400" />
-              : <AlertTriangle className="h-4 w-4 text-red-400" />
+              ? <CheckCircle className="h-4 w-4" style={{ color: '#34d399' }} />
+              : <AlertTriangle className="h-4 w-4" style={{ color: '#f87171' }} />
             }
           </div>
           <div>
@@ -215,7 +265,8 @@ export default function InvoicesPage() {
             <p className="text-xs text-muted-foreground">Revenue exceeds expenses by ${(summary.profit / 1000).toFixed(1)}k this month</p>
           </div>
           <button
-            className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+            className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.05)' }}
             style={{ border: '1px solid rgba(6,182,212,0.2)' }}
           >
             <Zap className="h-3 w-3" />
@@ -247,13 +298,52 @@ export default function InvoicesPage() {
         style={{ animationDelay: '0.53s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
       >
         <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+          {invoices.length > 0 && (
+            <button
+              onClick={toggleSelectAll}
+              className="h-4 w-4 rounded shrink-0 flex items-center justify-center"
+              style={selectedIds.size === invoices.length && invoices.length > 0
+                ? { background: '#06b6d4', border: '1px solid #06b6d4' }
+                : { border: '1px solid hsl(var(--border))', background: 'transparent' }
+              }
+            >
+              {selectedIds.size === invoices.length && invoices.length > 0 && (
+                <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              )}
+            </button>
+          )}
           <FileText className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Invoices</h2>
+          {selectedIds.size > 0 && (
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+              <button
+                onClick={bulkRemind}
+                disabled={bulkReminding}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)' }}
+              >
+                <Send className="h-3 w-3" />
+                {bulkReminding ? 'Sending…' : 'Remind selected'}
+              </button>
+              <button
+                onClick={bulkDelete}
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                style={{ color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)' }}
+              >
+                <Trash2 className="h-3 w-3" />
+                {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+              </button>
+            </div>
+          )}
         </div>
 
         {isLoading ? (
           <div className="p-4 space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+            ))}
           </div>
         ) : invoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -267,14 +357,27 @@ export default function InvoicesPage() {
               const isOverdue = invoice.status !== 'PAID' && invoice.dueDate && new Date(invoice.dueDate) < new Date()
               const displayStatus = isOverdue ? 'OVERDUE' : invoice.status
               const Icon = STATUS_ICONS[displayStatus] ?? FileText
+              const isSelected = selectedIds.has(invoice.id)
 
               return (
-                <div key={invoice.id} className="flex items-center gap-4 px-5 py-3 hover:bg-accent/40 transition-colors group">
+                <div key={invoice.id} className="flex items-center gap-3 px-5 py-3 hover:bg-accent/40 transition-colors group">
+                  <button
+                    onClick={() => toggleSelect(invoice.id)}
+                    className="h-4 w-4 rounded shrink-0 flex items-center justify-center"
+                    style={isSelected
+                      ? { background: '#06b6d4', border: '1px solid #06b6d4' }
+                      : { border: '1px solid hsl(var(--border))', background: 'transparent' }
+                    }
+                  >
+                    {isSelected && (
+                      <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    )}
+                  </button>
                   <div
                     className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
                     style={{ background: 'rgba(6,182,212,0.1)' }}
                   >
-                    <Icon className="h-4 w-4 text-primary" />
+                    <Icon className="h-4 w-4" style={{ color: '#06b6d4' }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm text-foreground">{invoice.title}</p>
@@ -296,7 +399,8 @@ export default function InvoicesPage() {
                     <button
                       onClick={() => handleRemind(invoice.id)}
                       disabled={remindingId === invoice.id}
-                      className="rounded-lg px-2 py-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10 disabled:opacity-40"
+                      className="rounded-lg px-2 py-1 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all disabled:opacity-40"
+                      style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.08)' }}
                     >
                       {remindingId === invoice.id ? 'Sending…' : 'Remind'}
                     </button>

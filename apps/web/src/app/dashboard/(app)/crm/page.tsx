@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown } from 'lucide-react'
+import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { Skeleton } from '../../../../components/ui/skeleton'
-import { api } from '../../../../lib/api-client'
+import { apiClient } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
 import { toast } from '../../../../lib/toast'
 
@@ -58,12 +57,14 @@ export default function CRMPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     const fetchContacts = async () => {
       setIsLoading(true)
       try {
-        const result = await api.get<{ contacts: Contact[]; total: number }>('/crm/contacts', {
+        const result = await apiClient.get<{ contacts: Contact[]; total: number }>('/crm/contacts', {
           q: search || undefined,
           status: statusFilter || undefined,
           limit: 50,
@@ -96,7 +97,7 @@ export default function CRMPage() {
     if (!form.firstName.trim()) return
     setCreating(true)
     try {
-      const res = await api.post<{ data: { contact: Contact } }>('/crm/contacts', {
+      const res = await apiClient.post<{ data: { contact: Contact } }>('/crm/contacts', {
         firstName: form.firstName,
         lastName: form.lastName || undefined,
         email: form.email || undefined,
@@ -115,6 +116,38 @@ export default function CRMPage() {
       toast('Failed to create contact', 'error')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    setBulkDeleting(true)
+    try {
+      await Promise.all([...selectedIds].map(id => apiClient.delete(`/crm/contacts/${id}`)))
+      setContacts(prev => prev.filter(c => !selectedIds.has(c.id)))
+      setTotal(t => t - selectedIds.size)
+      toast(`Deleted ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''}`, 'success')
+      setSelectedIds(new Set())
+    } catch {
+      toast('Some contacts could not be deleted', 'error')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === sorted.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(sorted.map(c => c.id)))
     }
   }
 
@@ -200,14 +233,45 @@ export default function CRMPage() {
         style={{ animationDelay: '0.46s', ...cardStyle }}
       >
         <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+          {sorted.length > 0 && (
+            <button
+              onClick={toggleSelectAll}
+              className="h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors"
+              style={selectedIds.size === sorted.length && sorted.length > 0
+                ? { background: '#06b6d4', border: '1px solid #06b6d4' }
+                : { border: '1px solid hsl(var(--border))', background: 'transparent' }
+              }
+            >
+              {selectedIds.size === sorted.length && sorted.length > 0 && (
+                <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              )}
+            </button>
+          )}
           <Users className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Contacts</h2>
-          <span className="ml-auto text-xs text-muted-foreground">{sorted.length} shown</span>
+          {selectedIds.size > 0 ? (
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+              <button
+                onClick={bulkDelete}
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors"
+                style={{ color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)' }}
+              >
+                <Trash2 className="h-3 w-3" />
+                {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+              </button>
+            </div>
+          ) : (
+            <span className="ml-auto text-xs text-muted-foreground">{sorted.length} shown</span>
+          )}
         </div>
 
         {isLoading ? (
           <div className="p-4 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+            ))}
           </div>
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -220,12 +284,22 @@ export default function CRMPage() {
             {sorted.map(contact => {
               const statusMeta = STATUS_META[contact.status] ?? STATUS_META['NEW']!
               const typeMeta = TYPE_META[contact.type] ?? TYPE_META['LEAD']!
+              const isSelected = selectedIds.has(contact.id)
               return (
-                <Link
-                  key={contact.id}
-                  href={`/dashboard/crm/${contact.id}`}
-                  className="flex items-center gap-4 px-5 py-3 hover:bg-accent/40 transition-colors group"
-                >
+                <div key={contact.id} className="flex items-center gap-3 px-5 py-3 hover:bg-accent/40 transition-colors group">
+                  <button
+                    onClick={() => toggleSelect(contact.id)}
+                    className="h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors"
+                    style={isSelected
+                      ? { background: '#06b6d4', border: '1px solid #06b6d4' }
+                      : { border: '1px solid hsl(var(--border))', background: 'transparent' }
+                    }
+                  >
+                    {isSelected && (
+                      <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    )}
+                  </button>
+                  <Link href={`/dashboard/crm/${contact.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                   <div
                     className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
                     style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}
@@ -276,7 +350,8 @@ export default function CRMPage() {
                   <span className="text-xs text-muted-foreground hidden md:block">
                     {formatRelativeTime(contact.createdAt)}
                   </span>
-                </Link>
+                  </Link>
+                </div>
               )
             })}
           </div>

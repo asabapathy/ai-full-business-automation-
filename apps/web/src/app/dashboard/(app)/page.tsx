@@ -7,9 +7,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { StatCard } from '../../../components/dashboard/stat-card'
-import { Button } from '../../../components/ui/button'
 import { useAuthStore } from '../../../stores/auth.store'
-import { api } from '../../../lib/api-client'
+import { apiClient } from '../../../lib/api-client'
 
 interface OverviewData {
   contacts: { total: number; new30Days: number }
@@ -54,6 +53,12 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const TASK_STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
+  completed:   { color: '#34d399', bg: 'rgba(52,211,153,0.12)', label: 'Done' },
+  in_progress: { color: '#06b6d4', bg: 'rgba(6,182,212,0.12)', label: 'Running' },
+  pending:     { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: 'Pending' },
+}
+
 export default function DashboardPage() {
   const { user, organization } = useAuthStore()
   const [overview, setOverview] = useState<OverviewData | null>(null)
@@ -62,7 +67,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadOverview() {
       try {
-        const data = await api.get<OverviewData>('/org/analytics/overview')
+        const data = await apiClient.get<OverviewData>('/org/analytics/overview')
         setOverview(data)
       } catch {
         setOverview({
@@ -84,9 +89,9 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <div className="p-6 space-y-6 max-w-[1400px]">
+    <div className="p-4 sm:p-6 space-y-6 max-w-[1400px]">
       {/* Greeting */}
-      <div {...anim(0)} className={`kv-anim flex items-start justify-between gap-4`} style={{ animationDelay: '0.04s' }}>
+      <div {...anim(0)} className="kv-anim flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground leading-tight">
             {greeting}, {user?.firstName}
@@ -98,11 +103,8 @@ export default function DashboardPage() {
         </div>
         <Link href="/dashboard/brain">
           <button
-            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{
-              background: 'linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%)',
-              boxShadow: '0 0 20px rgba(6,182,212,0.35)',
-            }}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
+            style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%)', boxShadow: '0 0 20px rgba(6,182,212,0.35)' }}
           >
             <Brain className="h-4 w-4" />
             Ask AI
@@ -112,33 +114,30 @@ export default function DashboardPage() {
 
       {/* AI Alert */}
       <div
+        {...anim(1)}
         className="kv-anim kv-glow-pulse relative overflow-hidden rounded-xl border p-4 flex items-start gap-3"
         style={{
-          animationDelay: '0.11s',
           background: 'linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(14,165,233,0.04) 100%)',
           borderColor: 'rgba(6,182,212,0.25)',
         }}
       >
-        {/* Shimmer overlay */}
-        <div
-          className="pointer-events-none absolute inset-0 kv-shimmer"
-          style={{ mixBlendMode: 'screen' }}
-        />
+        <div className="pointer-events-none absolute inset-0 kv-shimmer" style={{ mixBlendMode: 'screen' }} />
         <div
           className="flex h-8 w-8 items-center justify-center rounded-full shrink-0"
           style={{ background: 'rgba(6,182,212,0.15)', boxShadow: '0 0 12px rgba(6,182,212,0.2)' }}
         >
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Sparkles className="h-4 w-4" style={{ color: '#06b6d4' }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">AI Business Insight</p>
           <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
             3 leads haven&apos;t been contacted in 7+ days — I&apos;m sending follow-ups now.
-            Your conversion rate is <span className="text-emerald-400 font-medium">up 12%</span> this month.
+            Your conversion rate is <span className="font-medium" style={{ color: '#34d399' }}>up 12%</span> this month.
           </p>
         </div>
         <Link href="/dashboard/brain" className="shrink-0">
-          <button className="flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+          <button className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ border: '1px solid rgba(6,182,212,0.25)', background: 'rgba(6,182,212,0.1)', color: '#06b6d4' }}>
             Details <ArrowRight className="h-3 w-3" />
           </button>
         </Link>
@@ -148,62 +147,31 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-xl border h-36 animate-pulse"
-              style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-            />
+            <div key={i} className="rounded-xl border h-36 animate-pulse"
+              style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
           ))
         ) : (
           <>
             <div {...anim(2)}>
-              <StatCard
-                title="Revenue (30d)"
-                value={overview?.revenue.last30Days ?? 0}
-                format="currency"
-                change={18}
-                icon={DollarSign}
-                iconColor="text-emerald-400"
-                sparkline={DEMO_SPARKLINES.revenue}
-                sparkColor="#10b981"
-              />
+              <StatCard title="Revenue (30d)" value={overview?.revenue.last30Days ?? 0} format="currency"
+                change={18} icon={DollarSign} iconColor="text-emerald-400"
+                sparkline={DEMO_SPARKLINES.revenue} sparkColor="#10b981" />
             </div>
             <div {...anim(3)}>
-              <StatCard
-                title="Pipeline Value"
-                value={overview?.pipeline.value ?? 0}
-                format="currency"
-                change={5}
-                icon={TrendingUp}
-                iconColor="text-primary"
-                sparkline={DEMO_SPARKLINES.pipeline}
-                sparkColor="#06b6d4"
-              />
+              <StatCard title="Pipeline Value" value={overview?.pipeline.value ?? 0} format="currency"
+                change={5} icon={TrendingUp} iconColor="text-primary"
+                sparkline={DEMO_SPARKLINES.pipeline} sparkColor="#06b6d4" />
             </div>
             <div {...anim(4)}>
-              <StatCard
-                title="Total Contacts"
-                value={overview?.contacts.total ?? 0}
-                format="number"
-                change={12}
-                description={`+${overview?.contacts.new30Days ?? 0} this month`}
-                icon={Users}
-                iconColor="text-violet-400"
-                sparkline={DEMO_SPARKLINES.contacts}
-                sparkColor="#7c3aed"
-              />
+              <StatCard title="Total Contacts" value={overview?.contacts.total ?? 0} format="number"
+                change={12} description={`+${overview?.contacts.new30Days ?? 0} this month`}
+                icon={Users} iconColor="text-violet-400"
+                sparkline={DEMO_SPARKLINES.contacts} sparkColor="#7c3aed" />
             </div>
             <div {...anim(5)}>
-              <StatCard
-                title="Appointments"
-                value={overview?.upcomingAppointments ?? 0}
-                format="number"
-                description="upcoming this week"
-                icon={Calendar}
-                iconColor="text-amber-400"
-                sparkline={DEMO_SPARKLINES.appointments}
-                sparkColor="#f59e0b"
-              />
+              <StatCard title="Appointments" value={overview?.upcomingAppointments ?? 0} format="number"
+                description="upcoming this week" icon={Calendar} iconColor="text-amber-400"
+                sparkline={DEMO_SPARKLINES.appointments} sparkColor="#f59e0b" />
             </div>
           </>
         )}
@@ -212,19 +180,13 @@ export default function DashboardPage() {
       {/* Main 2-col layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* AI Activity feed */}
-        <div
-          {...anim(6)}
-          className="kv-anim lg:col-span-2 rounded-xl border overflow-hidden"
-          style={{
-            animationDelay: '0.46s',
-            background: 'hsl(var(--card))',
-            borderColor: 'hsl(var(--border))',
-          }}
-        >
+        <div {...anim(6)} className="kv-anim lg:col-span-2 rounded-xl border overflow-hidden"
+          style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-foreground">AI Activity</h2>
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}>
                 {recentTasks.filter(t => t.status === 'in_progress').length} running
               </span>
             </div>
@@ -234,71 +196,57 @@ export default function DashboardPage() {
               </button>
             </Link>
           </div>
-          <div className="divide-y" style={{ divideColor: 'hsl(var(--border))' }}>
-            {recentTasks.map(task => (
-              <div key={task.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent/40 transition-colors">
-                <div className="shrink-0">
-                  {task.status === 'completed' ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                  ) : task.status === 'in_progress' ? (
-                    <div className="h-2.5 w-2.5 rounded-full bg-primary kv-dot-live" />
-                  ) : (
-                    <Clock className="h-4 w-4 text-muted-foreground/40" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
-                  <p className="text-xs text-muted-foreground">{task.agent}</p>
-                </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    task.status === 'completed'
-                      ? 'bg-emerald-500/12 text-emerald-400'
+          <div>
+            {recentTasks.map((task, i) => {
+              const s = TASK_STATUS_STYLES[task.status] ?? TASK_STATUS_STYLES.pending
+              return (
+                <div key={task.id}
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors"
+                  style={{ borderBottom: i < recentTasks.length - 1 ? '1px solid hsl(var(--border))' : undefined }}>
+                  <div className="shrink-0">
+                    {task.status === 'completed'
+                      ? <CheckCircle2 className="h-4 w-4" style={{ color: '#34d399' }} />
                       : task.status === 'in_progress'
-                      ? 'bg-primary/12 text-primary'
-                      : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {task.status === 'in_progress' ? 'Running' : task.status === 'completed' ? 'Done' : 'Pending'}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground tabular">{task.time}</span>
+                      ? <div className="h-2.5 w-2.5 rounded-full kv-dot-live" style={{ background: '#06b6d4' }} />
+                      : <Clock className="h-4 w-4 text-muted-foreground opacity-40" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                    <p className="text-xs text-muted-foreground">{task.agent}</p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                      style={{ color: s.color, background: s.bg }}>
+                      {s.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground tabular-nums">{task.time}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
         {/* Quick actions */}
-        <div
-          {...anim(7)}
-          className="kv-anim rounded-xl border overflow-hidden"
-          style={{
-            animationDelay: '0.53s',
-            background: 'hsl(var(--card))',
-            borderColor: 'hsl(var(--border))',
-          }}
-        >
+        <div {...anim(7)} className="kv-anim rounded-xl border overflow-hidden"
+          style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
           <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
             <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
           </div>
           <div className="p-2">
             {quickActions.map(action => (
               <Link key={action.label} href={action.href}>
-                <div
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-150 cursor-pointer group ${
-                    action.highlight
-                      ? 'bg-primary/10 hover:bg-primary/18'
-                      : 'hover:bg-accent/60'
-                  }`}
-                >
-                  <action.icon
-                    className={`h-4 w-4 shrink-0 ${
-                      action.highlight ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
-                    }`}
-                  />
-                  <span className={action.highlight ? 'font-medium text-primary' : 'text-foreground/80 group-hover:text-foreground'}>
+                <div className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-150 cursor-pointer group ${action.highlight ? '' : 'hover:bg-muted/40'}`}
+                  style={action.highlight ? { background: 'rgba(6,182,212,0.1)' } : undefined}>
+                  <action.icon className="h-4 w-4 shrink-0"
+                    style={action.highlight ? { color: '#06b6d4' } : undefined}
+                    {...(!action.highlight ? { className: 'h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground' } : {})} />
+                  <span className={action.highlight ? 'font-medium' : 'text-foreground/80 group-hover:text-foreground'}
+                    style={action.highlight ? { color: '#06b6d4' } : undefined}>
                     {action.label}
                   </span>
-                  <ArrowRight className={`h-3.5 w-3.5 ml-auto ${action.highlight ? 'text-primary/60' : 'text-muted-foreground/40 group-hover:text-muted-foreground'}`} />
+                  <ArrowRight className="h-3.5 w-3.5 ml-auto text-muted-foreground/40 group-hover:text-muted-foreground" />
                 </div>
               </Link>
             ))}
@@ -307,20 +255,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Mini metrics row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {miniMetrics.map((m, i) => (
-          <div
-            key={m.label}
-            className="kv-anim rounded-xl border px-5 py-4"
-            style={{
-              animationDelay: `${0.60 + i * 0.07}s`,
-              background: 'hsl(var(--card))',
-              borderColor: 'hsl(var(--border))',
-            }}
-          >
+          <div key={m.label} {...anim(8 + i)} className="kv-anim rounded-xl border px-5 py-4"
+            style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{m.label}</p>
-            <p className="mt-1 text-2xl font-bold text-foreground tabular">{m.value}</p>
-            <p className="mt-1 text-xs text-primary/80">{m.delta}</p>
+            <p className="mt-1 text-2xl font-bold text-foreground tabular-nums">{m.value}</p>
+            <p className="mt-1 text-xs" style={{ color: '#06b6d4' }}>{m.delta}</p>
           </div>
         ))}
       </div>

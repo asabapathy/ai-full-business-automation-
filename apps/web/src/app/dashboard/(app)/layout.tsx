@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, X } from 'lucide-react'
+import { Menu, MessageSquare } from 'lucide-react'
 import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
 import { NotificationBell } from '../../../components/ui/NotificationBell'
+import { AIChatPanel } from '../../../components/ui/AIChatPanel'
 import { TrialBanner } from '../../../components/layout/trial-banner'
 import { ImpersonateBanner } from '../../../components/layout/impersonate-banner'
 import { TrialExpiredGate } from '../../../components/layout/trial-expired-gate'
@@ -16,6 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { isAuthenticated, isLoading, user, organization } = useAuthStore()
   const router = useRouter()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => {
     if (isLoading) return
@@ -79,7 +81,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
             <GlobalSearch />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setChatOpen(o => !o)}
+              title="Ask AI"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.03]"
+              style={chatOpen
+                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                : { color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.25)' }
+              }
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Ask AI</span>
+            </button>
             <NotificationBell />
             <div
               className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white shrink-0"
@@ -96,6 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
 
+      <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
       <Toaster />
     </div>
   )

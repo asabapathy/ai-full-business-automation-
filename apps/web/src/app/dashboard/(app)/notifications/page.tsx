@@ -27,10 +27,10 @@ interface NotifPage {
 
 const typeIcon: Record<string, React.ReactNode> = {
   info: <Info className="h-4 w-4" style={{ color: '#60a5fa' }} />,
-  warning: <AlertCircle className="h-4 w-4 text-amber-400" />,
-  success: <CheckCircle className="h-4 w-4 text-emerald-400" />,
-  error: <AlertCircle className="h-4 w-4 text-red-400" />,
-  action: <Zap className="h-4 w-4 text-primary" />,
+  warning: <AlertCircle className="h-4 w-4" style={{ color: '#fbbf24' }} />,
+  success: <CheckCircle className="h-4 w-4" style={{ color: '#34d399' }} />,
+  error: <AlertCircle className="h-4 w-4" style={{ color: '#f87171' }} />,
+  action: <Zap className="h-4 w-4" style={{ color: '#06b6d4' }} />,
 }
 
 const DEMO_NOTIFICATIONS: Notification[] = [
@@ -44,6 +44,8 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [markingAll, setMarkingAll] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [deletingAll, setDeletingAll] = useState(false)
 
   useEffect(() => { load() }, [page])
 
@@ -87,30 +89,73 @@ export default function NotificationsPage() {
     } : null)
   }
 
+  async function deleteAll() {
+    if (!data) return
+    setDeletingAll(true)
+    try {
+      await Promise.all(data.notifications.map(n => apiClient.delete(`/notification-center/${n.id}`)))
+      setData(prev => prev ? { ...prev, total: 0, unread: 0, notifications: [] } : null)
+    } catch {
+      void load()
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
+  const displayed = data ? (filter === 'unread' ? data.notifications.filter(n => !n.isRead) : data.notifications) : []
+
   return (
     <div className="p-6 space-y-6 max-w-[900px]">
-      <div className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
+      <div className="kv-anim flex items-center justify-between gap-3" style={{ animationDelay: '0.04s' }}>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
           {data && data.unread > 0 && (
-            <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#06b6d4', color: 'white' }}>
               {data.unread}
             </span>
           )}
         </div>
-        {data && data.unread > 0 && (
-          <button onClick={markAllRead} disabled={markingAll}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-            style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
-            <CheckCheck className="h-4 w-4" />
-            {markingAll ? 'Marking…' : 'Mark all read'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {data && data.unread > 0 && (
+            <button onClick={markAllRead} disabled={markingAll}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+              style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+              <CheckCheck className="h-4 w-4" />
+              {markingAll ? 'Marking…' : 'Mark all read'}
+            </button>
+          )}
+          {data && data.notifications.length > 0 && (
+            <button onClick={deleteAll} disabled={deletingAll}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+              style={{ color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>
+              <Trash2 className="h-4 w-4" />
+              {deletingAll ? 'Clearing…' : 'Clear all'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {data && (
+        <div className="flex gap-2">
+          {(['all', 'unread'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all"
+              style={filter === f
+                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+              }
+            >
+              {f === 'unread' ? `Unread (${data.unread})` : `All (${data.total})`}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && !data ? (
         <div className="text-center py-12 text-muted-foreground">Loading…</div>
-      ) : !data || data.notifications.length === 0 ? (
+      ) : !data || displayed.length === 0 ? (
         <div className="text-center py-12">
           <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-40" />
           <p className="text-muted-foreground">No notifications</p>
@@ -118,7 +163,7 @@ export default function NotificationsPage() {
       ) : (
         <>
           <div className="kv-anim space-y-2" style={{ animationDelay: '0.11s' }}>
-            {data.notifications.map(n => (
+            {displayed.map(n => (
               <div key={n.id}
                 className="rounded-xl p-4 flex items-start gap-4 transition-colors"
                 style={!n.isRead
@@ -140,7 +185,7 @@ export default function NotificationsPage() {
                   <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
                   {n.actionUrl && (
                     <a href={n.actionUrl} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1.5">
+                      className="inline-flex items-center gap-1 text-xs hover:underline mt-1.5" style={{ color: '#06b6d4' }}>
                       View <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
@@ -149,12 +194,12 @@ export default function NotificationsPage() {
                   {!n.isRead && (
                     <button onClick={() => markRead(n.id)} title="Mark read"
                       className="p-1.5 rounded hover:bg-muted transition-colors">
-                      <Check className="h-4 w-4 text-emerald-400" />
+                      <Check className="h-4 w-4" style={{ color: '#34d399' }} />
                     </button>
                   )}
                   <button onClick={() => remove(n.id)} title="Delete"
                     className="p-1.5 rounded hover:bg-muted transition-colors">
-                    <Trash2 className="h-4 w-4 text-red-400" />
+                    <Trash2 className="h-4 w-4" style={{ color: '#f87171' }} />
                   </button>
                 </div>
               </div>

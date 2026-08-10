@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Mail, Plus, Send, Trash2, Sparkles, Edit2, Clock, CheckCircle2, X, BarChart2 } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
 
 interface Campaign {
   id: string
@@ -42,6 +41,9 @@ export default function CampaignsPage() {
   const [generating, setGenerating] = useState(false)
   const [sending, setSending] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkSending, setBulkSending] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ name: '', subject: '', previewText: '', htmlBody: '', scheduledAt: '' })
   const [generatePrompt, setGeneratePrompt] = useState('')
@@ -124,6 +126,54 @@ export default function CampaignsPage() {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === campaigns.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(campaigns.map(c => c.id)))
+    }
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    setBulkDeleting(true)
+    try {
+      await Promise.all([...selectedIds].map(id => apiClient.delete(`/campaigns/${id}`)))
+      setCampaigns(prev => prev.filter(c => !selectedIds.has(c.id)))
+      toast(`Deleted ${selectedIds.size} campaign${selectedIds.size > 1 ? 's' : ''}`, 'success')
+      setSelectedIds(new Set())
+    } catch {
+      toast('Some campaigns could not be deleted', 'error')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  async function bulkSend() {
+    if (selectedIds.size === 0) return
+    const drafts = campaigns.filter(c => selectedIds.has(c.id) && c.status === 'DRAFT')
+    if (drafts.length === 0) { toast('No draft campaigns selected', 'error'); return }
+    setBulkSending(true)
+    try {
+      await Promise.all(drafts.map(c => apiClient.post(`/campaigns/${c.id}/send`, {})))
+      toast(`Sent ${drafts.length} campaign${drafts.length > 1 ? 's' : ''}`, 'success')
+      setSelectedIds(new Set())
+      void load()
+    } catch {
+      toast('Some campaigns could not be sent', 'error')
+    } finally {
+      setBulkSending(false)
+    }
+  }
+
   const totalSent = campaigns.filter(c => c.status === 'SENT').length
   const totalRecipients = campaigns.reduce((a, c) => a + c.recipientCount, 0)
   const avgOpenRate = campaigns.filter(c => c.recipientCount > 0).reduce((a, c, _, arr) => a + (c.openCount / c.recipientCount) / arr.length, 0)
@@ -157,7 +207,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* Stats */}
-      <div {...anim(1)} className="grid grid-cols-3 gap-4">
+      <div {...anim(1)} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Campaigns Sent', value: totalSent, icon: Send, color: '#34d399' },
           { label: 'Total Recipients', value: totalRecipients.toLocaleString(), icon: Mail, color: '#06b6d4' },
@@ -175,9 +225,35 @@ export default function CampaignsPage() {
 
       {/* Campaign list */}
       <div {...anim(2)} className="rounded-xl overflow-hidden" style={cardStyle}>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 px-5 py-3 border-b" style={{ borderColor: 'hsl(var(--border))', background: 'rgba(6,182,212,0.04)' }}>
+            <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+            <button
+              onClick={bulkSend}
+              disabled={bulkSending}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              style={{ color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)' }}
+            >
+              <Send className="h-3 w-3" />
+              {bulkSending ? 'Sending…' : 'Send drafts'}
+            </button>
+            <button
+              onClick={bulkDelete}
+              disabled={bulkDeleting}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              style={{ color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)' }}
+            >
+              <Trash2 className="h-3 w-3" />
+              {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Clear</button>
+          </div>
+        )}
         {loading ? (
           <div className="p-4 space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+            ))}
           </div>
         ) : campaigns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -190,8 +266,21 @@ export default function CampaignsPage() {
             {campaigns.map(c => {
               const meta = STATUS_META[c.status] ?? STATUS_META.DRAFT
               const openRate = c.recipientCount > 0 ? Math.round(c.openCount / c.recipientCount * 100) : 0
+              const isSelected = selectedIds.has(c.id)
               return (
-                <div key={c.id} className="flex items-center gap-4 px-5 py-4 hover:bg-accent/30 transition-colors">
+                <div key={c.id} className="flex items-center gap-3 px-5 py-4 hover:bg-accent/30 transition-colors">
+                  <button
+                    onClick={() => toggleSelect(c.id)}
+                    className="h-4 w-4 rounded shrink-0 flex items-center justify-center"
+                    style={isSelected
+                      ? { background: '#06b6d4', border: '1px solid #06b6d4' }
+                      : { border: '1px solid hsl(var(--border))', background: 'transparent' }
+                    }
+                  >
+                    {isSelected && (
+                      <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    )}
+                  </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="font-medium text-foreground text-sm">{c.name}</p>
@@ -207,14 +296,14 @@ export default function CampaignsPage() {
                         <span className="tabular">{c.clickCount} clicks</span>
                         {c.sentAt && (
                           <span className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                            <CheckCircle2 className="h-3 w-3" style={{ color: '#34d399' }} />
                             {new Date(c.sentAt).toLocaleDateString()}
                           </span>
                         )}
                       </div>
                     )}
                     {c.scheduledAt && (
-                      <div className="flex items-center gap-1 mt-1 text-xs text-amber-400">
+                      <div className="flex items-center gap-1 mt-1 text-xs" style={{ color: '#fbbf24' }}>
                         <Clock className="h-3 w-3" />
                         Scheduled {new Date(c.scheduledAt).toLocaleString()}
                       </div>
