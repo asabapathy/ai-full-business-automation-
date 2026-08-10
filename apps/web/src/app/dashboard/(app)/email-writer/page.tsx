@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { PenTool, Sparkles, Trash2, RefreshCw, ChevronRight } from 'lucide-react'
 
 interface Draft {
@@ -40,7 +41,7 @@ export default function EmailWriterPage() {
       setDrafts(prev => [res.draft, ...prev])
       setSelected(res.draft)
       setForm({ prompt: '', tone: 'professional', subject: '' })
-    } catch (e: any) { alert(e.message) } finally { setGenerating(false) }
+    } catch (e: any) { toast(e.message || 'Failed to generate email', 'error') } finally { setGenerating(false) }
   }
 
   async function refine() {
@@ -51,7 +52,7 @@ export default function EmailWriterPage() {
       setSelected(res.draft)
       setDrafts(prev => prev.map(d => d.id === res.draft.id ? res.draft : d))
       setRefineText('')
-    } catch (e: any) { alert(e.message) } finally { setRefining(false) }
+    } catch (e: any) { toast(e.message || 'Failed to refine email', 'error') } finally { setRefining(false) }
   }
 
   async function remove(id: string) {

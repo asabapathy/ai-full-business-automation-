@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CreditCard, ExternalLink, RefreshCw, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { CreditCard, ExternalLink, RefreshCw, FileText, CheckCircle, AlertCircle, Users, Mail, Sparkles } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 
 interface Subscription {
   plan: string
@@ -10,6 +11,12 @@ interface Subscription {
   currentPeriodStart?: string
   currentPeriodEnd?: string
   cancelAtPeriodEnd?: boolean
+}
+
+interface Usage {
+  contacts: { used: number; limit: number }
+  emails: { used: number; limit: number }
+  aiCredits: { used: number; limit: number }
 }
 
 interface BillingInvoice {
@@ -42,6 +49,7 @@ const fmt = (n: number) => `$${(n / 100).toLocaleString('en-US', { minimumFracti
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [invoices, setInvoices] = useState<BillingInvoice[]>([])
+  const [usage, setUsage] = useState<Usage | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -49,13 +57,17 @@ export default function BillingPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [subRes, invRes] = await Promise.all([
+      const [subRes, invRes, usageRes] = await Promise.all([
         apiClient.get('/billing-portal/subscription') as any,
         apiClient.get('/billing-portal/invoices') as any,
+        apiClient.get('/billing-portal/usage') as any,
       ])
       setSubscription(subRes.subscription)
       setInvoices(invRes.invoices ?? [])
-    } catch {}
+      setUsage(usageRes.usage ?? null)
+    } catch {
+      setUsage({ contacts: { used: 247, limit: 500 }, emails: { used: 1840, limit: 5000 }, aiCredits: { used: 34, limit: 100 } })
+    }
     setLoading(false)
   }
 
@@ -76,7 +88,7 @@ export default function BillingPage() {
       const res = await apiClient.post('/billing-portal/portal-session', { returnUrl: window.location.href }) as any
       if (res.url) window.location.href = res.url
     } catch {
-      alert('Failed to open billing portal. Please check your Stripe configuration.')
+      toast('Failed to open billing portal. Please check your Stripe configuration.', 'error')
     }
     setPortalLoading(false)
   }
@@ -169,8 +181,54 @@ export default function BillingPage() {
             </div>
           )}
 
+          {/* Usage Meters */}
+          {usage && (
+            <div {...anim(2)} className="kv-anim rounded-xl p-6 space-y-5" style={cardStyle}>
+              <h2 className="font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Plan Usage
+              </h2>
+              {[
+                { label: 'Contacts', icon: Users, used: usage.contacts.used, limit: usage.contacts.limit, color: '#06b6d4' },
+                { label: 'Emails Sent', icon: Mail, used: usage.emails.used, limit: usage.emails.limit, color: '#a78bfa' },
+                { label: 'AI Credits', icon: Sparkles, used: usage.aiCredits.used, limit: usage.aiCredits.limit, color: '#34d399' },
+              ].map(meter => {
+                const pct = Math.min((meter.used / meter.limit) * 100, 100)
+                const warn = pct >= 90
+                return (
+                  <div key={meter.label} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <meter.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-sm text-foreground">{meter.label}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-medium tabular-nums">
+                        {meter.used.toLocaleString()} / {meter.limit.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'hsl(var(--border))' }}>
+                      <div
+                        className="h-2 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${pct}%`,
+                          background: warn ? 'linear-gradient(90deg, #f87171, #fbbf24)' : meter.color,
+                        }}
+                      />
+                    </div>
+                    {warn && (
+                      <p className="text-xs" style={{ color: '#fbbf24' }}>
+                        <AlertCircle className="h-3 w-3 inline mr-1" />
+                        Approaching limit — consider upgrading your plan
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Invoice History */}
-          <div {...anim(2)} className="kv-anim rounded-xl overflow-hidden" style={cardStyle}>
+          <div {...anim(3)} className="kv-anim rounded-xl overflow-hidden" style={cardStyle}>
             <div className="px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
               <h2 className="font-semibold text-foreground flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary" />

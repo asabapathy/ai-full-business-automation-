@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { Key, Plus, Trash2, Copy, CheckCircle, Clock, Shield, BarChart2, X, TrendingUp, AlertCircle } from 'lucide-react'
 
 interface ApiKey {
@@ -29,13 +30,29 @@ interface UsageData {
   byDay: Array<{ date: string; requests: number; errors: number }>
 }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
 function MiniBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? (value / max) * 100 : 0
   return (
-    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-      <div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
+    <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ background: 'hsl(var(--background))' }}>
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: '#60a5fa' }} />
     </div>
   )
+}
+
+const METHOD_COLORS: Record<string, { color: string; bg: string }> = {
+  GET:    { color: '#34d399', bg: 'rgba(52,211,153,0.1)' },
+  POST:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
+  PATCH:  { color: '#fb923c', bg: 'rgba(251,146,60,0.1)' },
+  PUT:    { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)' },
+  DELETE: { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
 }
 
 function UsageDrawer({ apiKey, onClose }: { apiKey: ApiKey; onClose: () => void }) {
@@ -48,7 +65,6 @@ function UsageDrawer({ apiKey, onClose }: { apiKey: ApiKey; onClose: () => void 
         const data = await apiClient.get<UsageData>(`/api-keys/${apiKey.id}/usage`)
         setUsage(data)
       } catch {
-        // Use demo data if API not available
         const now = new Date()
         setUsage({
           totalRequests: 1842,
@@ -79,150 +95,133 @@ function UsageDrawer({ apiKey, onClose }: { apiKey: ApiKey; onClose: () => void 
   const maxDayRequests = usage ? Math.max(...usage.byDay.map(d => d.requests)) : 0
   const maxEndpointCount = usage ? Math.max(...usage.byEndpoint.map(e => e.count)) : 0
 
-  const methodColors: Record<string, string> = {
-    GET: 'text-green-600 bg-green-50',
-    POST: 'text-blue-600 bg-blue-50',
-    PATCH: 'text-orange-600 bg-orange-50',
-    PUT: 'text-yellow-600 bg-yellow-50',
-    DELETE: 'text-red-600 bg-red-50',
-  }
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
-      <div className="w-full max-w-xl h-full bg-white border-l shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-xl h-full flex flex-col overflow-hidden" style={{ background: 'hsl(var(--card))', borderLeft: '1px solid hsl(var(--border))' }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
           <div>
-            <h2 className="text-base font-semibold text-gray-900">{apiKey.name}</h2>
-            <p className="text-xs text-gray-500 font-mono mt-0.5">{apiKey.keyPrefix}…</p>
+            <h2 className="text-base font-semibold text-foreground">{apiKey.name}</h2>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">{apiKey.keyPrefix}…</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
-            <X className="h-5 w-5 text-gray-500" />
+          <button onClick={onClose} className="p-2 rounded-lg transition-colors hover:text-foreground text-muted-foreground">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center h-40 text-gray-400">Loading usage data…</div>
+            <div className="flex items-center justify-center h-40 text-muted-foreground">Loading usage data…</div>
           ) : usage ? (
             <>
-              {/* Summary metrics */}
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Last 24h', value: usage.last24h.toLocaleString(), icon: Clock, color: 'text-blue-600' },
-                  { label: 'Last 7 days', value: usage.last7d.toLocaleString(), icon: TrendingUp, color: 'text-purple-600' },
-                  { label: 'Last 30 days', value: usage.last30d.toLocaleString(), icon: BarChart2, color: 'text-green-600' },
+                  { label: 'Last 24h', value: usage.last24h.toLocaleString(), icon: Clock, color: '#60a5fa' },
+                  { label: 'Last 7 days', value: usage.last7d.toLocaleString(), icon: TrendingUp, color: '#a78bfa' },
+                  { label: 'Last 30 days', value: usage.last30d.toLocaleString(), icon: BarChart2, color: '#34d399' },
                 ].map(m => (
-                  <div key={m.label} className="rounded-xl border bg-gray-50 p-3">
+                  <div key={m.label} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}>
                     <div className="flex items-center gap-1.5 mb-1">
-                      <m.icon className={`h-3.5 w-3.5 ${m.color}`} />
-                      <span className="text-xs text-gray-500">{m.label}</span>
+                      <m.icon className="h-3.5 w-3.5" style={{ color: m.color }} />
+                      <span className="text-xs text-muted-foreground">{m.label}</span>
                     </div>
-                    <p className="text-xl font-bold text-gray-900 tabular-nums">{m.value}</p>
+                    <p className="text-xl font-bold text-foreground tabular-nums">{m.value}</p>
                   </div>
                 ))}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border bg-gray-50 p-3">
+                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <AlertCircle className={`h-3.5 w-3.5 ${usage.errorRate > 5 ? 'text-red-500' : 'text-green-500'}`} />
-                    <span className="text-xs text-gray-500">Error Rate</span>
+                    <AlertCircle className="h-3.5 w-3.5" style={{ color: usage.errorRate > 5 ? '#f87171' : '#34d399' }} />
+                    <span className="text-xs text-muted-foreground">Error Rate</span>
                   </div>
-                  <p className={`text-xl font-bold tabular-nums ${usage.errorRate > 5 ? 'text-red-600' : 'text-gray-900'}`}>
+                  <p className="text-xl font-bold tabular-nums" style={{ color: usage.errorRate > 5 ? '#f87171' : 'hsl(var(--foreground))' }}>
                     {usage.errorRate.toFixed(1)}%
                   </p>
                 </div>
-                <div className="rounded-xl border bg-gray-50 p-3">
+                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Clock className="h-3.5 w-3.5 text-orange-500" />
-                    <span className="text-xs text-gray-500">Avg Response</span>
+                    <Clock className="h-3.5 w-3.5" style={{ color: '#fb923c' }} />
+                    <span className="text-xs text-muted-foreground">Avg Response</span>
                   </div>
-                  <p className="text-xl font-bold text-gray-900 tabular-nums">{usage.avgResponseMs}ms</p>
+                  <p className="text-xl font-bold text-foreground tabular-nums">{usage.avgResponseMs}ms</p>
                 </div>
               </div>
 
-              {/* 7-day bar chart */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Requests (Last 7 Days)</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-3">Requests (Last 7 Days)</h3>
                 <div className="flex items-end gap-2 h-24">
                   {usage.byDay.map(day => (
                     <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
                       <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
                         <div
-                          className="w-full bg-blue-100 rounded-t-sm relative group cursor-default"
-                          style={{ height: `${maxDayRequests > 0 ? (day.requests / maxDayRequests) * 80 : 4}px` }}
+                          className="w-full rounded-t-sm relative group cursor-default"
+                          style={{ height: `${maxDayRequests > 0 ? (day.requests / maxDayRequests) * 80 : 4}px`, background: 'rgba(96,165,250,0.25)' }}
                         >
                           {day.errors > 0 && (
                             <div
-                              className="absolute bottom-0 left-0 right-0 bg-red-400 rounded-t-sm"
-                              style={{ height: `${(day.errors / day.requests) * 100}%` }}
+                              className="absolute bottom-0 left-0 right-0 rounded-t-sm"
+                              style={{ height: `${(day.errors / day.requests) * 100}%`, background: '#f87171' }}
                             />
                           )}
-                          <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
+                          <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 rounded px-2 py-1 text-xs whitespace-nowrap z-10 text-white" style={{ background: 'rgba(0,0,0,0.8)' }}>
                             {day.requests} req · {day.errors} err
                           </div>
                         </div>
                       </div>
-                      <span className="text-[10px] text-gray-400">{day.date}</span>
+                      <span className="text-[10px] text-muted-foreground">{day.date}</span>
                     </div>
                   ))}
                 </div>
                 <div className="flex items-center gap-3 mt-2">
-                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-100" /><span className="text-xs text-gray-500">Requests</span></div>
-                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-red-400" /><span className="text-xs text-gray-500">Errors</span></div>
+                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm" style={{ background: 'rgba(96,165,250,0.25)' }} /><span className="text-xs text-muted-foreground">Requests</span></div>
+                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#f87171' }} /><span className="text-xs text-muted-foreground">Errors</span></div>
                 </div>
               </div>
 
-              {/* Top endpoints */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Top Endpoints</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-3">Top Endpoints</h3>
                 <div className="space-y-2">
-                  {usage.byEndpoint.map((ep, i) => (
-                    <div key={i} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${methodColors[ep.method] ?? 'text-gray-600 bg-gray-100'}`}>
-                            {ep.method}
-                          </span>
-                          <span className="font-mono text-gray-700 truncate">{ep.endpoint}</span>
+                  {usage.byEndpoint.map((ep, i) => {
+                    const mc = METHOD_COLORS[ep.method] ?? { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' }
+                    return (
+                      <div key={i} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono font-bold px-1.5 py-0.5 rounded text-[10px] flex-shrink-0" style={{ color: mc.color, background: mc.bg }}>
+                              {ep.method}
+                            </span>
+                            <span className="font-mono text-muted-foreground truncate">{ep.endpoint}</span>
+                          </div>
+                          <span className="text-muted-foreground tabular-nums flex-shrink-0 ml-2">{ep.count.toLocaleString()}</span>
                         </div>
-                        <span className="text-gray-500 tabular-nums flex-shrink-0 ml-2">{ep.count.toLocaleString()}</span>
+                        <MiniBar value={ep.count} max={maxEndpointCount} />
                       </div>
-                      <MiniBar value={ep.count} max={maxEndpointCount} />
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl p-4 space-y-2" style={cardStyle}>
+                <h3 className="text-sm font-semibold text-foreground">Key Details</h3>
+                <dl className="space-y-1.5 text-xs">
+                  {[
+                    { dt: 'Status', dd: <span style={{ color: apiKey.isActive ? '#34d399' : '#f87171' }}>{apiKey.isActive ? 'Active' : 'Revoked'}</span> },
+                    { dt: 'Created', dd: <span className="text-muted-foreground">{new Date(apiKey.createdAt).toLocaleDateString()}</span> },
+                    { dt: 'Last Used', dd: <span className="text-muted-foreground">{apiKey.lastUsedAt ? new Date(apiKey.lastUsedAt).toLocaleString() : 'Never'}</span> },
+                    { dt: 'Expires', dd: <span className="text-muted-foreground">{apiKey.expiresAt ? new Date(apiKey.expiresAt).toLocaleDateString() : 'Never'}</span> },
+                    { dt: 'Scopes', dd: <span className="text-muted-foreground">{apiKey.scopes.length === 0 ? 'All scopes' : apiKey.scopes.join(', ')}</span> },
+                  ].map(({ dt, dd }) => (
+                    <div key={dt} className="flex justify-between">
+                      <dt className="text-muted-foreground">{dt}</dt>
+                      <dd>{dd}</dd>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Key details */}
-              <div className="rounded-xl border p-4 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-700">Key Details</h3>
-                <dl className="space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Status</dt>
-                    <dd><span className={`font-medium ${apiKey.isActive ? 'text-green-600' : 'text-red-600'}`}>{apiKey.isActive ? 'Active' : 'Revoked'}</span></dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Created</dt>
-                    <dd className="text-gray-700">{new Date(apiKey.createdAt).toLocaleDateString()}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Last Used</dt>
-                    <dd className="text-gray-700">{apiKey.lastUsedAt ? new Date(apiKey.lastUsedAt).toLocaleString() : 'Never'}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Expires</dt>
-                    <dd className="text-gray-700">{apiKey.expiresAt ? new Date(apiKey.expiresAt).toLocaleDateString() : 'Never'}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Scopes</dt>
-                    <dd className="text-gray-700">{apiKey.scopes.length === 0 ? 'All scopes' : apiKey.scopes.join(', ')}</dd>
-                  </div>
                 </dl>
               </div>
             </>
           ) : (
-            <div className="text-center text-gray-400 py-12">No usage data available</div>
+            <div className="text-center text-muted-foreground py-12">No usage data available</div>
           )}
         </div>
       </div>
@@ -240,6 +239,7 @@ export default function ApiKeysPage() {
   const [newKey, setNewKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [selectedKey, setSelectedKey] = useState<ApiKey | null>(null)
+  const [revokingId, setRevokingId] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -269,13 +269,20 @@ export default function ApiKeysPage() {
       setShowCreate(false)
       setForm({ name: '', scopes: '', expiresAt: '' })
       load()
-    } catch (e: any) { alert(e.message) } finally { setCreating(false) }
+    } catch (e: any) {
+      toast(e.message || 'Failed to create key', 'error')
+    } finally { setCreating(false) }
   }
 
   async function revoke(id: string) {
-    if (!confirm('Revoke this API key? This action cannot be undone.')) return
-    await apiClient.delete(`/api-keys/${id}`)
-    load()
+    setRevokingId(id)
+    setKeys(prev => prev.filter(k => k.id !== id))
+    try {
+      await apiClient.delete(`/api-keys/${id}`)
+    } catch (e: any) {
+      toast(e.message || 'Failed to revoke key', 'error')
+      load()
+    } finally { setRevokingId(null) }
   }
 
   function copyKey(key: string) {
@@ -285,56 +292,57 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-5xl">
       {selectedKey && <UsageDrawer apiKey={selectedKey} onClose={() => setSelectedKey(null)} />}
 
-      <div className="flex items-center justify-between">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">API Keys</h1>
+          <h1 className="text-2xl font-bold text-foreground">API Keys</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage API keys for programmatic access to Kanavu</p>
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
           <Plus className="h-4 w-4" /> Create Key
         </button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-3 gap-4">
+        <div {...anim(1)} className="kv-anim grid grid-cols-3 gap-4">
           {[
-            { label: 'Total Keys', value: stats.total, icon: Key, color: 'text-purple-500' },
-            { label: 'Active', value: stats.active, icon: Shield, color: 'text-green-500' },
-            { label: 'Revoked', value: stats.revoked, icon: Clock, color: 'text-red-400' },
+            { label: 'Total Keys', value: stats.total, icon: Key, color: '#a78bfa' },
+            { label: 'Active', value: stats.active, icon: Shield, color: '#34d399' },
+            { label: 'Revoked', value: stats.revoked, icon: Clock, color: '#f87171' },
           ].map(s => (
-            <div key={s.label} className="bg-card border rounded-xl p-4">
+            <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-muted-foreground">{s.label}</p>
-                <s.icon className={`h-4 w-4 ${s.color}`} />
+                <s.icon className="h-4 w-4" style={{ color: s.color }} />
               </div>
-              <p className="text-2xl font-bold">{s.value}</p>
+              <p className="text-2xl font-bold text-foreground">{s.value}</p>
             </div>
           ))}
         </div>
       )}
 
       {newKey && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
+        <div {...anim(2)} className="kv-anim rounded-xl p-4" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)' }}>
+          <p className="text-sm font-semibold mb-2" style={{ color: '#fbbf24' }}>
             ⚠ Copy your API key — it won't be shown again
           </p>
-          <div className="flex items-center gap-3 bg-white dark:bg-black/20 rounded-lg p-3 font-mono text-sm">
-            <span className="flex-1 break-all">{newKey}</span>
-            <button onClick={() => copyKey(newKey)} className="shrink-0 p-1.5 rounded hover:bg-muted">
-              {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
+          <div className="flex items-center gap-3 rounded-lg p-3 font-mono text-sm" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid hsl(var(--border))' }}>
+            <span className="flex-1 break-all text-foreground">{newKey}</span>
+            <button onClick={() => copyKey(newKey)} className="shrink-0 p-1.5 rounded transition-colors hover:text-foreground text-muted-foreground">
+              {copied ? <CheckCircle className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
-          <button onClick={() => setNewKey(null)} className="mt-2 text-xs text-amber-700 dark:text-amber-400 underline">
+          <button onClick={() => setNewKey(null)} className="mt-2 text-xs underline" style={{ color: '#fbbf24' }}>
             I've copied my key
           </button>
         </div>
       )}
 
-      <div className="bg-card border rounded-xl overflow-hidden">
+      <div {...anim(newKey ? 3 : 2)} className="kv-anim rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
           <div className="p-8 text-center text-muted-foreground">Loading…</div>
         ) : keys.length === 0 ? (
@@ -346,84 +354,83 @@ export default function ApiKeysPage() {
             </button>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/30">
-              <tr>
-                {['Name', 'Key Prefix', 'Scopes', 'Requests', 'Last Used', 'Expires', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-medium text-muted-foreground text-xs">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map(k => (
-                <tr key={k.id} className="border-b last:border-0 hover:bg-muted/20">
-                  <td className="px-4 py-3 font-medium">{k.name}</td>
-                  <td className="px-4 py-3"><span className="font-mono text-xs bg-muted/50 px-2 py-0.5 rounded">{k.keyPrefix}…</span></td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {k.scopes.length === 0 ? (
-                        <span className="text-muted-foreground text-xs">All</span>
-                      ) : k.scopes.slice(0, 2).map(s => (
-                        <span key={s} className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">{s}</span>
-                      ))}
-                      {k.scopes.length > 2 && <span className="text-xs text-muted-foreground">+{k.scopes.length - 2}</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground tabular-nums text-xs">
-                    {k.requestCount !== undefined ? k.requestCount.toLocaleString() : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : 'Never'}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : 'Never'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setSelectedKey(k)}
-                        className="p-1.5 rounded hover:bg-muted text-blue-500 hover:text-blue-600"
-                        title="View Usage"
-                      >
-                        <BarChart2 className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => revoke(k.id)} className="p-1.5 rounded hover:bg-muted" title="Revoke">
-                        <Trash2 className="h-4 w-4 text-red-400" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid hsl(var(--border))', background: 'rgba(255,255,255,0.02)' }}>
+                  {['Name', 'Key Prefix', 'Scopes', 'Requests', 'Last Used', 'Expires', 'Actions'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left font-medium text-muted-foreground text-xs">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {keys.map((k, i) => (
+                  <tr key={k.id} style={{ borderBottom: i < keys.length - 1 ? '1px solid hsl(var(--border))' : undefined }}>
+                    <td className="px-4 py-3 font-medium text-foreground">{k.name}</td>
+                    <td className="px-4 py-3"><span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid hsl(var(--border))' }}>{k.keyPrefix}…</span></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {k.scopes.length === 0 ? (
+                          <span className="text-muted-foreground text-xs">All</span>
+                        ) : k.scopes.slice(0, 2).map(s => (
+                          <span key={s} className="px-1.5 py-0.5 rounded text-xs" style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4' }}>{s}</span>
+                        ))}
+                        {k.scopes.length > 2 && <span className="text-xs text-muted-foreground">+{k.scopes.length - 2}</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums text-xs">
+                      {k.requestCount !== undefined ? k.requestCount.toLocaleString() : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setSelectedKey(k)} className="p-1.5 rounded transition-colors hover:text-primary text-muted-foreground" title="View Usage">
+                          <BarChart2 className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => revoke(k.id)} disabled={revokingId === k.id} className="p-1.5 rounded transition-colors" style={{ color: '#f87171' }} title="Revoke">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-lg font-bold">Create API Key</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="text-lg font-bold text-foreground">Create API Key</h2>
             <div>
-              <label className="text-sm font-medium block mb-1">Key Name *</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Key Name <span style={{ color: '#f87171' }}>*</span></label>
               <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="My integration"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                className={inputCls} style={inputStyle} />
             </div>
             <div>
-              <label className="text-sm font-medium block mb-1">Scopes (comma-separated, blank = all)</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Scopes (comma-separated, blank = all)</label>
               <input value={form.scopes} onChange={e => setForm({ ...form, scopes: e.target.value })}
                 placeholder="read:contacts, write:invoices"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                className={inputCls} style={inputStyle} />
             </div>
             <div>
-              <label className="text-sm font-medium block mb-1">Expires At (optional)</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Expires At (optional)</label>
               <input type="datetime-local" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                className={inputCls} style={inputStyle} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowCreate(false)} className="flex-1 border rounded-lg py-2 text-sm hover:bg-muted">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
               <button onClick={create} disabled={creating || !form.name}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                 {creating ? 'Creating…' : 'Create Key'}
               </button>
             </div>

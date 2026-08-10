@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { MessageCircle, Send, Phone, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 
 interface Message {
@@ -23,6 +24,21 @@ interface Conversation {
   messages: Message[]
 }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
+const STATS_META = [
+  { label: 'Total Messages', key: 'total' as const, color: '#a78bfa' },
+  { label: 'Inbound', key: 'inbound' as const, color: '#34d399' },
+  { label: 'Outbound', key: 'outbound' as const, color: '#60a5fa' },
+  { label: 'Contacts', key: 'contacts' as const, color: '#fb923c' },
+]
+
 export default function WhatsAppPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -30,7 +46,7 @@ export default function WhatsAppPage() {
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [sendForm, setSendForm] = useState({ to: '', body: '' })
   const [sending, setSending] = useState(false)
-  const [page, setPage] = useState(1)
+  const [page] = useState(1)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { load() }, [page])
@@ -45,6 +61,8 @@ export default function WhatsAppPage() {
       ])
       setMessages(mRes.messages)
       setStats(sRes)
+    } catch {
+      setMessages([])
     } finally { setLoading(false) }
   }
 
@@ -63,7 +81,9 @@ export default function WhatsAppPage() {
         openConversation(conversation.phone, conversation.name)
       }
       load()
-    } catch (e: any) { alert(e.message) } finally { setSending(false) }
+    } catch (e: any) {
+      toast(e.message || 'Failed to send message', 'error')
+    } finally { setSending(false) }
   }
 
   const uniqueContacts = Array.from(
@@ -78,46 +98,45 @@ export default function WhatsAppPage() {
   )
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">WhatsApp</h1>
+    <div className="p-6 space-y-6 max-w-6xl">
+      <div {...anim(0)} className="kv-anim">
+        <h1 className="text-2xl font-bold text-foreground">WhatsApp</h1>
         <p className="text-muted-foreground text-sm mt-1">Send and receive WhatsApp messages via Twilio</p>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Messages', value: stats.total, color: 'text-purple-500' },
-            { label: 'Inbound', value: stats.inbound, color: 'text-green-500' },
-            { label: 'Outbound', value: stats.outbound, color: 'text-blue-500' },
-            { label: 'Contacts', value: stats.contacts, color: 'text-orange-500' },
-          ].map(s => (
-            <div key={s.label} className="bg-card border rounded-xl p-4">
+        <div {...anim(1)} className="kv-anim grid grid-cols-2 md:grid-cols-4 gap-4">
+          {STATS_META.map(s => (
+            <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
               <p className="text-sm text-muted-foreground mb-1">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-2xl font-bold" style={{ color: s.color }}>{stats[s.key]}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="bg-card border rounded-xl overflow-hidden">
-          <div className="p-4 border-b font-medium">Conversations</div>
+      <div {...anim(2)} className="kv-anim grid md:grid-cols-3 gap-6">
+        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+          <div className="px-4 py-3 font-medium text-foreground" style={{ borderBottom: '1px solid hsl(var(--border))' }}>Conversations</div>
           {loading ? (
             <div className="p-4 text-center text-muted-foreground text-sm">Loading…</div>
           ) : uniqueContacts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">No messages yet</div>
           ) : (
-            <div className="divide-y">
+            <div>
               {uniqueContacts.map(([phone, name]) => (
                 <button key={phone} onClick={() => openConversation(phone, name)}
-                  className={`w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors ${conversation?.phone === phone ? 'bg-primary/10' : ''}`}>
+                  className="w-full px-4 py-3 text-left transition-colors"
+                  style={conversation?.phone === phone
+                    ? { background: 'rgba(6,182,212,0.08)', borderBottom: '1px solid hsl(var(--border))' }
+                    : { borderBottom: '1px solid hsl(var(--border))' }
+                  }>
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                      <MessageCircle className="h-4 w-4 text-green-600" />
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                      <MessageCircle className="h-4 w-4" style={{ color: '#34d399' }} />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{name}</p>
+                      <p className="text-sm font-medium text-foreground">{name}</p>
                       <p className="text-xs text-muted-foreground">{phone}</p>
                     </div>
                   </div>
@@ -127,31 +146,33 @@ export default function WhatsAppPage() {
           )}
         </div>
 
-        <div className="md:col-span-2 bg-card border rounded-xl flex flex-col h-[500px]">
+        <div className="md:col-span-2 rounded-xl flex flex-col" style={{ ...cardStyle, height: '500px' }}>
           {conversation ? (
             <>
-              <div className="p-4 border-b flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <Phone className="h-4 w-4 text-green-600" />
+              <div className="p-4 flex items-center gap-3" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                  <Phone className="h-4 w-4" style={{ color: '#34d399' }} />
                 </div>
                 <div>
-                  <p className="font-medium">{conversation.name}</p>
+                  <p className="font-medium text-foreground">{conversation.name}</p>
                   <p className="text-xs text-muted-foreground">{conversation.phone}</p>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {conversation.messages.map(m => (
                   <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs rounded-xl px-4 py-2 text-sm ${m.direction === 'outbound'
-                      ? 'bg-primary text-primary-foreground rounded-br-sm'
-                      : 'bg-muted rounded-bl-sm'}`}>
+                    <div className="max-w-xs rounded-xl px-4 py-2 text-sm"
+                      style={m.direction === 'outbound'
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white', borderBottomRightRadius: '2px' }
+                        : { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))', borderBottomLeftRadius: '2px' }
+                      }>
                       <div className="flex items-center gap-1 mb-1">
                         {m.direction === 'inbound'
-                          ? <ArrowDownLeft className="h-3 w-3 text-green-500" />
+                          ? <ArrowDownLeft className="h-3 w-3 text-emerald-400" />
                           : <ArrowUpRight className="h-3 w-3 opacity-70" />}
                       </div>
                       <p>{m.body}</p>
-                      <p className={`text-xs mt-1 ${m.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                      <p className="text-xs mt-1 opacity-60">
                         {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -159,13 +180,15 @@ export default function WhatsAppPage() {
                 ))}
                 <div ref={messagesEndRef} />
               </div>
-              <div className="p-4 border-t flex gap-2">
+              <div className="p-4 flex gap-2" style={{ borderTop: '1px solid hsl(var(--border))' }}>
                 <input value={sendForm.body} onChange={e => setSendForm({ ...sendForm, body: e.target.value, to: conversation.phone })}
                   onKeyDown={e => e.key === 'Enter' && send()}
                   placeholder="Type a message…"
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                  className="flex-1 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  style={inputStyle} />
                 <button onClick={send} disabled={sending || !sendForm.body}
-                  className="bg-green-500 text-white rounded-lg p-2.5 disabled:opacity-50 hover:bg-green-600">
+                  className="rounded-lg p-2.5 text-white disabled:opacity-50 transition-all hover:scale-[1.05]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                   <Send className="h-4 w-4" />
                 </button>
               </div>
@@ -177,12 +200,13 @@ export default function WhatsAppPage() {
               <div className="w-full max-w-sm space-y-3">
                 <input value={sendForm.to} onChange={e => setSendForm({ ...sendForm, to: e.target.value })}
                   placeholder="+1 555 000 0000"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                  className={inputCls} style={inputStyle} />
                 <textarea value={sendForm.body} onChange={e => setSendForm({ ...sendForm, body: e.target.value })}
                   rows={3} placeholder="Message…"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
+                  className={`${inputCls} resize-none`} style={inputStyle} />
                 <button onClick={send} disabled={sending || !sendForm.to || !sendForm.body}
-                  className="w-full flex items-center justify-center gap-2 bg-green-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 hover:bg-green-600">
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                   <Send className="h-4 w-4" />
                   {sending ? 'Sending…' : 'Send Message'}
                 </button>

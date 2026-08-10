@@ -1,5 +1,6 @@
 'use client'
 
+import { apiClient } from '../../../../lib/api-client'
 import { useState, useEffect } from 'react'
 
 interface OverviewData {
@@ -54,16 +55,19 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/analytics/overview?period=${period}`)
-      .then(r => r.json())
-      .then(data => { if (data.revenue) setOverview(data) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-
-    fetch(`/api/analytics/revenue?period=${period}`)
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data.points)) setRevenue(data.points) })
-      .catch(() => {})
+    void (async () => {
+      try {
+        const [ovData, revData] = await Promise.all([
+          apiClient.get(`/analytics/overview?period=${period}`),
+          apiClient.get(`/analytics/revenue?period=${period}`),
+        ]) as any[]
+        if (ovData?.revenue) setOverview(ovData)
+        if (Array.isArray(revData?.points)) setRevenue(revData.points)
+      } catch {
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [period])
 
   const maxRevenue = Math.max(...revenue.map(r => r.revenue))

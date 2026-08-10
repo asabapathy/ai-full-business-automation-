@@ -54,6 +54,24 @@ authRouter.post('/logout', authenticate, async (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' })
 })
 
+authRouter.patch('/me', authenticate, async (req, res) => {
+  const { firstName, lastName, phone } = req.body as {
+    firstName?: string
+    lastName?: string
+    phone?: string
+  }
+  const user = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: {
+      ...(firstName ? { firstName } : {}),
+      ...(lastName !== undefined ? { lastName } : {}),
+      ...(phone !== undefined ? { phone } : {}),
+    },
+    select: { id: true, email: true, firstName: true, lastName: true, phone: true, avatarUrl: true },
+  })
+  res.json({ success: true, data: { user } })
+})
+
 authRouter.get('/me', authenticate, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },

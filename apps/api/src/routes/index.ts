@@ -83,6 +83,7 @@ import { industryTemplatesRouter } from './industry-templates.routes.js'
 import { whiteLabelRouter } from './white-label.routes.js'
 import { partnerMarketplaceRouter } from './partner-marketplace.routes.js'
 import { abTestingRouter } from './ab-testing.routes.js'
+import { adminRouter } from './admin.routes.js'
 
 export const apiRouter = Router()
 
@@ -170,6 +171,7 @@ apiRouter.use('/industry-templates', industryTemplatesRouter)
 apiRouter.use('/white-label', whiteLabelRouter)
 apiRouter.use('/marketplace', partnerMarketplaceRouter)
 apiRouter.use('/ab-testing', abTestingRouter)
+apiRouter.use('/admin', adminRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'kanavu-api' })

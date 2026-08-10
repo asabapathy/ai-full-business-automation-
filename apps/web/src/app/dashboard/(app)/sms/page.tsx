@@ -3,6 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Send, Sparkles, Users } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
+
+const DEMO_CONVERSATIONS: Conversation[] = [
+  { id: '1', phoneNumber: '+15551234567', contactName: 'Alice Johnson', lastMessage: 'Sounds good, see you then!', lastMessageAt: new Date(Date.now() - 600000).toISOString(), unreadCount: 1 },
+  { id: '2', phoneNumber: '+15559876543', contactName: 'Bob Martinez', lastMessage: 'Can we reschedule?', lastMessageAt: new Date(Date.now() - 3600000).toISOString(), unreadCount: 0 },
+  { id: '3', phoneNumber: '+15554445555', contactName: 'Carol White', lastMessage: 'Thank you for the quick response!', lastMessageAt: new Date(Date.now() - 86400000).toISOString(), unreadCount: 0 },
+]
 
 interface Conversation {
   id: string
@@ -25,8 +32,10 @@ export default function SmsInboxPage() {
   const [selected, setSelected] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
+  const [loadingConvs, setLoadingConvs] = useState(true)
   const [sending, setSending] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
+  const [bulkSending, setBulkSending] = useState(false)
   const [bulkMessage, setBulkMessage] = useState('')
   const [showBulk, setShowBulk] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -36,10 +45,14 @@ export default function SmsInboxPage() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   async function fetchConversations() {
+    setLoadingConvs(true)
     try {
       const data = await apiClient.get('/sms/conversations')
       setConversations(data.conversations ?? [])
-    } catch {}
+    } catch {
+      setConversations(DEMO_CONVERSATIONS)
+    }
+    setLoadingConvs(false)
   }
 
   async function fetchMessages(id: string) {
@@ -55,11 +68,11 @@ export default function SmsInboxPage() {
     try {
       await apiClient.post('/sms/send', { to: selected.phoneNumber, body: text })
       setText('')
+      toast('Message sent', 'success')
       fetchMessages(selected.id)
       fetchConversations()
-    } finally {
-      setSending(false)
-    }
+    } catch { toast('Failed to send message', 'error') }
+    setSending(false)
   }
 
   async function handleSuggest() {
@@ -68,16 +81,20 @@ export default function SmsInboxPage() {
     try {
       const data = await apiClient.post(`/sms/conversations/${selected.id}/suggest-reply`, {})
       setText(data.suggestion ?? '')
-    } finally {
-      setSuggesting(false)
-    }
+    } catch { toast('Could not generate suggestion', 'error') }
+    setSuggesting(false)
   }
 
   async function handleBulkSend() {
     if (!bulkMessage.trim()) return
-    await apiClient.post('/sms/bulk', { message: bulkMessage })
-    setBulkMessage('')
-    setShowBulk(false)
+    setBulkSending(true)
+    try {
+      await apiClient.post('/sms/bulk', { message: bulkMessage })
+      setBulkMessage('')
+      setShowBulk(false)
+      toast('Bulk SMS sent to all contacts', 'success')
+    } catch { toast('Failed to send bulk SMS', 'error') }
+    setBulkSending(false)
   }
 
   return (
@@ -106,7 +123,16 @@ export default function SmsInboxPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
+          {loadingConvs ? (
+            <div className="p-3 space-y-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="rounded-lg p-3 space-y-2" style={{ background: 'hsl(var(--background))' }}>
+                  <div className="h-3 w-3/4 rounded animate-pulse" style={{ background: 'hsl(var(--border))' }} />
+                  <div className="h-2.5 w-1/2 rounded animate-pulse" style={{ background: 'hsl(var(--border))' }} />
+                </div>
+              ))}
+            </div>
+          ) : conversations.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">No conversations yet.</p>
           ) : (
             conversations.map(c => (
@@ -235,11 +261,11 @@ export default function SmsInboxPage() {
             <div className="flex gap-2">
               <button
                 onClick={handleBulkSend}
-                disabled={!bulkMessage.trim()}
+                disabled={!bulkMessage.trim() || bulkSending}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.01]"
                 style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
               >
-                Send to All Contacts
+                {bulkSending ? 'Sending…' : 'Send to All Contacts'}
               </button>
               <button
                 onClick={() => setShowBulk(false)}

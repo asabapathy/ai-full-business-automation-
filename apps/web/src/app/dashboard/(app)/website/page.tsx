@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Globe, Plus, Zap, FileText, ExternalLink, Search, BookOpen, RefreshCw, X, ChevronRight, Palette, Users, Briefcase } from 'lucide-react'
-import { Badge } from '../../../../../components/ui/badge'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 
@@ -25,10 +24,10 @@ interface SeoAnalytics {
   seoScore: number
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'secondary',
-  PUBLISHED: 'success',
-  ARCHIVED: 'outline',
+const STATUS_PILL: Record<string, { text: string; bg: string }> = {
+  PUBLISHED: { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  DRAFT:     { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  ARCHIVED:  { text: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
 }
 
 const INDUSTRIES = ['HVAC', 'Plumbing', 'Electrical', 'Roofing', 'Landscaping', 'Auto Repair', 'Restaurant', 'Salon', 'Gym', 'Law Firm', 'Medical Practice', 'Dental Clinic', 'Real Estate', 'Consulting', 'Retail', 'Other']
@@ -450,9 +449,17 @@ export default function WebsitePage() {
                         </a>
                       )}
                     </div>
-                    <Badge variant={(STATUS_COLORS[site.status] as never) ?? 'outline'} className="text-xs">
-                      {site.status}
-                    </Badge>
+                    {(() => {
+                      const pill = STATUS_PILL[site.status] ?? { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' }
+                      return (
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                          style={{ color: pill.text, background: pill.bg }}
+                        >
+                          {site.status}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     {site.pages.map(page => (

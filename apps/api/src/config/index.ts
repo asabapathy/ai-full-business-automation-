@@ -20,6 +20,9 @@ const envSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_STARTER: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
 
   FROM_EMAIL: z.string().email().default('noreply@kanavu.ai'),
   FROM_NAME: z.string().default('Kanavu AI'),
