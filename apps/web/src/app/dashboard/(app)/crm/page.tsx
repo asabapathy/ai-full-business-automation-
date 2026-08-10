@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid, Download, Filter, Upload, Check, AlertCircle, ChevronDown, PieChart, Copy } from 'lucide-react'
+import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid, Download, Filter, Upload, Check, AlertCircle, AlertTriangle, ChevronDown, PieChart, Copy, Heart } from 'lucide-react'
 import Link from 'next/link'
 import { apiClient } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
@@ -17,6 +17,8 @@ interface Contact {
   status: string
   score: number
   createdAt: string
+  updatedAt?: string
+  lastContactedAt?: string
   value?: number
   lifetimeValue?: number
   source?: string
@@ -121,6 +123,33 @@ function demoCLV(id: string): number {
   return 500 + (h % 24) * 375  // $500–$9,125
 }
 
+// ---- Churn risk detection ----
+function lastTouch(c: Contact): string | undefined {
+  return c.lastContactedAt ?? c.updatedAt ?? c.createdAt
+}
+
+function daysSilent(c: Contact): number {
+  const last = lastTouch(c)
+  return last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : 0
+}
+
+function churnRisk(c: Contact): 'high' | 'medium' | null {
+  const last = lastTouch(c)
+  if (!last) return null
+  // Only flag existing customers / won deals — leads going quiet is the pipeline's job
+  const isCustomer = /active|won|customer/i.test(`${c.status ?? ''} ${c.type ?? ''}`)
+  if (!isCustomer) return null
+  const days = daysSilent(c)
+  if (days >= 60) return 'high'
+  if (days >= 30) return 'medium'
+  return null
+}
+
+const RISK_META = {
+  high:   { text: '#f87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)' },
+  medium: { text: '#fbbf24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)' },
+} as const
+
 function hexToRgb(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -180,6 +209,14 @@ export default function CRMPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
 
+  // Churn risk & win-back
+  const [riskFilter, setRiskFilter] = useState(false)
+  const [winBackSent, setWinBackSent] = useState<Set<string>>(new Set())
+  const [winBackContact, setWinBackContact] = useState<Contact | null>(null)
+  const [winBackMsg, setWinBackMsg] = useState('')
+  const [winBackChannel, setWinBackChannel] = useState<'email' | 'sms'>('email')
+  const [winBackSending, setWinBackSending] = useState(false)
+
   // Duplicate detection & merge
   const [dupesOpen, setDupesOpen] = useState(false)
   const [dismissedPairs, setDismissedPairs] = useState<Set<string>>(new Set())
@@ -214,9 +251,10 @@ export default function CRMPage() {
       setTotal(result.total)
     } catch {
       setContacts([
-        { id: '1', firstName: 'John', lastName: 'Smith', email: 'john@example.com', phone: '555-0100', type: 'CUSTOMER', status: 'WON', score: 85, createdAt: new Date().toISOString() },
+        // John & Mike carry stale last-touch dates (70d / 35d) so the churn-risk flags have demo data
+        { id: '1', firstName: 'John', lastName: 'Smith', email: 'john@example.com', phone: '555-0100', type: 'CUSTOMER', status: 'WON', score: 85, createdAt: new Date(Date.now() - 120 * 86400000).toISOString(), lastContactedAt: new Date(Date.now() - 70 * 86400000).toISOString() },
         { id: '2', firstName: 'Sarah', lastName: 'Johnson', email: 'sarah@example.com', phone: '555-0101', type: 'LEAD', status: 'NEW', score: 42, createdAt: new Date().toISOString() },
-        { id: '3', firstName: 'Mike', lastName: 'Williams', email: 'mike@example.com', phone: '555-0102', type: 'PROSPECT', status: 'QUALIFIED', score: 71, createdAt: new Date().toISOString() },
+        { id: '3', firstName: 'Mike', lastName: 'Williams', email: 'mike@example.com', phone: '555-0102', type: 'CUSTOMER', status: 'WON', score: 71, createdAt: new Date(Date.now() - 90 * 86400000).toISOString(), lastContactedAt: new Date(Date.now() - 35 * 86400000).toISOString() },
         // Demo near-duplicates so the "Find duplicates" tool has something to show
         { id: '4', firstName: 'Sarah', lastName: 'Johnson', email: 'sarah@example.com', phone: '555-0177', type: 'LEAD', status: 'CONTACTED', score: 38, createdAt: new Date().toISOString() },
         { id: '5', firstName: 'Mike', lastName: 'Williams Jr', email: 'mikew.jr@example.com', phone: '555-0102', type: 'LEAD', status: 'NEW', score: 25, createdAt: new Date().toISOString() },
@@ -296,8 +334,32 @@ export default function CRMPage() {
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
-  const filteredContacts = applyFilters(sorted, filters)
+  const baseFiltered = applyFilters(sorted, filters)
+  // Risk-only toggle stacks on top of the existing filter pipeline
+  const filteredContacts = riskFilter
+    ? baseFiltered.filter(c => churnRisk(c) !== null && !winBackSent.has(c.id))
+    : baseFiltered
   const hasActiveFilters = Object.values(filters).some(v => v)
+  const atRiskCount = contacts.filter(c => churnRisk(c) !== null && !winBackSent.has(c.id)).length
+
+  function openWinBack(c: Contact) {
+    setWinBackChannel('email')
+    setWinBackMsg(`Hi ${c.firstName}, it's been a while! We'd love to have you back — here's 10% off your next service.`)
+    setWinBackContact(c)
+  }
+
+  async function sendWinBack() {
+    if (!winBackContact) return
+    const target = winBackContact
+    setWinBackSending(true)
+    try {
+      await apiClient.post(`/crm/contacts/${target.id}/win-back`, { message: winBackMsg, channel: winBackChannel })
+    } catch { /* demo mode — treat as sent */ }
+    setWinBackSent(prev => new Set(prev).add(target.id))
+    setWinBackSending(false)
+    setWinBackContact(null)
+    toast(`Win-back message sent to ${getName(target)}`, 'success')
+  }
 
   // Duplicate scan — recomputes from the current contacts whenever they change
   const dupePairs = useMemo(
@@ -675,6 +737,19 @@ export default function CRMPage() {
               </button>
             ))}
           </div>
+          {atRiskCount > 0 && (
+            <button
+              onClick={() => setRiskFilter(r => !r)}
+              title={riskFilter ? 'Show all contacts' : 'Show only at-risk customers'}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all"
+              style={riskFilter
+                ? { background: 'rgba(248,113,113,0.18)', color: '#f87171', border: '1px solid #f87171' }
+                : { background: 'rgba(248,113,113,0.08)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              At risk ({atRiskCount})
+            </button>
+          )}
           <button onClick={() => setShowFilters(f => !f)}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
             style={showFilters
@@ -903,6 +978,8 @@ export default function CRMPage() {
               const statusMeta = STATUS_META[contact.status] ?? STATUS_META['NEW']!
               const typeMeta = TYPE_META[contact.type] ?? TYPE_META['LEAD']!
               const isSelected = selectedIds.has(contact.id)
+              const risk = churnRisk(contact)
+              const sentWinBack = winBackSent.has(contact.id)
               return (
                 <div key={contact.id} className="flex items-center gap-3 px-5 py-3 hover:bg-accent/40 transition-colors group">
                   <button
@@ -981,10 +1058,39 @@ export default function CRMPage() {
                     {contact.status.replace('_', ' ')}
                   </span>
 
+                  {sentWinBack ? (
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline" style={{ opacity: 0.8 }}>
+                      Win-back sent ✓
+                    </span>
+                  ) : risk && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap hidden sm:inline-flex items-center gap-1"
+                      style={{ color: RISK_META[risk].text, background: RISK_META[risk].bg, border: `1px solid ${RISK_META[risk].border}` }}
+                      title={`No touch-point in ${daysSilent(contact)} days`}
+                    >
+                      {risk === 'high' && <AlertTriangle className="h-2.5 w-2.5" />}
+                      {risk === 'high'
+                        ? `At risk · ${daysSilent(contact)}d silent`
+                        : `Gone quiet · ${daysSilent(contact)}d`}
+                    </span>
+                  )}
+
                   <span className="text-xs text-muted-foreground hidden md:block">
                     {formatRelativeTime(contact.createdAt)}
                   </span>
                   </Link>
+
+                  {risk && !sentWinBack && (
+                    <button
+                      onClick={() => openWinBack(contact)}
+                      className="hidden group-hover:flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium shrink-0 transition-all"
+                      style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)' }}
+                      title={`Send a win-back message to ${contact.firstName}`}
+                    >
+                      <Heart className="h-3 w-3" />
+                      Win back
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -1353,6 +1459,74 @@ export default function CRMPage() {
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
                 style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
                 Save Segment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Win-back modal */}
+      {winBackContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={cardStyle}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Heart className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-lg font-semibold text-foreground">Win back {winBackContact.firstName}</h2>
+              </div>
+              <button onClick={() => setWinBackContact(null)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground -mt-2">
+              {getName(winBackContact)} has been silent for{' '}
+              <span className="font-semibold" style={{ color: churnRisk(winBackContact) === 'high' ? '#f87171' : '#fbbf24' }}>
+                {daysSilent(winBackContact)} days
+              </span>. Send a personal note to bring them back.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Message</label>
+                <textarea
+                  rows={4}
+                  className={`${inputCls} resize-none`}
+                  style={inputStyle}
+                  value={winBackMsg}
+                  onChange={e => setWinBackMsg(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Channel</label>
+                <div className="flex gap-2">
+                  {([['email', 'Email'], ['sms', 'SMS']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setWinBackChannel(key)}
+                      className="rounded-full px-4 py-1.5 text-xs font-medium transition-all"
+                      style={winBackChannel === key
+                        ? { background: 'rgba(6,182,212,0.15)', color: '#06b6d4', border: '1px solid #06b6d4' }
+                        : { background: 'hsl(var(--background))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setWinBackContact(null)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={sendWinBack} disabled={winBackSending || !winBackMsg.trim()}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
+                {winBackSending ? 'Sending…' : `Send via ${winBackChannel === 'email' ? 'Email' : 'SMS'}`}
               </button>
             </div>
           </div>
