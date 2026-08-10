@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Wrench, AlertTriangle, TrendingUp, Package, Plus, Camera, Upload, Trash2, X, Clock, Play, Square } from 'lucide-react'
+import { Wrench, AlertTriangle, TrendingUp, Package, Plus, Camera, Upload, Trash2, X, Clock, Play, Square, ShoppingCart, Check } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -30,6 +30,16 @@ interface JobPhoto {
   dataUrl: string
   jobName: string
   createdAt: string
+}
+
+interface PurchaseOrder {
+  id: string
+  itemName: string
+  qty: number
+  vendor: string
+  unitCost: number
+  status: 'ordered' | 'received'
+  orderedAt: string
 }
 
 interface TimeEntry {
@@ -123,6 +133,23 @@ function seedTimeEntries(): TimeEntry[] {
   ]
 }
 
+function seedPurchaseOrders(): PurchaseOrder[] {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 3600 * 1000).toISOString()
+  return [
+    { id: 'seed-po1', itemName: 'Copper Pipe 3/4"', qty: 20, vendor: 'Ferguson Supply', unitCost: 12.5, status: 'ordered', orderedAt: daysAgo(2) },
+    { id: 'seed-po2', itemName: 'HVAC Filter 16x20', qty: 30, vendor: 'Home Depot', unitCost: 8.25, status: 'received', orderedAt: daysAgo(7) },
+  ]
+}
+
+function poTimeAgo(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 3600 * 1000))
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days} days ago`
+  const weeks = Math.floor(days / 7)
+  return weeks === 1 ? 'last week' : `${weeks} weeks ago`
+}
+
 export default function JobCostingPage() {
   const [tab, setTab] = useState<Tab>('inventory')
   const [inventory, setInventory] = useState<InventoryItem[]>([])
@@ -131,6 +158,11 @@ export default function JobCostingPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', sku: '', category: '', quantity: 0, unitCost: 0, unitPrice: 0, reorderPoint: 5 })
+
+  // Purchase orders / reorder state
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(seedPurchaseOrders)
+  const [reorderTarget, setReorderTarget] = useState<InventoryItem | null>(null)
+  const [reorderForm, setReorderForm] = useState({ qty: 10, vendor: '', unitCost: 0 })
 
   // Job Photos state
   const [photos, setPhotos] = useState<JobPhoto[]>(SEED_PHOTOS)
@@ -148,7 +180,7 @@ export default function JobCostingPage() {
   const [timerStaff, setTimerStaff] = useState('Sarah Chen')
   const [timerJob, setTimerJob] = useState('')
 
-  useEffect(() => { fetchAll(); loadPhotos(); loadTimeEntries() }, [])
+  useEffect(() => { fetchAll(); loadPhotos(); loadTimeEntries(); loadPurchaseOrders() }, [])
 
   // Live timer tick
   useEffect(() => {

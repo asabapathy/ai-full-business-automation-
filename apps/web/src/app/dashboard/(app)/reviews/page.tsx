@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
-import { Star, CheckCircle, Zap, Send, X, Check } from 'lucide-react'
+import { Star, CheckCircle, Zap, Send, X, Check, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface Review {
   id: string
@@ -39,6 +39,93 @@ const DEMO_REVIEWS: Review[] = [
   { id: '4', platform: 'GOOGLE', reviewerName: 'David K.', rating: 3, content: 'Service was okay. Nothing special but nothing terrible either.', sentiment: 'NEUTRAL', publishedAt: new Date(Date.now() - 7 * 86400000).toISOString() },
   { id: '5', platform: 'GOOGLE', reviewerName: 'Amanda P.', rating: 5, content: "Best experience I've had! The attention to detail is outstanding.", sentiment: 'POSITIVE', publishedAt: new Date(Date.now() - 10 * 86400000).toISOString() },
 ]
+
+interface NpsResponse {
+  id: string
+  name: string
+  score: number
+  comment?: string
+  at: string
+}
+
+const DEMO_NPS: NpsResponse[] = [
+  { id: 'n1',  name: 'Rachel W.',  score: 10, comment: 'Great service!', at: new Date(Date.now() - 1 * 86400000).toISOString() },
+  { id: 'n2',  name: 'Tom H.',     score: 9,  at: new Date(Date.now() - 2 * 86400000).toISOString() },
+  { id: 'n3',  name: 'Priya S.',   score: 10, comment: 'Tech was super friendly', at: new Date(Date.now() - 4 * 86400000).toISOString() },
+  { id: 'n4',  name: 'Carlos M.',  score: 8,  at: new Date(Date.now() - 6 * 86400000).toISOString() },
+  { id: 'n5',  name: 'Linda F.',   score: 9,  at: new Date(Date.now() - 8 * 86400000).toISOString() },
+  { id: 'n6',  name: 'Greg B.',    score: 6,  comment: 'Took longer than quoted', at: new Date(Date.now() - 10 * 86400000).toISOString() },
+  { id: 'n7',  name: 'Aisha K.',   score: 10, at: new Date(Date.now() - 13 * 86400000).toISOString() },
+  { id: 'n8',  name: 'Steve R.',   score: 7,  at: new Date(Date.now() - 16 * 86400000).toISOString() },
+  { id: 'n9',  name: 'Monica D.',  score: 9,  at: new Date(Date.now() - 19 * 86400000).toISOString() },
+  { id: 'n10', name: 'Jake P.',    score: 8,  at: new Date(Date.now() - 23 * 86400000).toISOString() },
+  { id: 'n11', name: 'Elena V.',   score: 7,  at: new Date(Date.now() - 26 * 86400000).toISOString() },
+  { id: 'n12', name: 'Bill N.',    score: 3,  at: new Date(Date.now() - 29 * 86400000).toISOString() },
+]
+
+const NPS_PREVIEW_MSG = 'How likely are you to recommend us? Reply 0–10.'
+
+function npsBucket(score: number): 'promoter' | 'passive' | 'detractor' {
+  if (score >= 9) return 'promoter'
+  if (score >= 7) return 'passive'
+  return 'detractor'
+}
+
+const NPS_BUCKET_META: Record<'promoter' | 'passive' | 'detractor', { text: string; bg: string }> = {
+  promoter:  { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  passive:   { text: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  detractor: { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+}
+
+function npsColor(nps: number) {
+  if (nps >= 50) return '#34d399'
+  if (nps >= 0) return '#06b6d4'
+  if (nps >= -49) return '#fbbf24'
+  return '#f87171'
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const days = Math.floor(diff / 86400000)
+  if (days <= 0) {
+    const hours = Math.floor(diff / 3600000)
+    return hours <= 0 ? 'just now' : `${hours}h ago`
+  }
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  return weeks === 1 ? '1w ago' : `${weeks}w ago`
+}
+
+function NpsGauge({ nps }: { nps: number }) {
+  const frac = Math.max(0, Math.min(1, (nps + 100) / 200))
+  const color = npsColor(nps)
+  return (
+    <div className="flex flex-col items-center" style={{ width: 140 }}>
+      <svg width="140" height="78" viewBox="0 0 140 78">
+        <path
+          d="M 12 72 A 58 58 0 0 1 128 72"
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth="12"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 12 72 A 58 58 0 0 1 128 72"
+          fill="none"
+          stroke={color}
+          strokeWidth="12"
+          strokeLinecap="round"
+          pathLength={100}
+          strokeDasharray={`${frac * 100} 100`}
+          style={{ transition: 'stroke-dasharray 0.7s ease, stroke 0.7s ease' }}
+        />
+      </svg>
+      <p className="text-3xl font-bold tabular -mt-6" style={{ color }}>{nps}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">NPS</p>
+    </div>
+  )
+}
 
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 
@@ -98,6 +185,12 @@ export default function ReviewsPage() {
   })
   const [requestSending, setRequestSending] = useState(false)
   const [requestSent, setRequestSent] = useState(false)
+
+  const [npsResponses, setNpsResponses] = useState<NpsResponse[]>(DEMO_NPS)
+  const [npsShowAll, setNpsShowAll] = useState(false)
+  const [npsModalOpen, setNpsModalOpen] = useState(false)
+  const [npsForm, setNpsForm] = useState({ contact: '', channel: 'email' as 'email' | 'sms' })
+  const [npsSending, setNpsSending] = useState(false)
 
   useEffect(() => {
     setRequestForm(f => ({
