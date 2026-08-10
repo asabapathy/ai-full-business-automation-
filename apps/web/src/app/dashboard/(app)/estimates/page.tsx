@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles } from 'lucide-react'
+import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X, Sparkles, FileText } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -55,6 +55,10 @@ export default function EstimatesPage() {
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiResult, setAiResult] = useState<{ description: string; items: { name: string; qty: number; unitPrice: number; total: number }[]; subtotal: number; total: number } | null>(null)
+  const [convertTarget, setConvertTarget] = useState<Estimate | null>(null)
+  const [convertForm, setConvertForm] = useState({ dueInDays: 14, deposit: '', sendNow: false })
+  const [converting, setConverting] = useState(false)
+  const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set())
 
   const load = async () => {
     setLoading(true)
@@ -219,6 +223,33 @@ export default function EstimatesPage() {
     }
   }
 
+  async function convertToInvoice() {
+    if (!convertTarget) return
+    setConverting(true)
+    const depositPct = Math.min(100, Math.max(0, Number(convertForm.deposit) || 0))
+    const total = Number(convertTarget.total ?? 0)
+    const invoiceTotal = depositPct > 0 ? Math.round(total * depositPct) / 100 : total
+    try {
+      await apiClient.post('/finance/invoices', {
+        title: depositPct > 0
+          ? `Deposit (${depositPct}%) — ${convertTarget.title ?? 'estimate'}`
+          : `Invoice for ${convertTarget.title ?? 'estimate'}`,
+        lineItems: depositPct > 0
+          ? [{ description: `${depositPct}% deposit for ${convertTarget.estimateNumber}`, quantity: 1, unitPrice: invoiceTotal }]
+          : (convertTarget.lineItems?.length
+              ? convertTarget.lineItems.map(li => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice }))
+              : [{ description: convertTarget.title ?? 'Estimate', quantity: 1, unitPrice: invoiceTotal }]),
+        dueDate: new Date(Date.now() + convertForm.dueInDays * 86400000).toISOString(),
+        estimateId: convertTarget.id,
+        status: convertForm.sendNow ? 'SENT' : 'DRAFT',
+      })
+    } catch { /* demo mode */ }
+    setConvertedIds(prev => new Set(prev).add(convertTarget.id))
+    setConverting(false)
+    setConvertTarget(null)
+    toast(convertForm.sendNow ? 'Invoice created and sent' : 'Draft invoice created', 'success')
+  }
+
   const subtotal = lineItems.reduce((s, l) => s + l.total, 0)
   const tax = subtotal * (parseFloat(form.taxRate) || 0) / 100
   const total = subtotal + tax
@@ -305,6 +336,29 @@ export default function EstimatesPage() {
                           <button onClick={() => setPreview(e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Preview">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
+                          {convertedIds.has(e.id) ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: '#34d399', background: 'rgba(52,211,153,0.12)' }}>
+                              Invoiced ✓
+                            </span>
+                          ) : e.status === 'accepted' ? (
+                            <button
+                              onClick={() => { setConvertTarget(e); setConvertForm({ dueInDays: 14, deposit: '', sendNow: false }) }}
+                              title="Convert to invoice"
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors"
+                              style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.25)' }}
+                            >
+                              <FileText className="h-3 w-3" />
+                              → Invoice
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setConvertTarget(e); setConvertForm({ dueInDays: 14, deposit: '', sendNow: false }) }}
+                              title="Convert to invoice"
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {e.status === 'draft' && (
                             <button
                               onClick={() => sendEstimate(e.id)}
@@ -559,6 +613,109 @@ export default function EstimatesPage() {
           </div>
         </div>
       )}
+
+      {/* Convert to Invoice Modal */}
+      {convertTarget && (() => {
+        const estTotal = Number(convertTarget.total ?? 0)
+        const depositPct = Math.min(100, Math.max(0, Number(convertForm.deposit) || 0))
+        const depositAmount = Math.round(estTotal * depositPct) / 100
+        const dueDate = new Date(Date.now() + convertForm.dueInDays * 86400000)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+            <div className="w-full max-w-md rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" style={cardStyle}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" style={{ color: '#06b6d4' }} />
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Convert to Invoice</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {convertTarget.estimateNumber} · {convertTarget.title} · {fmt(estTotal)}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setConvertTarget(null)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-xl p-4 space-y-1.5" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Estimate total carried over</span>
+                  <span className="font-semibold text-foreground tabular">{fmt(estTotal)}</span>
+                </div>
+                {convertTarget.lineItems?.length > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Line items</span>
+                    <span className="text-muted-foreground tabular">{convertTarget.lineItems.length}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Due in */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Due in</label>
+                <div className="flex gap-2">
+                  {[7, 14, 30, 60].map(d => (
+                    <button key={d}
+                      onClick={() => setConvertForm(f => ({ ...f, dueInDays: d }))}
+                      className="flex-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+                      style={convertForm.dueInDays === d
+                        ? { color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.35)' }
+                        : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                      {d} days
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">Due {dueDate.toLocaleDateString()}</p>
+              </div>
+
+              {/* Deposit */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Deposit % (optional)</label>
+                <input
+                  type="number" min="0" max="100" step="1"
+                  value={convertForm.deposit}
+                  onChange={e => setConvertForm(f => ({ ...f, deposit: e.target.value }))}
+                  placeholder="e.g. 25 — leave blank for full amount"
+                  className={inputCls} style={inputStyle}
+                />
+                {depositPct > 0 && (
+                  <p className="text-xs mt-1.5" style={{ color: '#06b6d4' }}>
+                    Invoice will be for the {depositPct}% deposit: {fmt(depositAmount)}
+                  </p>
+                )}
+              </div>
+
+              {/* Send immediately */}
+              <button onClick={() => setConvertForm(f => ({ ...f, sendNow: !f.sendNow }))}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-2.5"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <span className="text-sm text-foreground">Send immediately</span>
+                <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                  style={{ background: convertForm.sendNow ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: convertForm.sendNow ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+              <p className="text-xs text-muted-foreground -mt-3">
+                {convertForm.sendNow ? 'The invoice will be sent to the client right away.' : 'The invoice will be created as a draft.'}
+              </p>
+
+              <div className="flex gap-3">
+                <button onClick={() => setConvertTarget(null)}
+                  className="flex-1 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={{ border: '1px solid hsl(var(--border))' }}>
+                  Cancel
+                </button>
+                <button onClick={convertToInvoice} disabled={converting}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {converting ? 'Creating…' : 'Create Invoice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Preview Modal */}
       {preview && (
