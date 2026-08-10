@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download } from 'lucide-react'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
@@ -45,6 +45,7 @@ function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
 
@@ -59,6 +60,8 @@ export default function InvoicesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkReminding, setBulkReminding] = useState(false)
+  const [filters, setFilters] = useState({ status: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' })
+  const [showFilters, setShowFilters] = useState(false)
   const [form, setForm] = useState({
     title: '',
     clientName: '',
@@ -141,11 +144,20 @@ export default function InvoicesPage() {
     })
   }
 
+  const filteredInvoices = invoices.filter(inv => {
+    if (filters.status && inv.status?.toLowerCase() !== filters.status) return false
+    if (filters.minAmount && (inv.total ?? 0) < Number(filters.minAmount)) return false
+    if (filters.maxAmount && (inv.total ?? 0) > Number(filters.maxAmount)) return false
+    if (filters.dateFrom && inv.dueDate && new Date(inv.dueDate) < new Date(filters.dateFrom)) return false
+    if (filters.dateTo && inv.dueDate && new Date(inv.dueDate) > new Date(filters.dateTo)) return false
+    return true
+  })
+
   function toggleSelectAll() {
-    if (selectedIds.size === invoices.length) {
+    if (selectedIds.size === filteredInvoices.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(invoices.map(inv => inv.id)))
+      setSelectedIds(new Set(filteredInvoices.map(inv => inv.id)))
     }
   }
 
@@ -308,7 +320,7 @@ export default function InvoicesPage() {
       )}
 
       {/* Status Filter */}
-      <div className="kv-anim flex gap-2" style={{ animationDelay: '0.46s' }}>
+      <div className="kv-anim flex flex-wrap gap-2 items-center" style={{ animationDelay: '0.46s' }}>
         {['', 'DRAFT', 'SENT', 'PAID', 'OVERDUE'].map(status => (
           <button
             key={status}
@@ -322,7 +334,87 @@ export default function InvoicesPage() {
             {status || 'All'}
           </button>
         ))}
+        <button onClick={() => setShowFilters(f => !f)}
+          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+          style={showFilters
+            ? { background: 'rgba(6,182,212,0.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }
+            : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+          <Filter className="h-3.5 w-3.5" />
+          Filters
+          {(filters.status || filters.minAmount || filters.maxAmount || filters.dateFrom || filters.dateTo) && (
+            <span className="ml-1 h-2 w-2 rounded-full" style={{ background: '#06b6d4' }} />
+          )}
+        </button>
       </div>
+
+      {showFilters && (
+        <div className="rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3" style={cardStyle}>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
+            <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+              className={inputCls} style={inputStyle}>
+              <option value="">All statuses</option>
+              <option value="draft">Draft</option>
+              <option value="sent">Sent</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Min Amount ($)</label>
+            <input type="number" value={filters.minAmount} onChange={e => setFilters(f => ({ ...f, minAmount: e.target.value }))}
+              placeholder="0" className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Max Amount ($)</label>
+            <input type="number" value={filters.maxAmount} onChange={e => setFilters(f => ({ ...f, maxAmount: e.target.value }))}
+              placeholder="Any" className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Due From</label>
+            <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
+              className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Due To</label>
+            <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))}
+              className={inputCls} style={inputStyle} />
+          </div>
+          <div className="col-span-2 sm:col-span-3 flex items-end">
+            <button onClick={() => setFilters({ status: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' })}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Clear filters
+            </button>
+          </div>
+        </div>
+      )}
+
+      {Object.entries(filters).some(([, v]) => v) && (
+        <div className="flex flex-wrap gap-2">
+          {filters.status && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Status: {filters.status}
+              <button onClick={() => setFilters(f => ({ ...f, status: '' }))}>×</button>
+            </span>
+          )}
+          {filters.minAmount && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Min: ${filters.minAmount}
+              <button onClick={() => setFilters(f => ({ ...f, minAmount: '' }))}>×</button>
+            </span>
+          )}
+          {filters.maxAmount && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Max: ${filters.maxAmount}
+              <button onClick={() => setFilters(f => ({ ...f, maxAmount: '' }))}>×</button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Invoice List */}
       <div
@@ -330,16 +422,16 @@ export default function InvoicesPage() {
         style={{ animationDelay: '0.53s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
       >
         <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-          {invoices.length > 0 && (
+          {filteredInvoices.length > 0 && (
             <button
               onClick={toggleSelectAll}
               className="h-4 w-4 rounded shrink-0 flex items-center justify-center"
-              style={selectedIds.size === invoices.length && invoices.length > 0
+              style={selectedIds.size === filteredInvoices.length && filteredInvoices.length > 0
                 ? { background: '#06b6d4', border: '1px solid #06b6d4' }
                 : { border: '1px solid hsl(var(--border))', background: 'transparent' }
               }
             >
-              {selectedIds.size === invoices.length && invoices.length > 0 && (
+              {selectedIds.size === filteredInvoices.length && filteredInvoices.length > 0 && (
                 <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               )}
             </button>
@@ -377,7 +469,7 @@ export default function InvoicesPage() {
               <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
             ))}
           </div>
-        ) : invoices.length === 0 ? (
+        ) : filteredInvoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
             <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="font-medium text-foreground">No invoices yet</p>
@@ -385,7 +477,7 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-            {invoices.map(invoice => {
+            {filteredInvoices.map(invoice => {
               const isOverdue = invoice.status !== 'PAID' && invoice.dueDate && new Date(invoice.dueDate) < new Date()
               const displayStatus = isOverdue ? 'OVERDUE' : invoice.status
               const Icon = STATUS_ICONS[displayStatus] ?? FileText

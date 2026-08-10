@@ -93,6 +93,8 @@ export default function CRMPage() {
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverStage, setDragOverStage] = useState<Stage | null>(null)
   const [stageOverrides, setStageOverrides] = useState<Record<string, Stage>>({})
+  const [filters, setFilters] = useState({ status: '', minValue: '', maxValue: '', dateFrom: '', dateTo: '' })
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     const fetchContacts = async () => {
@@ -125,6 +127,15 @@ export default function CRMPage() {
     if (sort === 'score') return b.score - a.score
     if (sort === 'name') return `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`)
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+
+  const filteredContacts = sorted.filter(c => {
+    if (filters.status && c.status?.toLowerCase() !== filters.status) return false
+    if (filters.minValue && (c.value ?? 0) < Number(filters.minValue)) return false
+    if (filters.maxValue && (c.value ?? 0) > Number(filters.maxValue)) return false
+    if (filters.dateFrom && c.createdAt && new Date(c.createdAt) < new Date(filters.dateFrom)) return false
+    if (filters.dateTo && c.createdAt && new Date(c.createdAt) > new Date(filters.dateTo)) return false
+    return true
   })
 
   async function createContact() {
@@ -178,10 +189,10 @@ export default function CRMPage() {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === sorted.length) {
+    if (selectedIds.size === filteredContacts.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(sorted.map(c => c.id)))
+      setSelectedIds(new Set(filteredContacts.map(c => c.id)))
     }
   }
 
@@ -319,8 +330,89 @@ export default function CRMPage() {
               </button>
             ))}
           </div>
+          <button onClick={() => setShowFilters(f => !f)}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+            style={showFilters
+              ? { background: 'rgba(6,182,212,0.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }
+              : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+            <Filter className="h-4 w-4" />
+            Filters
+            {(filters.status || filters.minValue || filters.maxValue || filters.dateFrom || filters.dateTo) && (
+              <span className="ml-1 h-2 w-2 rounded-full" style={{ background: '#06b6d4' }} />
+            )}
+          </button>
         </div>
       </div>
+
+      {showFilters && (
+        <div className="rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3" style={cardStyle}>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
+            <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+              className={inputCls} style={inputStyle}>
+              <option value="">All statuses</option>
+              <option value="lead">Lead</option>
+              <option value="active">Active</option>
+              <option value="contacted">Contacted</option>
+              <option value="qualified">Qualified</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Min Value ($)</label>
+            <input type="number" value={filters.minValue} onChange={e => setFilters(f => ({ ...f, minValue: e.target.value }))}
+              placeholder="0" className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Max Value ($)</label>
+            <input type="number" value={filters.maxValue} onChange={e => setFilters(f => ({ ...f, maxValue: e.target.value }))}
+              placeholder="Any" className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Date From</label>
+            <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
+              className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Date To</label>
+            <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))}
+              className={inputCls} style={inputStyle} />
+          </div>
+          <div className="col-span-2 sm:col-span-3 flex items-end">
+            <button onClick={() => setFilters({ status: '', minValue: '', maxValue: '', dateFrom: '', dateTo: '' })}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Clear filters
+            </button>
+          </div>
+        </div>
+      )}
+
+      {Object.entries(filters).some(([, v]) => v) && (
+        <div className="flex flex-wrap gap-2">
+          {filters.status && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Status: {filters.status}
+              <button onClick={() => setFilters(f => ({ ...f, status: '' }))}>×</button>
+            </span>
+          )}
+          {filters.minValue && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Min: ${filters.minValue}
+              <button onClick={() => setFilters(f => ({ ...f, minValue: '' }))}>×</button>
+            </span>
+          )}
+          {filters.maxValue && (
+            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
+              Max: ${filters.maxValue}
+              <button onClick={() => setFilters(f => ({ ...f, maxValue: '' }))}>×</button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Contact list */}
       {view === 'list' && <div
@@ -328,16 +420,16 @@ export default function CRMPage() {
         style={{ animationDelay: '0.46s', ...cardStyle }}
       >
         <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-          {sorted.length > 0 && (
+          {filteredContacts.length > 0 && (
             <button
               onClick={toggleSelectAll}
               className="h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors"
-              style={selectedIds.size === sorted.length && sorted.length > 0
+              style={selectedIds.size === filteredContacts.length && filteredContacts.length > 0
                 ? { background: '#06b6d4', border: '1px solid #06b6d4' }
                 : { border: '1px solid hsl(var(--border))', background: 'transparent' }
               }
             >
-              {selectedIds.size === sorted.length && sorted.length > 0 && (
+              {selectedIds.size === filteredContacts.length && filteredContacts.length > 0 && (
                 <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               )}
             </button>
@@ -358,7 +450,7 @@ export default function CRMPage() {
               </button>
             </div>
           ) : (
-            <span className="ml-auto text-xs text-muted-foreground">{sorted.length} shown</span>
+            <span className="ml-auto text-xs text-muted-foreground">{filteredContacts.length} shown</span>
           )}
         </div>
 
@@ -368,7 +460,7 @@ export default function CRMPage() {
               <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
             ))}
           </div>
-        ) : sorted.length === 0 ? (
+        ) : filteredContacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
             <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="font-medium text-foreground">No contacts yet</p>
@@ -376,7 +468,7 @@ export default function CRMPage() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-            {sorted.map(contact => {
+            {filteredContacts.map(contact => {
               const statusMeta = STATUS_META[contact.status] ?? STATUS_META['NEW']!
               const typeMeta = TYPE_META[contact.type] ?? TYPE_META['LEAD']!
               const isSelected = selectedIds.has(contact.id)
