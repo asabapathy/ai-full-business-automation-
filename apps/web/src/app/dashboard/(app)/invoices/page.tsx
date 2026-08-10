@@ -57,6 +57,7 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [remindingId, setRemindingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     title: '',
     clientName: '',
@@ -116,6 +117,18 @@ export default function InvoicesPage() {
       toast('Failed to create invoice. Please try again.', 'error')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleRemind(id: string) {
+    setRemindingId(id)
+    try {
+      await api.post(`/finance/invoices/${id}/remind`, {})
+      toast('Reminder sent to client', 'success')
+    } catch {
+      toast('Failed to send reminder', 'error')
+    } finally {
+      setRemindingId(null)
     }
   }
 
@@ -280,8 +293,12 @@ export default function InvoicesPage() {
                   </Badge>
 
                   {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
-                    <button className="rounded-lg px-2 py-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10">
-                      Remind
+                    <button
+                      onClick={() => handleRemind(invoice.id)}
+                      disabled={remindingId === invoice.id}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10 disabled:opacity-40"
+                    >
+                      {remindingId === invoice.id ? 'Sending…' : 'Remind'}
                     </button>
                   )}
                 </div>

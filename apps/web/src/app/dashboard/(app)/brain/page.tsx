@@ -90,9 +90,11 @@ export default function BrainPage() {
   }, [messages])
 
   useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kanavu_access_token') : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
     Promise.all([
-      fetch('/api/ai/conversations').then(r => r.json()).catch(() => null),
-      fetch('/api/ai/context').then(r => r.json()).catch(() => null),
+      fetch('/api/ai/conversations', { headers: authHeaders }).then(r => r.json()).catch(() => null),
+      fetch('/api/ai/context', { headers: authHeaders }).then(r => r.json()).catch(() => null),
     ]).then(([convData, ctxData]) => {
       if (convData?.data?.conversations) setConversations(convData.data.conversations)
       if (ctxData?.data) setContext(ctxData.data)
@@ -103,7 +105,10 @@ export default function BrainPage() {
     setConvId(id)
     setMessages([])
     try {
-      const res = await fetch(`/api/ai/conversations/${id}/messages`)
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kanavu_access_token') : null
+      const res = await fetch(`/api/ai/conversations/${id}/messages`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       const data = await res.json()
       if (data?.data?.messages) {
         setMessages(data.data.messages.map((m: { id: string; role: string; content: string; createdAt: string }) => ({
@@ -169,7 +174,7 @@ export default function BrainPage() {
 
       setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: full, isStreaming: false } : m))
 
-      fetch('/api/ai/conversations').then(r => r.json()).then(d => {
+      fetch('/api/ai/conversations', { headers: { Authorization: `Bearer ${token ?? ''}` } }).then(r => r.json()).then(d => {
         if (d?.data?.conversations) setConversations(d.data.conversations)
       }).catch(() => {})
     } catch {
