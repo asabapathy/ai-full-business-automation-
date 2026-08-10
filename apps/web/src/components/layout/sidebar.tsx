@@ -77,6 +77,7 @@ const navGroups: NavGroup[] = [
       { name: 'Contracts', href: '/dashboard/contracts', icon: ScrollText, feature: 'core:contracts' },
       { name: 'Invoices', href: '/dashboard/invoices', icon: FileText, feature: 'core:invoices' },
       { name: 'Payment Links', href: '/dashboard/payment-links', icon: Link2, feature: 'finance:payment_links' },
+      { name: 'Payments', href: '/dashboard/payments', icon: CreditCard },
       { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard, feature: 'finance:subscriptions' },
       { name: 'Gift Cards', href: '/dashboard/gift-cards', icon: Gift, feature: 'finance:gift_cards' },
       { name: 'Billing', href: '/dashboard/billing', icon: Layers, feature: 'finance:billing' },
