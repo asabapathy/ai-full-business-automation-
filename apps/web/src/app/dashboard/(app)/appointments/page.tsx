@@ -23,6 +23,49 @@ interface AvailabilitySlot {
   available: boolean
 }
 
+interface DayHours { open: boolean; start: string; end: string }
+
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+const DAY_LABELS: Record<string, string> = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }
+const DOW_TO_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+
+const DEFAULT_HOURS: Record<string, DayHours> = {
+  mon: { open: true, start: '08:00', end: '17:00' },
+  tue: { open: true, start: '08:00', end: '17:00' },
+  wed: { open: true, start: '08:00', end: '17:00' },
+  thu: { open: true, start: '08:00', end: '17:00' },
+  fri: { open: true, start: '08:00', end: '16:00' },
+  sat: { open: false, start: '09:00', end: '13:00' },
+  sun: { open: false, start: '09:00', end: '13:00' },
+}
+
+function fmtHour(t: string) {
+  const [hStr = '0', mStr = '0'] = t.split(':')
+  const h = Number(hStr)
+  const m = Number(mStr)
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return m ? `${h12}:${String(m).padStart(2, '0')}${ampm}` : `${h12}${ampm}`
+}
+
+function hoursSummary(hours: Record<string, DayHours>) {
+  const runs: { start: number; end: number; s: string; e: string }[] = []
+  DAY_KEYS.forEach((k, i) => {
+    const d = hours[k]
+    if (!d?.open) return
+    const last = runs[runs.length - 1]
+    if (last && last.end === i - 1 && last.s === d.start && last.e === d.end) last.end = i
+    else runs.push({ start: i, end: i, s: d.start, e: d.end })
+  })
+  if (runs.length === 0) return 'Closed all week'
+  if (runs.length > 1) return 'Custom hours'
+  const r = runs[0]!
+  const label = r.start === r.end
+    ? DAY_LABELS[DAY_KEYS[r.start]!]
+    : `${DAY_LABELS[DAY_KEYS[r.start]!]}–${DAY_LABELS[DAY_KEYS[r.end]!]}`
+  return `Open ${label} · ${fmtHour(r.s)}–${fmtHour(r.e)}`
+}
+
 const STATUS_PILL: Record<string, { text: string; bg: string }> = {
   SCHEDULED: { text: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
   CONFIRMED:  { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
@@ -88,6 +131,10 @@ export default function AppointmentsPage() {
   const [reminderSettingsOpen, setReminderSettingsOpen] = useState(false)
   const [savingReminders, setSavingReminders] = useState(false)
   const [remindingId, setRemindingId] = useState<string | null>(null)
+  const [hours, setHours] = useState(DEFAULT_HOURS)
+  const [bookingRules, setBookingRules] = useState({ slotMinutes: 60, bufferMinutes: 15, maxPerDay: 8, leadHours: 24 })
+  const [hoursOpen, setHoursOpen] = useState(false)
+  const [savingHours, setSavingHours] = useState(false)
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
@@ -133,6 +180,43 @@ export default function AppointmentsPage() {
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('kv-business-hours')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed?.hours) setHours(parsed.hours)
+        if (parsed?.booking) setBookingRules(b => ({ ...b, ...parsed.booking }))
+      }
+    } catch { /* ignore */ }
+    api.get<{ hours: Record<string, DayHours>; booking: { slotMinutes: number; bufferMinutes: number; maxPerDay: number; leadHours: number } }>('/appointments/business-hours')
+      .then(res => {
+        if (res?.hours) setHours(res.hours)
+        if (res?.booking) setBookingRules(b => ({ ...b, ...res.booking }))
+      })
+      .catch(() => {})
+  }, [])
+
+  async function saveHours() {
+    setSavingHours(true)
+    try {
+      await api.put('/appointments/business-hours', { hours, booking: bookingRules })
+    } catch { /* demo mode */ }
+    try {
+      localStorage.setItem('kv-business-hours', JSON.stringify({ hours, booking: bookingRules }))
+    } catch { /* ignore */ }
+    setSavingHours(false)
+    setHoursOpen(false)
+    toast('Business hours saved', 'success')
+  }
+
+  function copyMondayToWeekdays() {
+    setHours(h => {
+      const mon = h.mon ?? DEFAULT_HOURS.mon!
+      return { ...h, tue: { ...mon }, wed: { ...mon }, thu: { ...mon }, fri: { ...mon } }
+    })
+  }
 
   async function saveReminderSettings() {
     setSavingReminders(true)
@@ -221,6 +305,11 @@ export default function AppointmentsPage() {
           <p className="text-muted-foreground text-sm mt-0.5">Scheduling and appointment management</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setHoursOpen(true)} title="Edit business hours"
+            className="hidden xl:inline-flex items-center rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            style={cardStyle}>
+            {hoursSummary(hours)}
+          </button>
           <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
             {(['list', 'calendar'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
@@ -233,6 +322,12 @@ export default function AppointmentsPage() {
               </button>
             ))}
           </div>
+          <button onClick={() => setHoursOpen(true)}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <Clock className="h-4 w-4" />
+            Hours
+          </button>
           <button onClick={() => setReminderSettingsOpen(true)}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
@@ -507,12 +602,13 @@ export default function AppointmentsPage() {
                     const isToday = day ? isSameDay(day, today) : false
                     const isSelected = day && selectedDay ? isSameDay(day, selectedDay) : false
                     const dayApts = day ? appointmentsOnDay(day, appointments) : []
+                    const isClosed = day ? !(hours[DOW_TO_KEY[day.getDay()]!]?.open ?? true) : false
                     return (
                       <div key={di}
                         onClick={() => day && setSelectedDay(day)}
-                        className={`min-h-[80px] p-1.5 transition-colors ${day ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                        className={`min-h-[80px] p-1.5 transition-colors ${day ? 'cursor-pointer hover:bg-muted/50' : ''} ${isClosed && !isSelected ? 'opacity-60' : ''}`}
                         style={{
-                          background: isSelected ? 'rgba(6,182,212,0.08)' : day ? 'hsl(var(--card))' : 'hsl(var(--muted))',
+                          background: isSelected ? 'rgba(6,182,212,0.08)' : day ? (isClosed ? 'hsl(var(--muted))' : 'hsl(var(--card))') : 'hsl(var(--muted))',
                           borderBottom: wi < weeks.length - 1 ? '1px solid hsl(var(--border))' : undefined,
                           borderRight: di < 6 ? '1px solid hsl(var(--border))' : undefined,
                         }}>
@@ -599,6 +695,129 @@ export default function AppointmentsPage() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* Business hours & booking settings modal */}
+      {hoursOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-xl overflow-hidden flex flex-col max-h-[90vh]" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4" style={{ color: '#06b6d4' }} />
+                <h2 className="text-sm font-semibold text-foreground">Business Hours & Booking</h2>
+              </div>
+              <button onClick={() => setHoursOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {/* Business hours */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-muted-foreground">Business hours</label>
+                  <button onClick={copyMondayToWeekdays} className="text-xs font-medium hover:underline" style={{ color: '#06b6d4' }}>
+                    Copy Monday to all
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {DAY_KEYS.map(k => {
+                    const d = hours[k] ?? DEFAULT_HOURS[k]!
+                    return (
+                      <div key={k} className="flex items-center gap-3">
+                        <span className="w-10 shrink-0 text-xs font-medium text-foreground">{DAY_LABELS[k]}</span>
+                        <button onClick={() => setHours(h => ({ ...h, [k]: { ...d, open: !d.open } }))}
+                          className="shrink-0">
+                          <span className="relative inline-flex h-5 w-9 rounded-full transition-colors"
+                            style={{ background: d.open ? '#06b6d4' : 'rgba(255,255,255,0.15)' }}>
+                            <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                              style={{ background: 'white', transform: d.open ? 'translateX(18px)' : 'translateX(2px)' }} />
+                          </span>
+                        </button>
+                        {d.open ? (
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <input type="time" value={d.start}
+                              onChange={e => setHours(h => ({ ...h, [k]: { ...d, start: e.target.value } }))}
+                              className={inputCls + ' !px-2 !py-1.5 text-xs'} style={inputStyle} />
+                            <span className="text-xs text-muted-foreground shrink-0">–</span>
+                            <input type="time" value={d.end}
+                              onChange={e => setHours(h => ({ ...h, [k]: { ...d, end: e.target.value } }))}
+                              className={inputCls + ' !px-2 !py-1.5 text-xs'} style={inputStyle} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground flex-1">Closed</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Booking rules */}
+              <div className="pt-4" style={{ borderTop: '1px solid hsl(var(--border))' }}>
+                <label className="text-xs font-medium text-muted-foreground block mb-3">Booking rules</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1.5">Slot length</label>
+                    <div className="flex gap-1.5">
+                      {[30, 45, 60, 90].map(m => (
+                        <button key={m} onClick={() => setBookingRules(b => ({ ...b, slotMinutes: m }))}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                          style={bookingRules.slotMinutes === m
+                            ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                          {m}m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1.5">Buffer between jobs</label>
+                    <div className="flex gap-1.5">
+                      {[0, 15, 30].map(m => (
+                        <button key={m} onClick={() => setBookingRules(b => ({ ...b, bufferMinutes: m }))}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                          style={bookingRules.bufferMinutes === m
+                            ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                          {m}m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1.5">Max bookings/day</label>
+                    <input type="number" min="1" max="50" value={bookingRules.maxPerDay}
+                      onChange={e => setBookingRules(b => ({ ...b, maxPerDay: Math.max(1, Number(e.target.value) || 1) }))}
+                      className={inputCls + ' !py-1.5'} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1.5">Minimum notice</label>
+                    <div className="flex gap-1.5">
+                      {[2, 12, 24, 48].map(h => (
+                        <button key={h} onClick={() => setBookingRules(b => ({ ...b, leadHours: h }))}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                          style={bookingRules.leadHours === h
+                            ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                          {h}h
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setHoursOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                <button onClick={saveHours} disabled={savingHours}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {savingHours ? 'Saving…' : 'Save Hours'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

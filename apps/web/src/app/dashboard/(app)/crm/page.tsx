@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid, Download, Filter, Upload, Check, AlertCircle, ChevronDown, PieChart } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid, Download, Filter, Upload, Check, AlertCircle, ChevronDown, PieChart, Copy } from 'lucide-react'
 import Link from 'next/link'
 import { apiClient } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
@@ -136,6 +136,30 @@ const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(-
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
 
+// ---- Duplicate detection ----
+function getName(c: Contact): string {
+  return `${c.firstName} ${c.lastName ?? ''}`.trim()
+}
+
+interface DupePair { a: Contact; b: Contact; reason: string; score: number }
+
+function findDuplicates(contacts: Contact[]): DupePair[] {
+  const pairs: DupePair[] = []
+  const norm = (s?: string) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  for (let i = 0; i < contacts.length; i++) {
+    for (let j = i + 1; j < contacts.length; j++) {
+      const a = contacts[i]!, b = contacts[j]!
+      const emailMatch = a.email && b.email && norm(a.email) === norm(b.email)
+      const phoneMatch = a.phone && b.phone && norm(a.phone) === norm(b.phone)
+      const nameMatch = norm(getName(a)) === norm(getName(b)) && norm(getName(a)).length > 3
+      if (emailMatch) pairs.push({ a, b, reason: 'Same email', score: 95 })
+      else if (phoneMatch) pairs.push({ a, b, reason: 'Same phone', score: 90 })
+      else if (nameMatch) pairs.push({ a, b, reason: 'Same name', score: 70 })
+    }
+  }
+  return pairs.sort((x, y) => y.score - x.score).slice(0, 20)
+}
+
 export default function CRMPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [total, setTotal] = useState(0)
@@ -155,6 +179,11 @@ export default function CRMPage() {
   const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS })
   const [showFilters, setShowFilters] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
+
+  // Duplicate detection & merge
+  const [dupesOpen, setDupesOpen] = useState(false)
+  const [dismissedPairs, setDismissedPairs] = useState<Set<string>>(new Set())
+  const [merging, setMerging] = useState<string | null>(null)
 
   // Saved segments (smart lists)
   const [segments, setSegments] = useState<Segment[]>([])
@@ -188,8 +217,11 @@ export default function CRMPage() {
         { id: '1', firstName: 'John', lastName: 'Smith', email: 'john@example.com', phone: '555-0100', type: 'CUSTOMER', status: 'WON', score: 85, createdAt: new Date().toISOString() },
         { id: '2', firstName: 'Sarah', lastName: 'Johnson', email: 'sarah@example.com', phone: '555-0101', type: 'LEAD', status: 'NEW', score: 42, createdAt: new Date().toISOString() },
         { id: '3', firstName: 'Mike', lastName: 'Williams', email: 'mike@example.com', phone: '555-0102', type: 'PROSPECT', status: 'QUALIFIED', score: 71, createdAt: new Date().toISOString() },
+        // Demo near-duplicates so the "Find duplicates" tool has something to show
+        { id: '4', firstName: 'Sarah', lastName: 'Johnson', email: 'sarah@example.com', phone: '555-0177', type: 'LEAD', status: 'CONTACTED', score: 38, createdAt: new Date().toISOString() },
+        { id: '5', firstName: 'Mike', lastName: 'Williams Jr', email: 'mikew.jr@example.com', phone: '555-0102', type: 'LEAD', status: 'NEW', score: 25, createdAt: new Date().toISOString() },
       ])
-      setTotal(3)
+      setTotal(5)
     } finally {
       setIsLoading(false)
     }
@@ -266,6 +298,67 @@ export default function CRMPage() {
 
   const filteredContacts = applyFilters(sorted, filters)
   const hasActiveFilters = Object.values(filters).some(v => v)
+
+  // Duplicate scan — recomputes from the current contacts whenever they change
+  const dupePairs = useMemo(
+    () => findDuplicates(contacts).filter(p => !dismissedPairs.has(p.a.id + p.b.id)),
+    [contacts, dismissedPairs]
+  )
+
+  async function mergePair(pair: DupePair, keepLeft: boolean) {
+    const keeper = keepLeft ? pair.a : pair.b
+    const other = keepLeft ? pair.b : pair.a
+    // Prefer the keeper's fields, fill blanks from the other contact
+    const merged: Contact = {
+      ...keeper,
+      lastName: keeper.lastName || other.lastName,
+      email: keeper.email || other.email,
+      phone: keeper.phone || other.phone,
+      value: keeper.value ?? other.value,
+      lifetimeValue: keeper.lifetimeValue ?? other.lifetimeValue,
+      source: keeper.source || other.source,
+      company: keeper.company ?? other.company,
+    }
+    setMerging(pair.a.id + pair.b.id)
+    await Promise.all([
+      Promise.resolve((apiClient as any).patch(`/crm/contacts/${keeper.id}`, merged)).catch(() => {}),
+      Promise.resolve(apiClient.delete(`/crm/contacts/${other.id}`)).catch(() => {}),
+    ])
+    setContacts(prev => prev.filter(c => c.id !== other.id).map(c => (c.id === keeper.id ? merged : c)))
+    setTotal(t => Math.max(0, t - 1))
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(other.id); return n })
+    setMerging(null)
+    toast('Contacts merged', 'success')
+  }
+
+  function renderDupeSide(c: Contact, reason: string) {
+    const statusMeta = STATUS_META[c.status] ?? STATUS_META['NEW']!
+    const hl = { background: 'rgba(251,191,36,0.15)', borderRadius: '4px', padding: '0 4px', margin: '0 -4px' }
+    return (
+      <div className="flex-1 min-w-0 space-y-1">
+        <p className="text-sm font-bold text-foreground truncate" style={reason === 'Same name' ? hl : undefined}>
+          {getName(c)}
+        </p>
+        <p className="text-xs text-muted-foreground truncate" style={reason === 'Same email' ? hl : undefined}>
+          {c.email ?? '—'}
+        </p>
+        <p className="text-xs text-muted-foreground truncate" style={reason === 'Same phone' ? hl : undefined}>
+          {c.phone ?? '—'}
+        </p>
+        <p className="text-xs text-muted-foreground truncate">{c.company?.name ?? '—'}</p>
+        <div className="flex items-center gap-2 pt-0.5">
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={{ color: statusMeta.text, background: statusMeta.bg }}>
+            {c.status.replace('_', ' ')}
+          </span>
+          <span className="text-xs font-semibold tabular" style={{ color: '#34d399' }}>
+            ${(c.lifetimeValue ?? demoCLV(c.id)).toLocaleString()}
+            <span className="text-muted-foreground font-normal"> CLV</span>
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   // Lead source breakdown — real counts if any contact has a source, otherwise a deterministic demo split
   const hasRealSources = contacts.some(c => c.source)
@@ -465,6 +558,22 @@ export default function CRMPage() {
           <p className="text-muted-foreground text-sm mt-0.5">{total.toLocaleString()} contacts total</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDupesOpen(true)}
+            className="relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            title="Scan for duplicate contacts"
+          >
+            <Copy className="h-4 w-4" /> Find duplicates
+            {dupePairs.length > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1.5 h-4 min-w-[1rem] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                style={{ background: '#fbbf24', color: '#1c1400' }}
+              >
+                {dupePairs.length}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => downloadCSV(
               contacts.map(c => ({
@@ -945,6 +1054,92 @@ export default function CRMPage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate contacts modal */}
+      {dupesOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-2xl rounded-xl overflow-hidden flex flex-col max-h-[85vh]" style={cardStyle}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Duplicate Contacts</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {dupePairs.length > 0
+                    ? `${dupePairs.length} potential duplicate${dupePairs.length > 1 ? 's' : ''} found`
+                    : 'Scan complete'}
+                </p>
+              </div>
+              <button onClick={() => setDupesOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {dupePairs.length === 0 ? (
+                <div className="py-12 flex flex-col items-center gap-3 text-center">
+                  <div className="h-14 w-14 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(52,211,153,0.15)' }}>
+                    <Check className="h-7 w-7" style={{ color: '#34d399' }} />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">No duplicates found — your CRM is clean!</p>
+                </div>
+              ) : (
+                dupePairs.map(pair => {
+                  const pairKey = pair.a.id + pair.b.id
+                  const isMerging = merging === pairKey
+                  return (
+                    <div key={pairKey} className="rounded-xl p-4"
+                      style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                      {/* Reason + score pill */}
+                      <div className="flex justify-center mb-3">
+                        <span className="text-xs px-2.5 py-1 rounded-full font-medium"
+                          style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)' }}>
+                          {pair.reason} · {pair.score}% match
+                        </span>
+                      </div>
+                      {/* Side-by-side contacts */}
+                      <div className="flex gap-4">
+                        {renderDupeSide(pair.a, pair.reason)}
+                        <div className="w-px shrink-0" style={{ background: 'hsl(var(--border))' }} />
+                        {renderDupeSide(pair.b, pair.reason)}
+                      </div>
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 mt-4">
+                        <button
+                          onClick={() => mergePair(pair, true)}
+                          disabled={isMerging}
+                          className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 transition-all"
+                          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                          title={`Keep ${getName(pair.a)}, absorb ${getName(pair.b)}`}
+                        >
+                          {isMerging ? 'Merging…' : 'Merge →'}
+                        </button>
+                        <button
+                          onClick={() => mergePair(pair, false)}
+                          disabled={isMerging}
+                          className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 transition-all"
+                          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                          title={`Keep ${getName(pair.b)}, absorb ${getName(pair.a)}`}
+                        >
+                          {isMerging ? 'Merging…' : '← Merge'}
+                        </button>
+                        <button
+                          onClick={() => setDismissedPairs(prev => new Set(prev).add(pairKey))}
+                          disabled={isMerging}
+                          className="px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                        >
+                          Not a duplicate
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
       )}
