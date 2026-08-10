@@ -226,6 +226,47 @@ export default function InvoicesPage() {
     }
   }
 
+  function printInvoice() {
+    const printContent = document.getElementById('invoice-print-area')
+    if (!printContent) return
+    const win = window.open('', '_blank', 'width=800,height=600')
+    if (!win) return
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice ${previewInvoice?.invoiceNumber ?? ''}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; background: white; padding: 40px; }
+          .invoice-header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+          .company-name { font-size: 24px; font-weight: 700; color: #06b6d4; }
+          .invoice-title { font-size: 32px; font-weight: 300; color: #666; text-align: right; }
+          .invoice-number { font-size: 14px; color: #666; text-align: right; margin-top: 4px; }
+          .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+          .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #999; margin-bottom: 4px; }
+          .meta-value { font-size: 14px; color: #111; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; }
+          td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+          .total-row { display: flex; justify-content: flex-end; }
+          .total-box { background: #f5f5f5; padding: 20px 24px; border-radius: 8px; min-width: 260px; }
+          .total-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #666; }
+          .grand-total { display: flex; justify-content: space-between; font-size: 20px; font-weight: 700; color: #111; margin-top: 12px; padding-top: 12px; border-top: 2px solid #ddd; }
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+          .paid { background: #d1fae5; color: #065f46; }
+          .pending { background: #fef3c7; color: #92400e; }
+          .overdue { background: #fee2e2; color: #991b1b; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>${printContent.innerHTML}</body>
+      </html>
+    `)
+    win.document.close()
+    win.print()
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
@@ -536,6 +577,15 @@ export default function InvoicesPage() {
                     const m = STATUS_META[displayStatus] ?? { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' }
                     return <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ color: m.text, background: m.bg }}>{displayStatus}</span>
                   })()}
+
+                  <button
+                    onClick={() => setPreviewInvoice(invoice)}
+                    title="Preview"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
 
                   {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
                     <button
