@@ -26,12 +26,18 @@ interface NotifPage {
 }
 
 const typeIcon: Record<string, React.ReactNode> = {
-  info: <Info className="h-4 w-4 text-blue-400" />,
+  info: <Info className="h-4 w-4" style={{ color: '#60a5fa' }} />,
   warning: <AlertCircle className="h-4 w-4 text-amber-400" />,
   success: <CheckCircle className="h-4 w-4 text-emerald-400" />,
   error: <AlertCircle className="h-4 w-4 text-red-400" />,
   action: <Zap className="h-4 w-4 text-primary" />,
 }
+
+const DEMO_NOTIFICATIONS: Notification[] = [
+  { id: '1', title: 'New lead from website', message: 'Alice Johnson submitted the contact form', type: 'info', isRead: false, createdAt: new Date(Date.now() - 600000).toISOString() },
+  { id: '2', title: 'Invoice paid', message: 'INV-001 has been paid by Mark Johnson ($4,500)', type: 'success', isRead: false, createdAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: '3', title: 'Appointment reminder', message: 'HVAC service scheduled for tomorrow at 10am', type: 'action', isRead: true, createdAt: new Date(Date.now() - 86400000).toISOString() },
+]
 
 export default function NotificationsPage() {
   const [data, setData] = useState<NotifPage | null>(null)
@@ -46,6 +52,8 @@ export default function NotificationsPage() {
     try {
       const res = await apiClient.get<NotifPage>(`/notification-center?page=${page}&limit=20`)
       setData(res)
+    } catch {
+      setData({ notifications: DEMO_NOTIFICATIONS, total: 3, unread: 2, page: 1, pages: 1 })
     } finally { setLoading(false) }
   }
 
@@ -141,7 +149,7 @@ export default function NotificationsPage() {
                   {!n.isRead && (
                     <button onClick={() => markRead(n.id)} title="Mark read"
                       className="p-1.5 rounded hover:bg-muted transition-colors">
-                      <Check className="h-4 w-4 text-green-500" />
+                      <Check className="h-4 w-4 text-emerald-400" />
                     </button>
                   )}
                   <button onClick={() => remove(n.id)} title="Delete"

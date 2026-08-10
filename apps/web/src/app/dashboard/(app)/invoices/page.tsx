@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X } from 'lucide-react'
-import { Badge } from '../../../../../components/ui/badge'
 import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
@@ -28,12 +27,12 @@ interface FinancialSummary {
   cashFlowHealth: string
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'secondary',
-  SENT: 'info',
-  PAID: 'success',
-  OVERDUE: 'destructive',
-  CANCELLED: 'outline',
+const STATUS_META: Record<string, { text: string; bg: string }> = {
+  DRAFT:     { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  SENT:      { text: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
+  PAID:      { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  OVERDUE:   { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+  CANCELLED: { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
 }
 
 const STATUS_ICONS: Record<string, React.ElementType> = {
@@ -288,9 +287,10 @@ export default function InvoicesPage() {
 
                   <span className="text-sm font-semibold text-foreground tabular">${invoice.total.toLocaleString()}</span>
 
-                  <Badge variant={(STATUS_COLORS[displayStatus] as never) ?? 'outline'} className="text-xs">
-                    {displayStatus}
-                  </Badge>
+                  {(() => {
+                    const m = STATUS_META[displayStatus] ?? { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' }
+                    return <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ color: m.text, background: m.bg }}>{displayStatus}</span>
+                  })()}
 
                   {(displayStatus === 'SENT' || displayStatus === 'OVERDUE') && (
                     <button

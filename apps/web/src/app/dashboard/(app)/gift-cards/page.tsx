@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Gift, Plus, Search, Ban, DollarSign, CreditCard, TrendingUp } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 
 interface GiftCard {
   id: string
@@ -25,6 +26,21 @@ interface Stats {
   totalBalance: number
 }
 
+const STATUS_META: Record<string, { text: string; bg: string }> = {
+  active:   { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  redeemed: { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  expired:  { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+  voided:   { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+}
+
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
 export default function GiftCardsPage() {
   const [cards, setCards] = useState<GiftCard[]>([])
   const [stats, setStats] = useState<Stats>({ total: 0, active: 0, totalIssued: 0, totalRedeemed: 0, totalBalance: 0 })
@@ -34,6 +50,7 @@ export default function GiftCardsPage() {
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({ contactId: '', amount: '', currency: 'USD', expiresAt: '', message: '' })
   const [redeemForm, setRedeemForm] = useState({ code: '', amount: '' })
+  const [voidingId, setVoidingId] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -64,28 +81,24 @@ export default function GiftCardsPage() {
     if (!redeemForm.code || !redeemForm.amount) return
     try {
       const res = await apiClient.post('/gift-cards/redeem', { code: redeemForm.code, amount: parseFloat(redeemForm.amount) }) as any
-      alert(`Redeemed! New balance: $${res.giftCard?.balance?.toFixed(2) ?? 0}`)
+      toast(`Redeemed! New balance: $${res.giftCard?.balance?.toFixed(2) ?? 0}`, 'success')
       setShowRedeem(false)
       setRedeemForm({ code: '', amount: '' })
       load()
     } catch (e: any) {
-      alert(e.message ?? 'Redemption failed')
+      toast(e.message ?? 'Redemption failed', 'error')
     }
   }
 
   const voidCard = async (id: string) => {
-    if (!confirm('Void this gift card?')) return
+    setVoidingId(id)
+    setCards(prev => prev.filter(c => c.id !== id))
     try {
       await apiClient.delete(`/gift-cards/${id}`)
+    } catch (e: any) {
+      toast(e.message || 'Failed to void gift card', 'error')
       load()
-    } catch {}
-  }
-
-  const statusColor: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    redeemed: 'bg-gray-100 text-gray-500',
-    expired: 'bg-red-100 text-red-600',
-    voided: 'bg-red-100 text-red-600',
+    } finally { setVoidingId(null) }
   }
 
   const filtered = cards.filter(c =>
@@ -94,146 +107,141 @@ export default function GiftCardsPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-6xl">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gift Cards</h1>
-          <p className="text-sm text-gray-500 mt-1">Issue and manage gift cards and vouchers</p>
+          <h1 className="text-2xl font-bold text-foreground">Gift Cards</h1>
+          <p className="text-sm text-muted-foreground mt-1">Issue and manage gift cards and vouchers</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowRedeem(true)} className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100">
+          <button onClick={() => setShowRedeem(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:text-foreground text-muted-foreground" style={{ border: '1px solid hsl(var(--border))' }}>
             <CreditCard className="h-4 w-4" />
             Redeem
           </button>
-          <button onClick={() => setShowIssue(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          <button onClick={() => setShowIssue(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
             <Plus className="h-4 w-4" />
             Issue Gift Card
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div {...anim(1)} className="kv-anim grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Active Cards', value: stats.active, icon: Gift, color: 'text-blue-600' },
-          { label: 'Total Issued', value: `$${stats.totalIssued.toFixed(2)}`, icon: TrendingUp, color: 'text-purple-600' },
-          { label: 'Total Redeemed', value: `$${stats.totalRedeemed.toFixed(2)}`, icon: DollarSign, color: 'text-green-600' },
-          { label: 'Outstanding Balance', value: `$${stats.totalBalance.toFixed(2)}`, icon: CreditCard, color: 'text-orange-600' },
+          { label: 'Active Cards', value: stats.active, icon: Gift, color: '#60a5fa' },
+          { label: 'Total Issued', value: `$${stats.totalIssued.toFixed(2)}`, icon: TrendingUp, color: '#a78bfa' },
+          { label: 'Total Redeemed', value: `$${stats.totalRedeemed.toFixed(2)}`, icon: DollarSign, color: '#34d399' },
+          { label: 'Outstanding Balance', value: `$${stats.totalBalance.toFixed(2)}`, icon: CreditCard, color: '#fb923c' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl border bg-white p-4 shadow-sm">
+          <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">{s.label}</p>
-              <s.icon className={`h-4 w-4 ${s.color}`} />
+              <p className="text-sm text-muted-foreground">{s.label}</p>
+              <s.icon className="h-4 w-4" style={{ color: s.color }} />
             </div>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{s.value}</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{s.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input className="w-full rounded-lg border border-gray-200 pl-9 pr-4 py-2 text-sm" placeholder="Search by code or customer name..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div {...anim(2)} className="kv-anim relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          style={inputStyle} placeholder="Search by code or customer name..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+      <div {...anim(3)} className="kv-anim rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
-          <div className="p-8 text-center text-gray-400">Loading...</div>
+          <div className="p-8 text-center text-muted-foreground">Loading…</div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">No gift cards found</div>
+          <div className="p-8 text-center text-muted-foreground">No gift cards found</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Code</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Customer</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Initial</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Balance</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Expires</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-sm text-gray-900">{c.code}</td>
-                  <td className="px-4 py-3">
-                    {c.contact ? (
-                      <>
-                        <p className="font-medium text-gray-900">{c.contact.firstName} {c.contact.lastName}</p>
-                        <p className="text-xs text-gray-500">{c.contact.email}</p>
-                      </>
-                    ) : <span className="text-gray-400">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-900">${c.initialAmount.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-900">${c.balance.toFixed(2)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[c.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-3">
-                    {c.status === 'active' && (
-                      <button onClick={() => voidCard(c.id)} className="text-red-400 hover:text-red-600">
-                        <Ban className="h-4 w-4" />
-                      </button>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid hsl(var(--border))', background: 'rgba(255,255,255,0.02)' }}>
+                  {['Code', 'Customer', 'Initial', 'Balance', 'Status', 'Expires', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((c, i) => {
+                  const sm = STATUS_META[c.status] ?? { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' }
+                  return (
+                    <tr key={c.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid hsl(var(--border))' : undefined }}>
+                      <td className="px-4 py-3 font-mono text-sm text-foreground">{c.code}</td>
+                      <td className="px-4 py-3">
+                        {c.contact ? (
+                          <>
+                            <p className="font-medium text-foreground">{c.contact.firstName} {c.contact.lastName}</p>
+                            <p className="text-xs text-muted-foreground">{c.contact.email}</p>
+                          </>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-foreground">${c.initialAmount.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground">${c.balance.toFixed(2)}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold capitalize" style={{ color: sm.text, background: sm.bg }}>{c.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : '—'}</td>
+                      <td className="px-4 py-3">
+                        {c.status === 'active' && (
+                          <button onClick={() => voidCard(c.id)} disabled={voidingId === c.id} className="transition-colors hover:opacity-80" style={{ color: '#f87171' }}>
+                            <Ban className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Issue Modal */}
       {showIssue && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <h2 className="font-semibold text-gray-900">Issue Gift Card</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="font-bold text-lg text-foreground">Issue Gift Card</h2>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Amount ($)</label>
-              <input type="number" min="1" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="50.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Amount ($)</label>
+              <input type="number" min="1" className={inputCls} style={inputStyle} placeholder="50.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Contact ID (optional)</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Contact UUID" value={form.contactId} onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))} />
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Contact ID (optional)</label>
+              <input className={inputCls} style={inputStyle} placeholder="Contact UUID" value={form.contactId} onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Expires At (optional)</label>
-              <input type="date" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} />
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Expires At (optional)</label>
+              <input type="date" className={inputCls} style={inputStyle} value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Message</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Happy Birthday!" value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} />
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Message</label>
+              <input className={inputCls} style={inputStyle} placeholder="Happy Birthday!" value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} />
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowIssue(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
-              <button onClick={issue} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Issue</button>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowIssue(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
+              <button onClick={issue} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>Issue</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Redeem Modal */}
       {showRedeem && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <h2 className="font-semibold text-gray-900">Redeem Gift Card</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="font-bold text-lg text-foreground">Redeem Gift Card</h2>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Gift Card Code</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono" placeholder="XXXX-XXXX-XXXX-XXXX" value={redeemForm.code} onChange={e => setRedeemForm(f => ({ ...f, code: e.target.value }))} />
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Gift Card Code</label>
+              <input className={`${inputCls} font-mono`} style={inputStyle} placeholder="XXXX-XXXX-XXXX-XXXX" value={redeemForm.code} onChange={e => setRedeemForm(f => ({ ...f, code: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Amount to Redeem ($)</label>
-              <input type="number" min="0.01" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="25.00" value={redeemForm.amount} onChange={e => setRedeemForm(f => ({ ...f, amount: e.target.value }))} />
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Amount to Redeem ($)</label>
+              <input type="number" min="0.01" className={inputCls} style={inputStyle} placeholder="25.00" value={redeemForm.amount} onChange={e => setRedeemForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowRedeem(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
-              <button onClick={redeem} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Redeem</button>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowRedeem(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
+              <button onClick={redeem} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>Redeem</button>
             </div>
           </div>
         </div>

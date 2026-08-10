@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { Truck, Plus, Trash2, Edit2, Search, ExternalLink, Mail, Phone } from 'lucide-react'
 
 interface Vendor {
@@ -15,6 +16,14 @@ interface Vendor {
   createdAt: string
 }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [stats, setStats] = useState<{ total: number; active: number; categories: string[] } | null>(null)
@@ -24,6 +33,7 @@ export default function VendorsPage() {
   const [editTarget, setEditTarget] = useState<Vendor | null>(null)
   const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', category: '' })
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => { load() }, [search])
 
@@ -59,7 +69,9 @@ export default function VendorsPage() {
       setEditTarget(null)
       setForm({ name: '', email: '', phone: '', website: '', category: '' })
       load()
-    } catch (e: any) { alert(e.message) } finally { setSaving(false) }
+    } catch (e: any) {
+      toast(e.message || 'Failed to save vendor', 'error')
+    } finally { setSaving(false) }
   }
 
   function edit(v: Vendor) {
@@ -69,49 +81,54 @@ export default function VendorsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Remove this vendor?')) return
-    await apiClient.delete(`/vendors/${id}`)
-    load()
+    setDeletingId(id)
+    setVendors(prev => prev.filter(v => v.id !== id))
+    try {
+      await apiClient.delete(`/vendors/${id}`)
+    } catch (e: any) {
+      toast(e.message || 'Failed to remove vendor', 'error')
+      load()
+    } finally { setDeletingId(null) }
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-6xl">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Vendors</h1>
+          <h1 className="text-2xl font-bold text-foreground">Vendors</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage your suppliers and service providers</p>
         </div>
         <button onClick={() => { setEditTarget(null); setForm({ name: '', email: '', phone: '', website: '', category: '' }); setShowCreate(true) }}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
           <Plus className="h-4 w-4" /> Add Vendor
         </button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-card border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground mb-1">Total Vendors</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
-          </div>
-          <div className="bg-card border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground mb-1">Active</p>
-            <p className="text-2xl font-bold text-green-500">{stats.active}</p>
-          </div>
-          <div className="bg-card border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground mb-1">Categories</p>
-            <p className="text-2xl font-bold">{stats.categories.length}</p>
-          </div>
+        <div {...anim(1)} className="kv-anim grid grid-cols-3 gap-4">
+          {[
+            { label: 'Total Vendors', value: stats.total, color: 'hsl(var(--foreground))' },
+            { label: 'Active', value: stats.active, color: '#34d399' },
+            { label: 'Categories', value: stats.categories.length, color: 'hsl(var(--foreground))' },
+          ].map(s => (
+            <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
+              <p className="text-sm text-muted-foreground mb-1">{s.label}</p>
+              <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      <div className="relative">
+      <div {...anim(2)} className="kv-anim relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search vendors…"
-          className="w-full pl-9 pr-4 py-2.5 border rounded-xl text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          style={inputStyle} />
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div {...anim(3)} className="kv-anim grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           <div className="col-span-3 py-8 text-center text-muted-foreground">Loading…</div>
         ) : vendors.length === 0 ? (
@@ -120,18 +137,23 @@ export default function VendorsPage() {
             <p className="text-muted-foreground">No vendors yet</p>
           </div>
         ) : vendors.map(v => (
-          <div key={v.id} className="bg-card border rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div key={v.id} className="rounded-xl p-4 transition-shadow" style={cardStyle}>
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="font-semibold">{v.name}</p>
-                {v.category && <span className="text-xs bg-muted px-2 py-0.5 rounded mt-1 inline-block">{v.category}</span>}
+                <p className="font-semibold text-foreground">{v.name}</p>
+                {v.category && (
+                  <span className="text-xs px-2 py-0.5 rounded mt-1 inline-block text-muted-foreground"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}>
+                    {v.category}
+                  </span>
+                )}
               </div>
               <div className="flex gap-1">
-                <button onClick={() => edit(v)} className="p-1.5 rounded hover:bg-muted">
+                <button onClick={() => edit(v)} className="p-1.5 rounded hover:bg-muted transition-colors">
                   <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
-                <button onClick={() => remove(v.id)} className="p-1.5 rounded hover:bg-muted">
-                  <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                <button onClick={() => remove(v.id)} disabled={deletingId === v.id} className="p-1.5 rounded hover:bg-muted transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" style={{ color: '#f87171' }} />
                 </button>
               </div>
             </div>
@@ -139,7 +161,7 @@ export default function VendorsPage() {
               {v.email && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Mail className="h-3.5 w-3.5" />
-                  <a href={`mailto:${v.email}`} className="hover:text-primary">{v.email}</a>
+                  <a href={`mailto:${v.email}`} className="hover:text-foreground transition-colors">{v.email}</a>
                 </div>
               )}
               {v.phone && (
@@ -151,7 +173,7 @@ export default function VendorsPage() {
               {v.website && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <ExternalLink className="h-3.5 w-3.5" />
-                  <a href={v.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary truncate">{v.website}</a>
+                  <a href={v.website} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors truncate">{v.website}</a>
                 </div>
               )}
             </div>
@@ -160,9 +182,9 @@ export default function VendorsPage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-lg font-bold">{editTarget ? 'Edit Vendor' : 'Add Vendor'}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="text-lg font-bold text-foreground">{editTarget ? 'Edit Vendor' : 'Add Vendor'}</h2>
             {[
               { label: 'Name *', key: 'name', placeholder: 'Acme Corp' },
               { label: 'Email', key: 'email', placeholder: 'billing@vendor.com' },
@@ -171,16 +193,16 @@ export default function VendorsPage() {
               { label: 'Category', key: 'category', placeholder: 'Software, Office, etc.' },
             ].map(f => (
               <div key={f.key}>
-                <label className="text-sm font-medium block mb-1">{f.label}</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">{f.label}</label>
                 <input value={(form as any)[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                  placeholder={f.placeholder}
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                  placeholder={f.placeholder} className={inputCls} style={inputStyle} />
               </div>
             ))}
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowCreate(false)} className="flex-1 border rounded-lg py-2 text-sm hover:bg-muted">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
               <button onClick={save} disabled={saving || !form.name}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                 {saving ? 'Saving…' : editTarget ? 'Update' : 'Add Vendor'}
               </button>
             </div>

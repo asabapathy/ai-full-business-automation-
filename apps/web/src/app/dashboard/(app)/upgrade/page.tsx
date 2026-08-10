@@ -7,6 +7,7 @@ import { Lock, Check, Sparkles, Zap, Brain, Building2, ArrowLeft } from 'lucide-
 import { useAuthStore } from '../../../../stores/auth.store'
 import { PLAN_META } from '../../../../lib/features'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 
 const PLAN_ORDER = ['STARTER', 'PRO', 'BUSINESS'] as const
 const PLAN_ICONS = { STARTER: Zap, PRO: Brain, BUSINESS: Building2 }
@@ -32,7 +33,7 @@ function UpgradePageInner() {
       const res = await apiClient.post<{ url: string }>('/stripe/checkout', { priceId }) as any
       if (res?.url) window.location.href = res.url
     } catch {
-      alert('Unable to start checkout. Please check Stripe configuration.')
+      toast('Unable to start checkout. Please check your Stripe configuration.', 'error')
     } finally {
       setLoadingPlan(null)
     }

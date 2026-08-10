@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { useAuthStore } from '../../../../stores/auth.store'
 
 interface WhiteLabelConfig {
@@ -92,7 +93,7 @@ export default function WhiteLabelPage() {
       await apiClient.post('/white-label/config', config)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch { alert('Failed to save settings') }
+    } catch { toast('Failed to save settings', 'error') }
     setSaving(false)
   }
 
@@ -105,7 +106,7 @@ export default function WhiteLabelPage() {
       setDnsRecords(data?.dnsInstructions ?? [])
       setDomainVerified(data?.verified ?? false)
       if (data?.verified) setConfig(prev => ({ ...prev, customDomain: domainInput.trim() }))
-    } catch { alert('Domain verification failed') }
+    } catch { toast('Domain verification failed', 'error') }
     setVerifying(false)
   }
 

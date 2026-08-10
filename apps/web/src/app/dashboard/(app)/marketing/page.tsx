@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Megaphone, Plus, Zap, Send, RefreshCw, Instagram, Mail, MessageSquare } from 'lucide-react'
-import { Badge } from '../../../../../components/ui/badge'
-import { Skeleton } from '../../../../../components/ui/skeleton'
-import { api } from '../../../../../lib/api-client'
+import { apiClient } from '../../../../lib/api-client'
 
 interface Campaign {
   id: string
@@ -31,11 +29,11 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   DEFAULT: Megaphone,
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'secondary',
-  ACTIVE: 'success',
-  PAUSED: 'warning',
-  COMPLETED: 'outline',
+const STATUS_META: Record<string, { text: string; bg: string }> = {
+  DRAFT:     { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  ACTIVE:    { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  PAUSED:    { text: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  COMPLETED: { text: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
 }
 
 function anim(i: number) {
@@ -55,8 +53,8 @@ export default function MarketingPage() {
       setIsLoading(true)
       try {
         const [campaignData, analyticsData] = await Promise.all([
-          api.get<{ campaigns: Campaign[] }>('/marketing/campaigns'),
-          api.get<Analytics>('/marketing/analytics'),
+          apiClient.get<{ campaigns: Campaign[] }>('/marketing/campaigns'),
+          apiClient.get<Analytics>('/marketing/analytics'),
         ])
         setCampaigns(campaignData.campaigns)
         setAnalytics(analyticsData)
@@ -79,7 +77,7 @@ export default function MarketingPage() {
     setGenerating(true)
     setAiResult('')
     try {
-      const result = await api.post<{ campaign: Campaign; agentResponse: { content: string } }>(
+      const result = await apiClient.post<{ campaign: Campaign; agentResponse: { content: string } }>(
         '/marketing/campaigns/generate',
         { goal, type: 'EMAIL' }
       )
@@ -95,8 +93,7 @@ export default function MarketingPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
-      {/* Header */}
-      <div {...anim(0)} className="kv-anim flex items-center justify-between" style={{ animationDelay: '0.04s' }}>
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Marketing Engine</h1>
           <p className="text-muted-foreground text-sm mt-0.5">AI-powered campaigns and content generation</p>
@@ -110,41 +107,33 @@ export default function MarketingPage() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Campaigns', value: analytics?.totalCampaigns ?? '--', color: 'text-primary' },
-          { label: 'Active Now', value: analytics?.activeCampaigns ?? '--', color: 'text-emerald-400' },
-          { label: 'Social Posts (30d)', value: analytics?.recentSocialPosts ?? '--', color: 'text-violet-400' },
-          { label: 'Est. Reach', value: analytics?.estimatedReach ? `${(analytics.estimatedReach / 1000).toFixed(1)}k` : '--', color: 'text-amber-400' },
+          { label: 'Total Campaigns', value: analytics?.totalCampaigns ?? '--', color: '#06b6d4' },
+          { label: 'Active Now', value: analytics?.activeCampaigns ?? '--', color: '#34d399' },
+          { label: 'Social Posts (30d)', value: analytics?.recentSocialPosts ?? '--', color: '#a78bfa' },
+          { label: 'Est. Reach', value: analytics?.estimatedReach ? `${(analytics.estimatedReach / 1000).toFixed(1)}k` : '--', color: '#fbbf24' },
         ].map((stat, i) => (
-          <div
-            key={stat.label}
-            className="kv-anim rounded-xl border p-4"
-            style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-          >
+          <div key={stat.label} {...anim(i + 1)} className="kv-anim rounded-xl p-4"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
             <p className="text-xs text-muted-foreground uppercase tracking-wide">{stat.label}</p>
             {isLoading
-              ? <Skeleton className="h-8 w-16 mt-1" />
-              : <p className={`text-2xl font-bold mt-1 tabular ${stat.color}`}>{stat.value}</p>
+              ? <div className="h-8 w-16 mt-1 animate-pulse rounded" style={{ background: 'hsl(var(--muted))' }} />
+              : <p className="text-2xl font-bold mt-1 tabular-nums" style={{ color: stat.color }}>{stat.value}</p>
             }
           </div>
         ))}
       </div>
 
-      {/* AI Campaign Generator */}
-      <div
-        className="kv-anim rounded-xl border p-5"
+      <div {...anim(5)} className="kv-anim rounded-xl p-5"
         style={{
-          animationDelay: '0.39s',
           background: 'rgba(6,182,212,0.04)',
-          borderColor: 'rgba(6,182,212,0.25)',
+          border: '1px solid rgba(6,182,212,0.25)',
           borderLeftWidth: 4,
           borderLeftColor: '#06b6d4',
-        }}
-      >
+        }}>
         <div className="flex items-center gap-2 mb-3">
-          <Zap className="h-4 w-4 text-primary" />
+          <Zap className="h-4 w-4" style={{ color: '#06b6d4' }} />
           <h2 className="text-sm font-semibold text-foreground">AI Campaign Generator</h2>
         </div>
         <div className="flex gap-2">
@@ -167,63 +156,61 @@ export default function MarketingPage() {
           </button>
         </div>
         {aiResult && (
-          <div
-            className="mt-3 rounded-lg p-4 text-sm text-muted-foreground whitespace-pre-wrap"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-          >
+          <div className="mt-3 rounded-lg p-4 text-sm text-muted-foreground whitespace-pre-wrap"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
             {aiResult}
           </div>
         )}
       </div>
 
-      {/* Campaign List */}
-      <div
-        className="kv-anim rounded-xl border overflow-hidden"
-        style={{ animationDelay: '0.46s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-      >
-        <div className="flex items-center gap-2 px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+      <div {...anim(6)} className="kv-anim rounded-xl overflow-hidden"
+        style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+        <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
           <Megaphone className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Campaigns</h2>
         </div>
 
         {isLoading ? (
           <div className="p-4 space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+            ))}
           </div>
         ) : campaigns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-            <Megaphone className="h-10 w-10 text-muted-foreground/30 mb-3" />
+            <Megaphone className="h-10 w-10 text-muted-foreground opacity-30 mb-3" />
             <p className="font-medium text-foreground">No campaigns yet</p>
             <p className="text-sm text-muted-foreground mt-1">Create your first campaign or let AI generate one.</p>
           </div>
         ) : (
-          <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-            {campaigns.map(campaign => {
+          <div>
+            {campaigns.map((campaign, i) => {
               const Icon = TYPE_ICONS[campaign.type] ?? TYPE_ICONS['DEFAULT']!
+              const sm = STATUS_META[campaign.status] ?? STATUS_META['DRAFT']
               return (
-                <div key={campaign.id} className="flex items-center gap-4 px-5 py-3 hover:bg-accent/40 transition-colors group">
-                  <div
-                    className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: 'rgba(6,182,212,0.1)' }}
-                  >
-                    <Icon className="h-4 w-4 text-primary" />
+                <div key={campaign.id}
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-muted/30 transition-colors group"
+                  style={{ borderBottom: i < campaigns.length - 1 ? '1px solid hsl(var(--border))' : undefined }}>
+                  <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: 'rgba(6,182,212,0.1)' }}>
+                    <Icon className="h-4 w-4" style={{ color: '#06b6d4' }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm text-foreground truncate">{campaign.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {campaign.type.replace(/_/g, ' ')}
                       {campaign.aiGenerated && (
-                        <span className="ml-2 text-primary font-medium">AI</span>
+                        <span className="ml-2 font-medium" style={{ color: '#06b6d4' }}>AI</span>
                       )}
                     </p>
                   </div>
-                  <Badge variant={(STATUS_COLORS[campaign.status] as never) ?? 'outline'} className="text-xs">
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: sm.text, background: sm.bg }}>
                     {campaign.status}
-                  </Badge>
+                  </span>
                   {campaign.status === 'DRAFT' && (
                     <button
-                      className="rounded-lg px-2 py-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10"
-                      style={{ border: '1px solid rgba(6,182,212,0.2)' }}
+                      className="rounded-lg px-2 py-1 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all"
+                      style={{ color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)', background: 'rgba(6,182,212,0.05)' }}
                     >
                       Launch
                     </button>

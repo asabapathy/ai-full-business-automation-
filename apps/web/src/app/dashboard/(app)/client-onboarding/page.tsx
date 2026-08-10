@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { UserCheck, Plus, Trash2, CheckSquare, Square, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface OnboardingItem {
@@ -24,10 +25,18 @@ interface Checklist {
 
 interface Stats { total: number; completed: number; inProgress: number; avgCompletion: number }
 
-const STATUS_COLORS: Record<string, string> = {
-  not_started: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+const STATUS_META: Record<string, { text: string; bg: string }> = {
+  not_started: { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  in_progress: { text: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
+  completed:   { text: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+}
+
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
 
 export default function ClientOnboardingPage() {
@@ -40,6 +49,7 @@ export default function ClientOnboardingPage() {
   const [form, setForm] = useState({ name: '' })
   const [itemForm, setItemForm] = useState({ title: '', description: '' })
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -63,7 +73,9 @@ export default function ClientOnboardingPage() {
       setShowCreate(false)
       setForm({ name: '' })
       load()
-    } catch (e: any) { alert(e.message) } finally { setSaving(false) }
+    } catch (e: any) {
+      toast(e.message || 'Failed to create checklist', 'error')
+    } finally { setSaving(false) }
   }
 
   async function toggleItem(checklistId: string, itemId: string) {
@@ -82,13 +94,20 @@ export default function ClientOnboardingPage() {
       setAddItemTarget(null)
       setItemForm({ title: '', description: '' })
       load()
-    } catch (e: any) { alert(e.message) } finally { setSaving(false) }
+    } catch (e: any) {
+      toast(e.message || 'Failed to add item', 'error')
+    } finally { setSaving(false) }
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this checklist?')) return
-    await apiClient.delete(`/onboarding/${id}`)
-    load()
+    setDeletingId(id)
+    setChecklists(prev => prev.filter(c => c.id !== id))
+    try {
+      await apiClient.delete(`/onboarding/${id}`)
+    } catch (e: any) {
+      toast(e.message || 'Failed to delete checklist', 'error')
+      load()
+    } finally { setDeletingId(null) }
   }
 
   function toggleExpand(id: string) {
@@ -105,35 +124,36 @@ export default function ClientOnboardingPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-6xl">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Client Onboarding</h1>
+          <h1 className="text-2xl font-bold text-foreground">Client Onboarding</h1>
           <p className="text-muted-foreground text-sm mt-1">Track client onboarding checklists</p>
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
           <Plus className="h-4 w-4" /> New Checklist
         </button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div {...anim(1)} className="kv-anim grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total', value: stats.total, color: 'text-foreground' },
-            { label: 'In Progress', value: stats.inProgress, color: 'text-blue-500' },
-            { label: 'Completed', value: stats.completed, color: 'text-green-500' },
-            { label: 'Avg Completion', value: `${stats.avgCompletion.toFixed(0)}%`, color: 'text-purple-500' },
+            { label: 'Total', value: stats.total, color: 'hsl(var(--foreground))' },
+            { label: 'In Progress', value: stats.inProgress, color: '#60a5fa' },
+            { label: 'Completed', value: stats.completed, color: '#34d399' },
+            { label: 'Avg Completion', value: `${stats.avgCompletion.toFixed(0)}%`, color: '#a78bfa' },
           ].map(s => (
-            <div key={s.label} className="bg-card border rounded-xl p-4">
+            <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
               <p className="text-sm text-muted-foreground mb-1">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="space-y-3">
+      <div {...anim(2)} className="kv-anim space-y-3">
         {loading ? (
           <div className="py-8 text-center text-muted-foreground">Loading…</div>
         ) : checklists.length === 0 ? (
@@ -144,52 +164,57 @@ export default function ClientOnboardingPage() {
         ) : checklists.map(c => {
           const pct = completionPct(c.items)
           const isExpanded = expanded.has(c.id)
+          const sm = STATUS_META[c.status] ?? STATUS_META.not_started
           return (
-            <div key={c.id} className="bg-card border rounded-xl overflow-hidden">
+            <div key={c.id} className="rounded-xl overflow-hidden" style={cardStyle}>
               <div className="flex items-center gap-3 p-4">
-                <button onClick={() => toggleExpand(c.id)} className="text-muted-foreground hover:text-foreground">
+                <button onClick={() => toggleExpand(c.id)} className="text-muted-foreground hover:text-foreground transition-colors">
                   {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </button>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold">{c.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] ?? ''}`}>
+                    <p className="font-semibold text-foreground">{c.name}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: sm.text, background: sm.bg }}>
                       {c.status.replace('_', ' ')}
                     </span>
                   </div>
                   {c.contact && <p className="text-xs text-muted-foreground mt-0.5">{c.contact.firstName} {c.contact.lastName}</p>}
                   <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 max-w-48 bg-muted rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-primary'}`}
-                        style={{ width: `${pct}%` }} />
+                    <div className="flex-1 max-w-48 rounded-full h-1.5" style={{ background: 'hsl(var(--background))' }}>
+                      <div className="h-1.5 rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: pct === 100 ? '#34d399' : 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }} />
                     </div>
                     <span className="text-xs text-muted-foreground">{pct}%</span>
                   </div>
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => { setAddItemTarget(c.id); setItemForm({ title: '', description: '' }) }}
-                    className="px-2 py-1 rounded text-xs bg-primary/10 text-primary hover:bg-primary/20">+ Item</button>
-                  <button onClick={() => remove(c.id)} className="p-1.5 rounded hover:bg-muted">
-                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                    className="px-2 py-1 rounded-lg text-xs font-medium transition-colors"
+                    style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.1)' }}>
+                    + Item
+                  </button>
+                  <button onClick={() => remove(c.id)} disabled={deletingId === c.id} className="p-1.5 rounded hover:bg-muted transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" style={{ color: '#f87171' }} />
                   </button>
                 </div>
               </div>
               {isExpanded && c.items && (
-                <div className="border-t">
+                <div style={{ borderTop: '1px solid hsl(var(--border))' }}>
                   {c.items.length === 0 ? (
                     <p className="px-6 py-3 text-xs text-muted-foreground">No items</p>
-                  ) : c.items.sort((a, b) => a.order - b.order).map(item => (
-                    <div key={item.id} className="flex items-start gap-3 px-6 py-3 border-b last:border-0 hover:bg-muted/20">
+                  ) : c.items.sort((a, b) => a.order - b.order).map((item, idx) => (
+                    <div key={item.id} className="flex items-start gap-3 px-6 py-3"
+                      style={{ borderBottom: idx < (c.items?.length ?? 0) - 1 ? '1px solid hsl(var(--border))' : undefined }}>
                       <button onClick={() => toggleItem(c.id, item.id)} className="mt-0.5 shrink-0">
                         {item.isCompleted
-                          ? <CheckSquare className="h-4 w-4 text-green-500" />
+                          ? <CheckSquare className="h-4 w-4" style={{ color: '#34d399' }} />
                           : <Square className="h-4 w-4 text-muted-foreground" />
                         }
                       </button>
                       <div className="flex-1">
-                        <p className={`text-sm ${item.isCompleted ? 'line-through text-muted-foreground' : ''}`}>{item.title}</p>
+                        <p className={`text-sm ${item.isCompleted ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{item.title}</p>
                         {item.description && <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>}
-                        {item.completedAt && <p className="text-xs text-green-500 mt-0.5">Completed {new Date(item.completedAt).toLocaleDateString()}</p>}
+                        {item.completedAt && <p className="text-xs mt-0.5" style={{ color: '#34d399' }}>Completed {new Date(item.completedAt).toLocaleDateString()}</p>}
                       </div>
                     </div>
                   ))}
@@ -201,20 +226,20 @@ export default function ClientOnboardingPage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border rounded-2xl p-6 w-full max-w-sm space-y-4">
-            <h2 className="text-lg font-bold">New Onboarding Checklist</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="text-lg font-bold text-foreground">New Onboarding Checklist</h2>
             <p className="text-sm text-muted-foreground">A default set of onboarding items will be created automatically.</p>
             <div>
-              <label className="text-sm font-medium block mb-1">Name *</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Name *</label>
               <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder="Acme Corp Onboarding"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                placeholder="Acme Corp Onboarding" className={inputCls} style={inputStyle} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowCreate(false)} className="flex-1 border rounded-lg py-2 text-sm hover:bg-muted">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
               <button onClick={save} disabled={saving || !form.name}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                 {saving ? 'Creating…' : 'Create'}
               </button>
             </div>
@@ -223,25 +248,25 @@ export default function ClientOnboardingPage() {
       )}
 
       {addItemTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border rounded-2xl p-6 w-full max-w-sm space-y-4">
-            <h2 className="text-lg font-bold">Add Item</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="text-lg font-bold text-foreground">Add Item</h2>
             <div>
-              <label className="text-sm font-medium block mb-1">Title *</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Title *</label>
               <input value={itemForm.title} onChange={e => setItemForm({ ...itemForm, title: e.target.value })}
-                placeholder="Item title"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                placeholder="Item title" className={inputCls} style={inputStyle} />
             </div>
             <div>
-              <label className="text-sm font-medium block mb-1">Description (optional)</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Description (optional)</label>
               <textarea value={itemForm.description} onChange={e => setItemForm({ ...itemForm, description: e.target.value })}
                 rows={2} placeholder="Additional details"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
+                className={`${inputCls} resize-none`} style={inputStyle} />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setAddItemTarget(null)} className="flex-1 border rounded-lg py-2 text-sm hover:bg-muted">Cancel</button>
+              <button onClick={() => setAddItemTarget(null)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
               <button onClick={() => addItem(addItemTarget)} disabled={saving || !itemForm.title}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                 {saving ? 'Adding…' : 'Add Item'}
               </button>
             </div>

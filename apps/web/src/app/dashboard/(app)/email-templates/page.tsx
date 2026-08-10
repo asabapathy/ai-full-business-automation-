@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
+import { toast } from '../../../../lib/toast'
 import { LayoutTemplate, Plus, Trash2, Edit2, Copy, Search, Eye } from 'lucide-react'
 
 interface EmailTemplate {
@@ -17,6 +18,16 @@ interface EmailTemplate {
 
 interface Stats { total: number; active: number; byCategory: Record<string, number> }
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function anim(i: number) {
+  return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
+}
+
+const TEMPLATE_CATEGORIES = ['Welcome', 'Follow-up', 'Newsletter', 'Promotion', 'Transactional', 'Notification', 'Other']
+
 export default function EmailTemplatesPage() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -29,6 +40,7 @@ export default function EmailTemplatesPage() {
   const [preview, setPreview] = useState<EmailTemplate | null>(null)
   const [form, setForm] = useState({ name: '', subject: '', category: '', htmlContent: '', variables: '' })
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => { load() }, [search, filterCat])
 
@@ -69,87 +81,92 @@ export default function EmailTemplatesPage() {
       setEditTarget(null)
       setForm({ name: '', subject: '', category: '', htmlContent: '', variables: '' })
       load()
-    } catch (e: any) { alert(e.message) } finally { setSaving(false) }
+    } catch (e: any) {
+      toast(e.message || 'Failed to save template', 'error')
+    } finally { setSaving(false) }
   }
 
   async function duplicate(id: string) {
-    await apiClient.post(`/email-templates/${id}/duplicate`, {})
-    load()
+    try {
+      await apiClient.post(`/email-templates/${id}/duplicate`, {})
+      load()
+    } catch (e: any) {
+      toast(e.message || 'Failed to duplicate', 'error')
+    }
   }
 
   async function remove(id: string) {
-    if (!confirm('Archive this template?')) return
-    await apiClient.delete(`/email-templates/${id}`)
-    load()
+    setDeletingId(id)
+    setTemplates(prev => prev.filter(t => t.id !== id))
+    try {
+      await apiClient.delete(`/email-templates/${id}`)
+    } catch (e: any) {
+      toast(e.message || 'Failed to archive template', 'error')
+      load()
+    } finally { setDeletingId(null) }
   }
 
   function edit(t: EmailTemplate) {
     setEditTarget(t)
-    setForm({
-      name: t.name,
-      subject: t.subject,
-      category: t.category ?? '',
-      htmlContent: t.htmlContent,
-      variables: t.variables.join(', '),
-    })
+    setForm({ name: t.name, subject: t.subject, category: t.category ?? '', htmlContent: t.htmlContent, variables: t.variables.join(', ') })
     setShowCreate(true)
   }
 
-  const TEMPLATE_CATEGORIES = ['Welcome', 'Follow-up', 'Newsletter', 'Promotion', 'Transactional', 'Notification', 'Other']
-
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-6xl">
+      <div {...anim(0)} className="kv-anim flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Email Templates</h1>
+          <h1 className="text-2xl font-bold text-foreground">Email Templates</h1>
           <p className="text-muted-foreground text-sm mt-1">Reusable email templates for campaigns</p>
         </div>
         <button onClick={() => { setEditTarget(null); setForm({ name: '', subject: '', category: '', htmlContent: '', variables: '' }); setShowCreate(true) }}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
           <Plus className="h-4 w-4" /> New Template
         </button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-card border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground mb-1">Total</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
-          </div>
-          <div className="bg-card border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground mb-1">Active</p>
-            <p className="text-2xl font-bold text-green-500">{stats.active}</p>
-          </div>
-          <div className="bg-card border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground mb-1">Categories</p>
-            <p className="text-2xl font-bold">{Object.keys(stats.byCategory).length}</p>
-          </div>
+        <div {...anim(1)} className="kv-anim grid grid-cols-3 gap-4">
+          {[
+            { label: 'Total', value: stats.total, color: 'hsl(var(--foreground))' },
+            { label: 'Active', value: stats.active, color: '#34d399' },
+            { label: 'Categories', value: Object.keys(stats.byCategory).length, color: 'hsl(var(--foreground))' },
+          ].map(s => (
+            <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
+              <p className="text-sm text-muted-foreground mb-1">{s.label}</p>
+              <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div {...anim(2)} className="kv-anim flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search templates…"
-            className="w-full pl-9 pr-4 py-2.5 border rounded-xl text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            style={inputStyle} />
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setFilterCat('')}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${!filterCat ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}>
-          All
-        </button>
-        {categories.map(c => (
-          <button key={c} onClick={() => setFilterCat(c)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${filterCat === c ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}>
-            {c}
-          </button>
-        ))}
+      <div {...anim(3)} className="kv-anim flex gap-2 flex-wrap">
+        {(['', ...categories]).map(c => {
+          const active = filterCat === c
+          return (
+            <button key={c || 'all'} onClick={() => setFilterCat(c)}
+              className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+              style={active
+                ? { color: '#06b6d4', background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.4)' }
+                : { color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+              {c || 'All'}
+            </button>
+          )
+        })}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div {...anim(4)} className="kv-anim grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           <div className="col-span-3 py-8 text-center text-muted-foreground">Loading…</div>
         ) : templates.length === 0 ? (
@@ -158,24 +175,29 @@ export default function EmailTemplatesPage() {
             <p className="text-muted-foreground">No templates yet</p>
           </div>
         ) : templates.map(t => (
-          <div key={t.id} className="bg-card border rounded-xl p-4 space-y-3">
+          <div key={t.id} className="rounded-xl p-4 space-y-3" style={cardStyle}>
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-semibold">{t.name}</p>
-                {t.category && <span className="text-xs bg-muted px-2 py-0.5 rounded mt-1 inline-block">{t.category}</span>}
+                <p className="font-semibold text-foreground">{t.name}</p>
+                {t.category && (
+                  <span className="text-xs px-2 py-0.5 rounded mt-1 inline-block text-muted-foreground"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid hsl(var(--border))' }}>
+                    {t.category}
+                  </span>
+                )}
               </div>
               <div className="flex gap-1">
-                <button onClick={() => setPreview(t)} className="p-1.5 rounded hover:bg-muted" title="Preview">
+                <button onClick={() => setPreview(t)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Preview">
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
-                <button onClick={() => edit(t)} className="p-1.5 rounded hover:bg-muted">
+                <button onClick={() => edit(t)} className="p-1.5 rounded hover:bg-muted transition-colors">
                   <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
-                <button onClick={() => duplicate(t.id)} className="p-1.5 rounded hover:bg-muted" title="Duplicate">
-                  <Copy className="h-3.5 w-3.5 text-blue-400" />
+                <button onClick={() => duplicate(t.id)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Duplicate">
+                  <Copy className="h-3.5 w-3.5" style={{ color: '#60a5fa' }} />
                 </button>
-                <button onClick={() => remove(t.id)} className="p-1.5 rounded hover:bg-muted">
-                  <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                <button onClick={() => remove(t.id)} disabled={deletingId === t.id} className="p-1.5 rounded hover:bg-muted transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" style={{ color: '#f87171' }} />
                 </button>
               </div>
             </div>
@@ -183,7 +205,10 @@ export default function EmailTemplatesPage() {
             {t.variables.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {t.variables.map(v => (
-                  <span key={v} className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">{`{{${v}}}`}</span>
+                  <span key={v} className="text-xs px-1.5 py-0.5 rounded font-mono"
+                    style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.1)' }}>
+                    {`{{${v}}}`}
+                  </span>
                 ))}
               </div>
             )}
@@ -192,47 +217,45 @@ export default function EmailTemplatesPage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border rounded-2xl p-6 w-full max-w-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold">{editTarget ? 'Edit Template' : 'New Template'}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-2xl rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+            <h2 className="text-lg font-bold text-foreground">{editTarget ? 'Edit Template' : 'New Template'}</h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="text-sm font-medium block mb-1">Name *</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Name *</label>
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder="Welcome email template"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                  placeholder="Welcome email template" className={inputCls} style={inputStyle} />
               </div>
               <div className="col-span-2">
-                <label className="text-sm font-medium block mb-1">Subject Line *</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Subject Line *</label>
                 <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
-                  placeholder="Welcome to {{company_name}}!"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                  placeholder="Welcome to {{company_name}}!" className={inputCls} style={inputStyle} />
               </div>
               <div>
-                <label className="text-sm font-medium block mb-1">Category</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Category</label>
                 <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary">
+                  className={inputCls} style={inputStyle}>
                   <option value="">Select…</option>
                   {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium block mb-1">Variables (comma-separated)</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Variables (comma-separated)</label>
                 <input value={form.variables} onChange={e => setForm({ ...form, variables: e.target.value })}
-                  placeholder="first_name, company_name, link"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                  placeholder="first_name, company_name, link" className={inputCls} style={inputStyle} />
               </div>
               <div className="col-span-2">
-                <label className="text-sm font-medium block mb-1">HTML Content *</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">HTML Content *</label>
                 <textarea value={form.htmlContent} onChange={e => setForm({ ...form, htmlContent: e.target.value })}
                   rows={10} placeholder="<h1>Hello {{first_name}}</h1><p>…</p>"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono" />
+                  className={`${inputCls} resize-none font-mono`} style={inputStyle} />
               </div>
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowCreate(false)} className="flex-1 border rounded-lg py-2 text-sm hover:bg-muted">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Cancel</button>
               <button onClick={save} disabled={saving || !form.name || !form.subject || !form.htmlContent}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                 {saving ? 'Saving…' : editTarget ? 'Update' : 'Create Template'}
               </button>
             </div>
@@ -241,17 +264,17 @@ export default function EmailTemplatesPage() {
       )}
 
       {preview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border rounded-2xl p-6 w-full max-w-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-2xl rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto" style={{ ...cardStyle, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
             <div>
-              <h2 className="text-lg font-bold">{preview.name}</h2>
+              <h2 className="text-lg font-bold text-foreground">{preview.name}</h2>
               <p className="text-sm text-muted-foreground">Subject: {preview.subject}</p>
             </div>
-            <div className="border rounded-lg overflow-hidden">
-              <div className="bg-muted/30 px-3 py-2 text-xs text-muted-foreground border-b">HTML Preview</div>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+              <div className="px-3 py-2 text-xs text-muted-foreground" style={{ background: 'hsl(var(--muted))', borderBottom: '1px solid hsl(var(--border))' }}>HTML Preview</div>
               <div className="p-4 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: preview.htmlContent }} />
             </div>
-            <button onClick={() => setPreview(null)} className="w-full border rounded-lg py-2 text-sm hover:bg-muted">Close</button>
+            <button onClick={() => setPreview(null)} className="w-full py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" style={{ border: '1px solid hsl(var(--border))' }}>Close</button>
           </div>
         </div>
       )}
