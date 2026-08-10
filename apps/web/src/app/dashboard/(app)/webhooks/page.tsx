@@ -407,6 +407,113 @@ export default function WebhooksPage() {
         </div>
       )}
 
+      {/* Delivery Log */}
+      <div {...anim(2)} className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Delivery Log</h2>
+            <button
+              onClick={() => void loadLogEvents()}
+              disabled={logLoading}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              style={{ border: '1px solid hsl(var(--border))' }}
+              title="Refresh events"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${logLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          <div className="flex gap-1.5">
+            {([['all', 'All'], ['success', 'Success'], ['failed', 'Failed']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setLogFilter(key)}
+                className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                style={logFilter === key
+                  ? { color: '#06b6d4', background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.35)' }
+                  : { color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {logLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
+          </div>
+        ) : filteredLogEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center rounded-xl" style={cardStyle}>
+            <p className="text-sm text-muted-foreground">No {logFilter === 'all' ? '' : `${logFilter} `}deliveries to show.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredLogEvents.map(ev => {
+              const failed = isFailed(ev)
+              const dotColor = failed ? '#f87171' : ev.status >= 300 ? '#fbbf24' : '#34d399'
+              const expanded = expandedId === ev.id
+              return (
+                <div key={ev.id} className="rounded-lg" style={cardStyle}>
+                  <button
+                    onClick={() => setExpandedId(expanded ? null : ev.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: dotColor }} />
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-mono font-medium shrink-0 tabular"
+                      style={{ color: dotColor, background: failed ? 'rgba(248,113,113,0.12)' : ev.status >= 300 ? 'rgba(251,191,36,0.12)' : 'rgba(52,211,153,0.12)' }}
+                    >
+                      {ev.status === 0 ? 'ERR' : ev.status}
+                    </span>
+                    <span className="font-mono text-sm text-foreground shrink-0">{ev.event}</span>
+                    <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">{ev.url}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 tabular">{ev.durationMs}ms</span>
+                    <span className="text-xs text-muted-foreground/70 shrink-0">{relativeTime(ev.createdAt)}</span>
+                    <ChevronDown
+                      className="h-4 w-4 text-muted-foreground shrink-0 transition-transform"
+                      style={expanded ? { transform: 'rotate(180deg)' } : undefined}
+                    />
+                  </button>
+
+                  {expanded && (
+                    <div className="px-4 pb-4 space-y-3 border-t pt-3" style={{ borderColor: 'hsl(var(--border))' }}>
+                      <pre
+                        className="font-mono text-xs rounded-lg p-3 overflow-x-auto text-foreground/90"
+                        style={{ background: 'hsl(var(--muted))' }}
+                      >
+                        {JSON.stringify(ev.payload, null, 2)}
+                      </pre>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => void handleCopyPayload(ev)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          style={{ border: '1px solid hsl(var(--border))' }}
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copy payload
+                        </button>
+                        {failed && (
+                          <button
+                            onClick={() => void handleRetry(ev)}
+                            disabled={retryingId === ev.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                            style={{ color: '#f87171', border: '1px solid rgba(248,113,113,0.4)' }}
+                          >
+                            <RotateCcw className={`h-3 w-3 ${retryingId === ev.id ? 'animate-spin' : ''}`} />
+                            {retryingId === ev.id ? 'Retrying…' : 'Retry'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
