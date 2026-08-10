@@ -337,6 +337,117 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
+      {!checklistDismissed && (() => {
+        const done = CHECKLIST_STEPS.filter(s => checklist[s.key]).length
+        const total = CHECKLIST_STEPS.length
+        const allDone = done === total
+        const pct = (done / total) * 100
+        const r = 8
+        const circ = 2 * Math.PI * r
+        return (
+          <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+            {checklistOpen && (
+              <div className="w-80 rounded-xl shadow-2xl overflow-hidden" style={cardStyle}>
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderBottom: '1px solid hsl(var(--border))' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-foreground">Getting started</span>
+                    <span className="text-xs font-semibold" style={{ color: '#06b6d4' }}>{done}/{total}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setChecklistDismissed(true)
+                      toast("You can't reopen this — checklist dismissed", 'info')
+                    }}
+                    title="Dismiss checklist"
+                    className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="px-4 pt-3">
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #06b6d4, #0ea5e9)' }}
+                    />
+                  </div>
+                </div>
+                <div className="px-2 py-2">
+                  {CHECKLIST_STEPS.map(step => {
+                    const isDone = !!checklist[step.key]
+                    return (
+                      <div
+                        key={step.key}
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                      >
+                        <button
+                          onClick={() => setChecklist(prev => ({ ...prev, [step.key]: !prev[step.key] }))}
+                          title={isDone ? 'Mark as not done' : 'Mark as done'}
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
+                          style={isDone
+                            ? { background: 'rgba(52,211,153,0.15)', border: '1px solid #34d399' }
+                            : { border: '1px solid hsl(var(--border))' }
+                          }
+                        >
+                          {isDone && <Check className="h-3 w-3" style={{ color: '#34d399' }} />}
+                        </button>
+                        <span
+                          className={`flex-1 text-sm ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+                        >
+                          {step.label}
+                        </span>
+                        <button
+                          onClick={() => router.push(step.href)}
+                          title={`Go to ${step.label}`}
+                          className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div
+                  className="px-4 py-2.5 text-xs"
+                  style={{
+                    borderTop: '1px solid hsl(var(--border))',
+                    color: allDone ? '#34d399' : 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  {allDone ? '🎉 All done!' : 'Complete these to get the most out of Kanavu'}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setChecklistOpen(o => !o)}
+              className="flex items-center gap-2 rounded-full pl-2.5 pr-4 py-2 text-sm font-medium text-foreground shadow-lg transition-all hover:scale-[1.03]"
+              style={cardStyle}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0">
+                <circle cx="10" cy="10" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                <circle
+                  cx="10"
+                  cy="10"
+                  r={r}
+                  fill="none"
+                  stroke="#06b6d4"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={circ}
+                  strokeDashoffset={circ * (1 - done / total)}
+                  transform="rotate(-90 10 10)"
+                  style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+                />
+              </svg>
+              <span>Getting started · {done}/{total}</span>
+            </button>
+          </div>
+        )
+      })()}
+
       <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
       <Toaster />
