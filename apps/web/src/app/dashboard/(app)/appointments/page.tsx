@@ -238,6 +238,7 @@ export default function AppointmentsPage() {
         ))}
       </div>
 
+      {view === 'list' && (<>
       {/* Week strip */}
       <div {...anim(3)} className="kv-anim flex items-center gap-2" style={{ animationDelay: '0.25s' }}>
         <button onClick={() => changeDate(-7)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent/60 text-muted-foreground transition-colors shrink-0">
@@ -411,6 +412,138 @@ export default function AppointmentsPage() {
           </div>
         </div>
       </div>
+      </>)}
+
+      {/* Calendar view */}
+      {view === 'calendar' && (
+        <div {...anim(3)}>
+          {/* Month navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+              className="p-2 rounded-lg transition-colors"
+              style={{ ...cardStyle, color: 'hsl(var(--muted-foreground))' }}>
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <h2 className="text-base font-semibold text-foreground">
+              {calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </h2>
+            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+              className="p-2 rounded-lg transition-colors"
+              style={{ ...cardStyle, color: 'hsl(var(--muted-foreground))' }}>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Day-of-week headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+              <div key={d} className="text-center text-xs font-medium py-2" style={{ color: 'hsl(var(--muted-foreground))' }}>{d}</div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+            {(() => {
+              const start = startOfMonth(calMonth)
+              const totalDays = daysInMonth(calMonth)
+              const startDow = start.getDay()
+              const cells: (Date | null)[] = Array(startDow).fill(null)
+              for (let i = 1; i <= totalDays; i++) {
+                cells.push(new Date(calMonth.getFullYear(), calMonth.getMonth(), i))
+              }
+              while (cells.length % 7 !== 0) cells.push(null)
+              const weeks: (Date | null)[][] = []
+              for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+              const today = new Date()
+              return weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7">
+                  {week.map((day, di) => {
+                    const isToday = day ? isSameDay(day, today) : false
+                    const isSelected = day && selectedDay ? isSameDay(day, selectedDay) : false
+                    const dayApts = day ? appointmentsOnDay(day, appointments) : []
+                    return (
+                      <div key={di}
+                        onClick={() => day && setSelectedDay(day)}
+                        className={`min-h-[80px] p-1.5 transition-colors ${day ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                        style={{
+                          background: isSelected ? 'rgba(6,182,212,0.08)' : day ? 'hsl(var(--card))' : 'hsl(var(--muted))',
+                          borderBottom: wi < weeks.length - 1 ? '1px solid hsl(var(--border))' : undefined,
+                          borderRight: di < 6 ? '1px solid hsl(var(--border))' : undefined,
+                        }}>
+                        {day && (
+                          <>
+                            <div className="flex items-center justify-center h-6 w-6 rounded-full text-xs font-medium mb-1"
+                              style={isToday
+                                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                                : { color: isSelected ? '#06b6d4' : 'hsl(var(--foreground))' }}>
+                              {day.getDate()}
+                            </div>
+                            <div className="space-y-0.5">
+                              {dayApts.slice(0, 2).map((apt, ai) => (
+                                <div key={ai} className="text-xs px-1 py-0.5 rounded truncate"
+                                  style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}>
+                                  {apt.contact ? `${apt.contact.firstName} ${apt.contact.lastName ?? ''}`.trim() : apt.title}
+                                </div>
+                              ))}
+                              {dayApts.length > 2 && (
+                                <div className="text-xs px-1" style={{ color: 'hsl(var(--muted-foreground))' }}>+{dayApts.length - 2} more</div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))
+            })()}
+          </div>
+
+          {/* Selected day detail panel */}
+          {selectedDay && (() => {
+            const dayApts = appointmentsOnDay(selectedDay, appointments)
+            return (
+              <div className="mt-4 rounded-xl p-4" style={cardStyle}>
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  {selectedDay.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  <span className="ml-2 text-xs font-normal" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {dayApts.length} appointment{dayApts.length !== 1 ? 's' : ''}
+                  </span>
+                </h3>
+                {dayApts.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>No appointments scheduled.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {dayApts.map((apt, i) => {
+                      const pill = STATUS_PILL[apt.status] ?? STATUS_PILL.SCHEDULED
+                      return (
+                        <div key={i} className="flex items-start gap-3 rounded-lg p-3"
+                          style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
+                          <div className="h-2 w-2 rounded-full mt-1.5 shrink-0" style={{ background: '#06b6d4' }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {apt.contact ? `${apt.contact.firstName} ${apt.contact.lastName ?? ''}`.trim() : apt.title}
+                            </p>
+                            <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{apt.service?.name ?? ''}</p>
+                            <p className="text-xs mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                              {new Date(apt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {apt.duration ? ` · ${apt.duration}m` : ''}
+                            </p>
+                          </div>
+                          <span className="text-xs px-2 py-0.5 rounded-full shrink-0 font-medium"
+                            style={{ background: pill.bg, color: pill.text }}>
+                            {apt.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* Booking modal */}
       {showBook && (
