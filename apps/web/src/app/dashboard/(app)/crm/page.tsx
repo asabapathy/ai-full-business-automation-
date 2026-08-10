@@ -18,6 +18,7 @@ interface Contact {
   score: number
   createdAt: string
   value?: number
+  lifetimeValue?: number
   source?: string
   company?: { id: string; name: string }
 }
@@ -75,6 +76,13 @@ function toStage(status: string): Stage {
     lost: 'lost', churned: 'lost',
   }
   return map[status?.toLowerCase()] ?? 'lead'
+}
+
+// Deterministic demo CLV derived from the contact id — stable across renders
+function demoCLV(id: string): number {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return 500 + (h % 24) * 375  // $500–$9,125
 }
 
 function hexToRgb(hex: string): string {
@@ -698,6 +706,13 @@ export default function CRMPage() {
                         )
                       })()}
                     </div>
+                  </div>
+
+                  <div className="hidden sm:flex flex-col items-end shrink-0 min-w-[3.5rem]">
+                    <span className="text-xs font-semibold tabular" style={{ color: '#34d399' }}>
+                      ${(contact.lifetimeValue ?? demoCLV(contact.id)).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">CLV</span>
                   </div>
 
                   <div className="hidden sm:flex flex-col items-center shrink-0">
