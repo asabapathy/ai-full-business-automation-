@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { TrendingUp, Plus, DollarSign, Target, CheckCircle, LayoutList, LayoutGrid, ChevronRight, Zap, X } from 'lucide-react'
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'

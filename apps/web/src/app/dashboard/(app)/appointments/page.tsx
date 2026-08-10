@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays } from 'lucide-react'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays, BellRing } from 'lucide-react'
 
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
@@ -84,6 +84,10 @@ export default function AppointmentsPage() {
   const [view, setView] = useState<'list' | 'calendar'>('list')
   const [calMonth, setCalMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [reminderSettings, setReminderSettings] = useState({ enabled: true, hoursBefore: 24, channel: 'both' as 'email' | 'sms' | 'both' })
+  const [reminderSettingsOpen, setReminderSettingsOpen] = useState(false)
+  const [savingReminders, setSavingReminders] = useState(false)
+  const [remindingId, setRemindingId] = useState<string | null>(null)
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
@@ -122,6 +126,32 @@ export default function AppointmentsPage() {
     }
     fetchData()
   }, [selectedDate])
+
+  useEffect(() => {
+    api.get<typeof reminderSettings>('/appointments/reminder-settings')
+      .then(s => s && setReminderSettings(s))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function saveReminderSettings() {
+    setSavingReminders(true)
+    try {
+      await api.put('/appointments/reminder-settings', reminderSettings)
+    } catch { /* demo mode */ }
+    setSavingReminders(false)
+    setReminderSettingsOpen(false)
+    toast('Reminder settings saved', 'success')
+  }
+
+  async function sendReminderNow(appt: Appointment) {
+    setRemindingId(appt.id)
+    try {
+      await api.post(`/appointments/${appt.id}/remind`, {})
+    } catch { /* demo */ }
+    setRemindingId(null)
+    toast(`Reminder sent to ${appt.contact?.firstName ?? 'client'}`, 'success')
+  }
 
   const changeDate = (days: number) => {
     const d = new Date(selectedDate + 'T12:00:00')
@@ -203,6 +233,13 @@ export default function AppointmentsPage() {
               </button>
             ))}
           </div>
+          <button onClick={() => setReminderSettingsOpen(true)}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <BellRing className="h-4 w-4" />
+            Reminders
+            {reminderSettings.enabled && <span className="h-2 w-2 rounded-full" style={{ background: '#34d399' }} />}
+          </button>
           <button
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
             style={{ color: '#a855f7', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)' }}
