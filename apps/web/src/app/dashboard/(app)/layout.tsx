@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, MessageSquare, Monitor, Moon, Search, Sun } from 'lucide-react'
+import { Keyboard, Menu, MessageSquare, Monitor, Moon, Search, Sun, X } from 'lucide-react'
 import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
@@ -14,12 +14,50 @@ import { TrialExpiredGate } from '../../../components/layout/trial-expired-gate'
 import { Toaster } from '../../../components/ui/Toaster'
 import { CommandPalette } from '../../../components/ui/CommandPalette'
 
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+
+const SHORTCUTS: { keys: string[]; label: string; group: string }[] = [
+  { keys: ['⌘', 'K'], label: 'Search everything', group: 'General' },
+  { keys: ['?'], label: 'Show this panel', group: 'General' },
+  { keys: ['Esc'], label: 'Close any panel', group: 'General' },
+  { keys: ['G', 'D'], label: 'Go to Dashboard', group: 'Navigation' },
+  { keys: ['G', 'C'], label: 'Go to CRM', group: 'Navigation' },
+  { keys: ['G', 'I'], label: 'Go to Invoices', group: 'Navigation' },
+  { keys: ['G', 'A'], label: 'Go to Appointments', group: 'Navigation' },
+  { keys: ['G', 'M'], label: 'Go to Campaigns', group: 'Navigation' },
+  { keys: ['G', 'R'], label: 'Go to Reports', group: 'Navigation' },
+  { keys: ['N', 'C'], label: 'New contact (opens CRM)', group: 'Actions' },
+  { keys: ['N', 'I'], label: 'New invoice (opens Invoices)', group: 'Actions' },
+]
+
+const CHORD_ROUTES: Record<string, string> = {
+  'g:d': '/dashboard',
+  'g:c': '/dashboard/crm',
+  'g:i': '/dashboard/invoices',
+  'g:a': '/dashboard/appointments',
+  'g:m': '/dashboard/campaigns',
+  'g:r': '/dashboard/reports',
+  'n:c': '/dashboard/crm',
+  'n:i': '/dashboard/invoices',
+}
+
+const kbdStyle: React.CSSProperties = {
+  background: 'hsl(var(--muted))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 4,
+  padding: '2px 7px',
+  fontSize: 11,
+  fontFamily: 'monospace',
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user, organization } = useAuthStore()
   const router = useRouter()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const pendingKey = useRef<{ key: string; at: number } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('system')
 
   useEffect(() => {
@@ -155,6 +193,66 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </TrialExpiredGate>
         </main>
       </div>
+
+      {shortcutsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setShortcutsOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl shadow-2xl"
+            style={cardStyle}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ borderBottom: '1px solid hsl(var(--border))' }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Keyboard Shortcuts</span>
+                <kbd style={kbdStyle}>?</kbd>
+              </div>
+              <button
+                onClick={() => setShortcutsOpen(false)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-4 py-3 max-h-[60vh] overflow-y-auto">
+              {['General', 'Navigation', 'Actions'].map(group => (
+                <div key={group} className="mb-3 last:mb-0">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">{group}</div>
+                  {SHORTCUTS.filter(s => s.group === group).map(s => (
+                    <div key={s.label} className="flex items-center justify-between py-1.5">
+                      <span className="text-sm text-foreground">{s.label}</span>
+                      <span className="flex items-center gap-1.5">
+                        {s.keys.map((k, i) => (
+                          <span key={i} className="flex items-center gap-1.5">
+                            {i > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {s.keys[0] === '⌘' ? '+' : 'then'}
+                              </span>
+                            )}
+                            <kbd style={kbdStyle}>{k}</kbd>
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div
+              className="px-4 py-2.5 text-xs text-muted-foreground"
+              style={{ borderTop: '1px solid hsl(var(--border))' }}
+            >
+              Press ? anywhere to open this panel
+            </div>
+          </div>
+        </div>
+      )}
 
       <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />

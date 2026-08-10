@@ -971,6 +971,61 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* Save segment modal */}
+      {saveSegmentOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-5" style={cardStyle}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Save Segment</h2>
+              <button onClick={() => setSaveSegmentOpen(false)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Name</label>
+                <input type="text" className={inputCls} style={inputStyle} placeholder="e.g. Hot leads" autoFocus
+                  value={segmentName} onChange={e => setSegmentName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveSegment() }} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Color</label>
+                <div className="flex gap-2">
+                  {SEGMENT_COLORS.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setSegmentColor(c)}
+                      className="h-7 w-7 rounded-full transition-all"
+                      style={{
+                        background: c,
+                        border: segmentColor === c ? '2px solid hsl(var(--foreground))' : '2px solid transparent',
+                        transform: segmentColor === c ? 'scale(1.1)' : 'scale(1)',
+                      }}
+                      title={c}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setSaveSegmentOpen(false)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}>
+                Cancel
+              </button>
+              <button onClick={saveSegment} disabled={!segmentName.trim()}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' }}>
+                Save Segment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create contact modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>

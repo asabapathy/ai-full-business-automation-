@@ -289,6 +289,21 @@ export default function DashboardPage() {
   const activeRange = RANGES.find(r => r.key === range) ?? RANGES[1]
   const rangeLabel = range === 'custom' && customFrom && customTo ? `${customFrom} → ${customTo}` : activeRange.label
 
+  // Monthly goals progress — always month-to-date, independent of the date-range picker.
+  const today = new Date()
+  const monthName = today.toLocaleString('en-US', { month: 'long' })
+  const dayOfMonth = today.getDate()
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  const daysLeft = daysInMonth - dayOfMonth
+  const expectedPct = (dayOfMonth / daysInMonth) * 100
+  const goalProgress = [
+    { key: 'revenue', label: 'Revenue', color: '#06b6d4', current: overview?.revenue.last30Days ?? 16420, target: goals.revenue, currency: true },
+    { key: 'leads', label: 'Leads', color: '#a78bfa', current: overview?.contacts.new30Days ?? 27, target: goals.leads, currency: false },
+    { key: 'appointments', label: 'Appointments', color: '#34d399', current: overview?.upcomingAppointments ?? 19, target: goals.appointments, currency: false },
+  ].map(g => ({ ...g, pct: g.target > 0 ? (g.current / g.target) * 100 : 0 }))
+  const avgGoalPct = goalProgress.reduce((sum, g) => sum + Math.min(100, g.pct), 0) / goalProgress.length
+  const onPace = avgGoalPct >= expectedPct
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-[1400px]">
       {/* Greeting */}
