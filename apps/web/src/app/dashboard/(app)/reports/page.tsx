@@ -366,12 +366,12 @@ export default function ReportsPage() {
                 <h2 className="text-sm font-semibold text-foreground">Sales Pipeline</h2>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </div>
-              {report.pipeline.length === 0 ? (
+              {displayReport.pipeline.length === 0 ? (
                 <p className="px-5 py-8 text-sm text-muted-foreground text-center">No active deals.</p>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
-                  {report.pipeline.map((p, i) => {
-                    const totalValue = report.pipeline.reduce((a, x) => a + x.value, 0)
+                  {displayReport.pipeline.map((p, i) => {
+                    const totalValue = displayReport.pipeline.reduce((a, x) => a + x.value, 0)
                     const pct = totalValue > 0 ? (p.value / totalValue) * 100 : 0
                     return (
                       <div key={i} className="px-5 py-3 hover:bg-white/[0.02] transition-colors">

@@ -294,7 +294,7 @@ export default function JobCostingPage() {
         </div>
       )}
 
-      {loading ? (
+      {(tab === 'inventory' || tab === 'alerts' || tab === 'summary') && (loading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : (
         <div className="rounded-xl overflow-hidden" style={cardStyle}>
