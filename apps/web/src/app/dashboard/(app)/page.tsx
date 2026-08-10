@@ -19,12 +19,31 @@ interface OverviewData {
   upcomingAppointments: number
 }
 
+interface ActivityEvent {
+  id: string
+  type: 'contact_added' | 'invoice_paid' | 'invoice_sent' | 'campaign_sent' | 'appointment_booked' | 'review_received' | 'payment_received'
+  title: string
+  description: string
+  amount?: number
+  createdAt: string
+}
+
 const DEMO_SPARKLINES = {
   revenue: [18200, 21000, 19400, 23100, 22500, 24000, 24800],
   pipeline: [72000, 79000, 84000, 81500, 87000, 88200, 89500],
   contacts: [189, 201, 215, 221, 233, 240, 247],
   appointments: [3, 5, 4, 6, 5, 4, 5],
 }
+
+const DEMO_ACTIVITY: ActivityEvent[] = [
+  { id: '1', type: 'invoice_paid', title: 'Invoice paid', description: 'INV-042 paid by Meridian Tech', amount: 3200, createdAt: new Date(Date.now() - 300000).toISOString() },
+  { id: '2', type: 'contact_added', title: 'New contact', description: 'Sarah Chen added via website form', createdAt: new Date(Date.now() - 900000).toISOString() },
+  { id: '3', type: 'appointment_booked', title: 'Appointment booked', description: 'HVAC maintenance with Johnson Property', createdAt: new Date(Date.now() - 1800000).toISOString() },
+  { id: '4', type: 'campaign_sent', title: 'Campaign sent', description: 'Summer Promo email to 234 contacts', createdAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: '5', type: 'review_received', title: 'New 5-star review', description: 'Great service from Michael Torres', createdAt: new Date(Date.now() - 7200000).toISOString() },
+  { id: '6', type: 'invoice_sent', title: 'Invoice sent', description: 'INV-043 sent to Pacific Realty ($1,800)', amount: 1800, createdAt: new Date(Date.now() - 14400000).toISOString() },
+  { id: '7', type: 'payment_received', title: 'Payment received', description: 'Deposit from Sunrise Cafe', amount: 500, createdAt: new Date(Date.now() - 86400000).toISOString() },
+]
 
 const recentTasks = [
   { id: '1', title: 'Send follow-up emails to 12 leads', status: 'completed', agent: 'Sales Agent', time: '2h ago' },
@@ -59,13 +78,25 @@ const TASK_STATUS_STYLES: Record<string, { color: string; bg: string; label: str
   pending:     { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: 'Pending' },
 }
 
+const EVENT_STYLE: Record<string, { color: string; bg: string; icon: string }> = {
+  invoice_paid:       { color: '#34d399', bg: 'rgba(52,211,153,0.12)',  icon: '💳' },
+  payment_received:   { color: '#34d399', bg: 'rgba(52,211,153,0.12)',  icon: '💰' },
+  contact_added:      { color: '#06b6d4', bg: 'rgba(6,182,212,0.12)',   icon: '👤' },
+  appointment_booked: { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', icon: '📅' },
+  campaign_sent:      { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '📢' },
+  invoice_sent:       { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  icon: '📄' },
+  review_received:    { color: '#f87171', bg: 'rgba(248,113,113,0.12)', icon: '⭐' },
+}
+
 export default function DashboardPage() {
   const { user, organization } = useAuthStore()
   const [overview, setOverview] = useState<OverviewData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [activity, setActivity] = useState<ActivityEvent[]>([])
+  const [activityLoading, setActivityLoading] = useState(true)
 
   useEffect(() => {
-    async function loadOverview() {
+    async function load() {
       try {
         const data = await apiClient.get<OverviewData>('/org/analytics/overview')
         setOverview(data)
@@ -82,7 +113,26 @@ export default function DashboardPage() {
         setIsLoading(false)
       }
     }
-    loadOverview()
+
+    async function loadActivity() {
+      try {
+        const res = await apiClient.get<{ events: ActivityEvent[] }>('/activity-feed?limit=20')
+        setActivity(res.events ?? [])
+      } catch {
+        setActivity(DEMO_ACTIVITY)
+      } finally {
+        setActivityLoading(false)
+      }
+    }
+
+    load()
+    loadActivity()
+
+    const refreshInterval = setInterval(() => {
+      load()
+      loadActivity()
+    }, 30000)
+    return () => clearInterval(refreshInterval)
   }, [])
 
   const hour = new Date().getHours()
@@ -264,6 +314,67 @@ export default function DashboardPage() {
             <p className="mt-1 text-xs" style={{ color: '#06b6d4' }}>{m.delta}</p>
           </div>
         ))}
+      </div>
+
+      {/* Recent Activity */}
+      <div className="kv-anim" style={{ animationDelay: '0.45s' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-foreground">Recent Activity</h2>
+          <span className="text-xs text-muted-foreground">Auto-refreshes every 30s</span>
+        </div>
+        <div className="rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+          {activityLoading ? (
+            <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-4">
+                  <div className="h-9 w-9 rounded-full animate-pulse shrink-0" style={{ background: 'hsl(var(--muted))' }} />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-32 rounded animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+                    <div className="h-3 w-48 rounded animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+                  </div>
+                  <div className="h-3 w-16 rounded animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+                </div>
+              ))}
+            </div>
+          ) : activity.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">No recent activity</div>
+          ) : (
+            <div>
+              {activity.map((event, i) => {
+                const style = EVENT_STYLE[event.type] ?? EVENT_STYLE.contact_added
+                const ago = (() => {
+                  const diff = Date.now() - new Date(event.createdAt).getTime()
+                  if (diff < 60000) return 'just now'
+                  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+                  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+                  return `${Math.floor(diff / 86400000)}d ago`
+                })()
+                return (
+                  <div key={event.id}
+                    className="flex items-center gap-3 p-4 transition-colors hover:bg-muted/30"
+                    style={i < activity.length - 1 ? { borderBottom: '1px solid hsl(var(--border))' } : undefined}>
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-base shrink-0"
+                      style={{ background: style.bg }}>
+                      {style.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{event.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{event.description}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {event.amount != null && (
+                        <p className="text-sm font-semibold" style={{ color: style.color }}>
+                          ${event.amount.toLocaleString()}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{ago}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
