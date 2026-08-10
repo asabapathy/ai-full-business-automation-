@@ -222,6 +222,7 @@ function DateRangePicker({
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<OverviewData>(DEMO_OVERVIEW)
   const [revenue, setRevenue] = useState<RevenuePoint[]>(DEMO_REVENUE)
+  const [funnel, setFunnel] = useState<FunnelStage[]>(DEMO_FUNNEL)
   const { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo } = useDateRange()
   const [loading, setLoading] = useState(false)
 
@@ -248,6 +249,20 @@ export default function AnalyticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, customFrom, customTo])
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await apiClient.get('/analytics/funnel') as any
+        const stages = Array.isArray(data) ? data : data?.stages
+        if (Array.isArray(stages) && stages.length > 0 && stages.every((s: any) => typeof s?.label === 'string' && typeof s?.count === 'number' && typeof s?.color === 'string')) {
+          setFunnel(stages)
+        }
+      } catch {
+        // Keep demo funnel data
+      }
+    })()
+  }, [])
+
   const maxRevenue = Math.max(...revenue.map(r => r.revenue))
 
   // Deterministic client-side scale so the range change is visible on demo data.
@@ -265,6 +280,22 @@ export default function AnalyticsPage() {
     { label: 'Appointments', value: sc(overview.appointments.upcoming).toString(), sub: `${sc(overview.appointments.total)} total booked`, colorStyle: { color: 'hsl(var(--primary))' } },
     { label: 'Deals Won', value: sc(overview.deals.won).toString(), sub: `of ${sc(overview.deals.total)} active`, colorStyle: { color: '#34d399' } },
   ]
+
+  // Funnel derived values
+  const firstStageCount = Math.max(funnel[0]?.count ?? 1, 1)
+  const funnelRates = funnel.map((stage, i) =>
+    i === 0 ? null : (stage.count / Math.max(funnel[i - 1]!.count, 1)) * 100
+  )
+  const overallConversion = ((funnel[funnel.length - 1]?.count ?? 0) / firstStageCount) * 100
+  let biggestDrop: { from: string; to: string; dropPct: number } | null = null
+  for (let i = 1; i < funnel.length; i++) {
+    const rate = funnelRates[i]
+    if (rate === null || rate === undefined) continue
+    const dropPct = 100 - rate
+    if (!biggestDrop || dropPct > biggestDrop.dropPct) {
+      biggestDrop = { from: funnel[i - 1]!.label, to: funnel[i]!.label, dropPct }
+    }
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -299,6 +330,70 @@ export default function AnalyticsPage() {
             <p className="text-xs text-muted-foreground mt-1">{card.sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Conversion funnel */}
+      <div
+        className="kv-anim rounded-xl border p-6"
+        style={{ animationDelay: '0.47s', background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+      >
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4" style={{ color: '#06b6d4' }} />
+          <h2 className="text-sm font-semibold text-foreground">Conversion Funnel</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1 mb-5">From first visit to closed deal</p>
+
+        <div className="flex flex-col items-center">
+          {funnel.map((stage, i) => {
+            const widthPct = Math.max((stage.count / firstStageCount) * 100, 12)
+            const rate = funnelRates[i]
+            return (
+              <div key={stage.label} className="w-full flex flex-col items-center">
+                {i > 0 && rate !== null && rate !== undefined && (
+                  <div
+                    className="kv-anim flex items-center gap-1 py-1"
+                    style={{ animationDelay: `${0.5 + i * 0.07}s` }}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" style={{ color: 'hsl(var(--muted-foreground))' }} />
+                    <span className="text-xs tabular" style={{ color: rateColor(rate) }}>
+                      {rate.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                <div
+                  className="kv-anim flex items-center justify-between rounded-lg px-4"
+                  style={{
+                    animationDelay: `${0.53 + i * 0.07}s`,
+                    width: `${widthPct}%`,
+                    height: 44,
+                    background: hexToRgba(stage.color, 0.18),
+                    borderLeft: `3px solid ${stage.color}`,
+                  }}
+                >
+                  <span className="text-sm truncate" style={{ color: 'hsl(var(--foreground))' }}>{stage.label}</span>
+                  <span className="text-sm font-bold tabular ml-3" style={{ color: stage.color }}>
+                    {stage.count.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div
+          className="mt-5 pt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm"
+          style={{ borderTop: '1px solid hsl(var(--border))' }}
+        >
+          <span className="font-bold" style={{ color: '#06b6d4' }}>
+            Overall conversion: {overallConversion.toFixed(1)}%
+          </span>
+          {biggestDrop && (
+            <span style={{ color: '#fbbf24' }}>
+              Biggest drop-off: {biggestDrop.from} → {biggestDrop.to} (−{biggestDrop.dropPct.toFixed(1)}%)
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">Industry median visitor→lead is ~2–4%.</p>
       </div>
 
       {/* Revenue chart */}
