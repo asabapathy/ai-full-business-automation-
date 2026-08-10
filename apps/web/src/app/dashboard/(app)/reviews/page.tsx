@@ -209,6 +209,11 @@ export default function ReviewsPage() {
           <h1 className="text-2xl font-bold text-foreground">Reviews & Reputation</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Monitor and respond to customer reviews with AI</p>
         </div>
+        <button onClick={() => setRequestOpen(true)}
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+          <Send className="h-4 w-4" /> Request Review
+        </button>
       </div>
 
       {/* Stats row + star distribution */}
@@ -386,6 +391,108 @@ export default function ReviewsPage() {
           })
         )}
       </div>
+
+      {requestOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-lg rounded-xl overflow-hidden"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Request a Review</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Send a review request via email or SMS</p>
+              </div>
+              <button onClick={() => setRequestOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {requestSent ? (
+              <div className="p-10 flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(52,211,153,0.15)' }}>
+                  <Check className="h-7 w-7" style={{ color: '#34d399' }} />
+                </div>
+                <p className="text-base font-semibold text-foreground">Review request sent!</p>
+                <p className="text-sm text-muted-foreground">
+                  {requestForm.name} will receive your request via {requestForm.channel}.
+                </p>
+              </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                {/* Channel toggle */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-2">Send via</label>
+                  <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+                    {(['email', 'sms'] as const).map(ch => (
+                      <button key={ch} onClick={() => setRequestForm(f => ({ ...f, channel: ch }))}
+                        className="flex-1 py-2 text-sm font-medium capitalize transition-all"
+                        style={requestForm.channel === ch
+                          ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                          : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }}>
+                        {ch === 'email' ? '✉️ Email' : '💬 SMS'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Customer name */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Customer Name</label>
+                  <input value={requestForm.name}
+                    onChange={e => setRequestForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Jane Smith"
+                    className={inputCls} style={inputStyle} />
+                </div>
+
+                {/* Email or phone */}
+                {requestForm.channel === 'email' ? (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email Address</label>
+                    <input type="email" value={requestForm.email}
+                      onChange={e => setRequestForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="jane@example.com"
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Phone Number</label>
+                    <input type="tel" value={requestForm.phone}
+                      onChange={e => setRequestForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="+1 (555) 000-0000"
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                )}
+
+                {/* Message preview */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Message</label>
+                  <textarea value={requestForm.message}
+                    onChange={e => setRequestForm(f => ({ ...f, message: e.target.value }))}
+                    rows={requestForm.channel === 'email' ? 7 : 3}
+                    className={`${inputCls} resize-none`} style={inputStyle} />
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-between items-center pt-1">
+                  <button onClick={() => setRequestOpen(false)}
+                    className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                    style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+                    Cancel
+                  </button>
+                  <button onClick={sendRequest}
+                    disabled={requestSending || !requestForm.name || (!requestForm.email && !requestForm.phone)}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                    <Send className="h-4 w-4" />
+                    {requestSending ? 'Sending…' : 'Send Request'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
