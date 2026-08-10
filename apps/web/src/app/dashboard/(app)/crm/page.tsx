@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid, Download } from 'lucide-react'
+import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid, Download, Filter } from 'lucide-react'
 import Link from 'next/link'
 import { apiClient } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
@@ -17,6 +17,7 @@ interface Contact {
   status: string
   score: number
   createdAt: string
+  value?: number
   company?: { id: string; name: string }
 }
 
