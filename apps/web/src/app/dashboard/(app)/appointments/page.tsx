@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle } from 'lucide-react'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays } from 'lucide-react'
 
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
@@ -49,6 +49,18 @@ const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hs
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
+function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1) }
+function daysInMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() }
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+function appointmentsOnDay(day: Date, apts: Appointment[]) {
+  return apts.filter(apt => {
+    const d = new Date(apt.startTime ?? '')
+    return !isNaN(d.getTime()) && isSameDay(d, day)
+  })
+}
+
 function buildWeekStrip(centerDate: string) {
   const center = new Date(centerDate + 'T12:00:00')
   const days = []
@@ -69,6 +81,9 @@ export default function AppointmentsPage() {
   const [showBook, setShowBook] = useState(false)
   const [booking, setBooking] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [view, setView] = useState<'list' | 'calendar'>('list')
+  const [calMonth, setCalMonth] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
@@ -175,7 +190,19 @@ export default function AppointmentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Scheduling and appointment management</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+            {(['list', 'calendar'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium capitalize"
+                style={view === v
+                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                  : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }}>
+                {v === 'list' ? <List className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
           <button
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
             style={{ color: '#a855f7', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)' }}

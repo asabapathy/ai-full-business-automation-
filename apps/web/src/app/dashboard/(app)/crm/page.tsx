@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2 } from 'lucide-react'
+import { Search, Plus, Users, Mail, Phone, X, ArrowUpDown, Trash2, List, LayoutGrid } from 'lucide-react'
 import Link from 'next/link'
 import { apiClient } from '../../../../lib/api-client'
 import { initials, formatRelativeTime } from '../../../../lib/utils'
@@ -39,6 +39,35 @@ const TYPE_META: Record<string, { text: string; bg: string }> = {
 
 type SortKey = 'createdAt' | 'score' | 'name'
 
+const STAGES = [
+  { key: 'lead', label: 'New Lead', color: '#60a5fa' },
+  { key: 'contacted', label: 'Contacted', color: '#a78bfa' },
+  { key: 'qualified', label: 'Qualified', color: '#fbbf24' },
+  { key: 'proposal', label: 'Proposal Sent', color: '#06b6d4' },
+  { key: 'won', label: 'Won', color: '#34d399' },
+  { key: 'lost', label: 'Lost', color: '#f87171' },
+] as const
+type Stage = typeof STAGES[number]['key']
+
+function toStage(status: string): Stage {
+  const map: Record<string, Stage> = {
+    lead: 'lead', new: 'lead',
+    contacted: 'contacted', active: 'contacted',
+    qualified: 'qualified',
+    proposal: 'proposal', proposal_sent: 'proposal',
+    won: 'won', closed: 'won',
+    lost: 'lost', churned: 'lost',
+  }
+  return map[status?.toLowerCase()] ?? 'lead'
+}
+
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `${r},${g},${b}`
+}
+
 function anim(i: number) {
   return { className: 'kv-anim', style: { animationDelay: `${0.04 + i * 0.07}s` } }
 }
@@ -59,6 +88,10 @@ export default function CRMPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'LEAD' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [view, setView] = useState<'list' | 'kanban'>('list')
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverStage, setDragOverStage] = useState<Stage | null>(null)
+  const [stageOverrides, setStageOverrides] = useState<Record<string, Stage>>({})
 
   useEffect(() => {
     const fetchContacts = async () => {
@@ -151,6 +184,19 @@ export default function CRMPage() {
     }
   }
 
+  async function handleDrop(targetStage: Stage) {
+    if (!dragId) return
+    const droppedId = dragId
+    setStageOverrides(prev => ({ ...prev, [droppedId]: targetStage }))
+    setDragId(null)
+    setDragOverStage(null)
+    try {
+      await (apiClient as any).patch(`/crm/contacts/${droppedId}`, { status: targetStage })
+    } catch {
+      setStageOverrides(prev => { const n = { ...prev }; delete n[droppedId]; return n })
+    }
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
@@ -201,7 +247,7 @@ export default function CRMPage() {
             style={cardStyle}
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {(['', 'NEW', 'QUALIFIED', 'WON', 'LOST'] as const).map(status => (
             <button
               key={status}
@@ -224,11 +270,24 @@ export default function CRMPage() {
             <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
             <span className="text-muted-foreground capitalize">{sort === 'createdAt' ? 'Recent' : sort}</span>
           </button>
+          {/* View toggle */}
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+            {(['list', 'kanban'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                style={view === v
+                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                  : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }}>
+                {v === 'list' ? <List className="h-3.5 w-3.5" /> : <LayoutGrid className="h-3.5 w-3.5" />}
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Contact list */}
-      <div
+      {view === 'list' && <div
         className="kv-anim rounded-xl border overflow-hidden"
         style={{ animationDelay: '0.46s', ...cardStyle }}
       >
@@ -356,7 +415,73 @@ export default function CRMPage() {
             })}
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* Kanban board */}
+      {view === 'kanban' && (
+        <div className="kv-anim overflow-x-auto pb-4" style={{ animationDelay: '0.46s' }}>
+          <div className="flex gap-4 min-w-max">
+            {STAGES.map(stage => {
+              const cards = sorted.filter(c => (stageOverrides[c.id] ?? toStage(c.status)) === stage.key)
+              return (
+                <div key={stage.key}
+                  className="w-64 rounded-xl flex flex-col"
+                  style={{
+                    ...cardStyle,
+                    ...(dragOverStage === stage.key ? { border: `1px solid ${stage.color}`, background: `rgba(${hexToRgb(stage.color)},0.05)` } : {})
+                  }}
+                  onDragOver={e => { e.preventDefault(); setDragOverStage(stage.key) }}
+                  onDragLeave={() => setDragOverStage(null)}
+                  onDrop={() => handleDrop(stage.key)}>
+                  {/* Column header */}
+                  <div className="p-3 flex items-center justify-between" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2.5 w-2.5 rounded-full" style={{ background: stage.color }} />
+                      <span className="text-sm font-medium text-foreground">{stage.label}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded"
+                      style={{ background: 'hsl(var(--muted))' }}>{cards.length}</span>
+                  </div>
+                  {/* Cards */}
+                  <div className="p-2 space-y-2 flex-1 min-h-[200px]">
+                    {cards.map(c => (
+                      <div key={c.id}
+                        draggable
+                        onDragStart={() => setDragId(c.id)}
+                        onDragEnd={() => { setDragId(null); setDragOverStage(null) }}
+                        className="rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all"
+                        style={{
+                          background: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          opacity: dragId === c.id ? 0.4 : 1,
+                          boxShadow: dragId === c.id ? 'none' : undefined,
+                        }}>
+                        <p className="text-sm font-medium text-foreground truncate">{c.firstName} {c.lastName}</p>
+                        {c.company && <p className="text-xs text-muted-foreground truncate">{c.company.name}</p>}
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                            style={{ color: (TYPE_META[c.type] ?? TYPE_META['LEAD']!).text, background: (TYPE_META[c.type] ?? TYPE_META['LEAD']!).bg }}>
+                            {c.type}
+                          </span>
+                          <span className="text-xs font-semibold tabular" style={{ color: c.score >= 70 ? '#34d399' : c.score >= 40 ? '#f59e0b' : '#f87171' }}>
+                            {c.score}
+                          </span>
+                        </div>
+                        {c.email && <p className="text-xs text-muted-foreground mt-1 truncate">{c.email}</p>}
+                      </div>
+                    ))}
+                    {cards.length === 0 && (
+                      <div className="h-full flex items-center justify-center py-8">
+                        <p className="text-xs text-muted-foreground">Drop cards here</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Create contact modal */}
       {showCreate && (
