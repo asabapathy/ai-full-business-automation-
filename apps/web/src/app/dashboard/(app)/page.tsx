@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Users, DollarSign, TrendingUp, Calendar, Zap,
-  Brain, ArrowRight, CheckCircle2, Clock, Sparkles, ChevronDown, Pencil, Target, X
+  Brain, ArrowRight, CheckCircle2, Clock, Sparkles, ChevronDown, Pencil, Target, X, Settings2
 } from 'lucide-react'
 import Link from 'next/link'
 import { StatCard } from '../../../components/dashboard/stat-card'
@@ -105,11 +105,36 @@ const RANGES = [
 
 const DATE_RANGE_STORAGE_KEY = 'kv-date-range'
 const GOALS_STORAGE_KEY = 'kv-goals'
+const WIDGETS_STORAGE_KEY = 'kv-dashboard-widgets'
 const DEFAULT_GOALS: Goals = { revenue: 25000, leads: 40, appointments: 30 }
+
+const WIDGETS = [
+  { key: 'insight', label: 'AI insight' },
+  { key: 'stats', label: 'Key metrics' },
+  { key: 'goals', label: 'Monthly goals' },
+  { key: 'ai', label: 'AI activity & quick actions' },
+  { key: 'mini', label: 'Mini metrics' },
+  { key: 'activity', label: 'Recent activity' },
+] as const
 
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+  return (
+    <div
+      onClick={onChange}
+      className="relative cursor-pointer w-10 h-6 rounded-full transition-all shrink-0"
+      style={enabled
+        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }
+        : { background: 'rgba(255,255,255,0.1)' }
+      }
+    >
+      <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-1'}`} style={{ background: 'white' }} />
+    </div>
+  )
+}
 
 function ProgressRing({ pct, color, size = 96 }: { pct: number; color: string; size?: number }) {
   const r = (size - 10) / 2
@@ -269,6 +294,9 @@ export default function DashboardPage() {
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [goalsDraft, setGoalsDraft] = useState<Goals>(DEFAULT_GOALS)
   const [goalsHydrated, setGoalsHydrated] = useState(false)
+  const [visibleWidgets, setVisibleWidgets] = useState<Record<string, boolean>>({})
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [widgetsHydrated, setWidgetsHydrated] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -338,6 +366,30 @@ export default function DashboardPage() {
     } catch { /* storage unavailable */ }
   }, [goalsHydrated, goals])
 
+  // Widget visibility: hydrate from localStorage (guarded so defaults don't clobber), then persist changes.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WIDGETS_STORAGE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as Record<string, boolean>
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+          setVisibleWidgets(saved)
+        }
+      }
+    } catch { /* ignore corrupt storage */ }
+    setWidgetsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!widgetsHydrated) return
+    try {
+      localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(visibleWidgets))
+    } catch { /* storage unavailable */ }
+  }, [widgetsHydrated, visibleWidgets])
+
+  const show = (key: string) => visibleWidgets[key] !== false
+  const allHidden = WIDGETS.every(w => !show(w.key))
+
   function saveGoals() {
     const next: Goals = {
       revenue: Math.max(0, goalsDraft.revenue || 0),
@@ -398,6 +450,48 @@ export default function DashboardPage() {
             customTo={customTo}
             onChange={next => { setRange(next.range); setCustomFrom(next.customFrom); setCustomTo(next.customTo) }}
           />
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setCustomizeOpen(o => !o)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
+              aria-label="Customize dashboard widgets"
+            >
+              <Settings2 className="h-4 w-4" />
+              <span className="whitespace-nowrap hidden sm:inline">Customize</span>
+            </button>
+            {customizeOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setCustomizeOpen(false)} />
+                <div
+                  className="absolute right-0 top-full mt-2 z-40 w-64 rounded-xl p-3"
+                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+                >
+                  <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    Dashboard widgets
+                  </p>
+                  <div className="space-y-1">
+                    {WIDGETS.map(w => (
+                      <div key={w.key} className="flex items-center justify-between gap-3 rounded-lg px-1 py-1.5">
+                        <span className="text-sm text-foreground/80">{w.label}</span>
+                        <Toggle
+                          enabled={show(w.key)}
+                          onChange={() => setVisibleWidgets(v => ({ ...v, [w.key]: !show(w.key) }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setVisibleWidgets({})}
+                    className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    style={{ borderTop: '1px solid hsl(var(--border))' }}
+                  >
+                    Reset — show all widgets
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <Link href="/dashboard/brain">
             <button
               className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
@@ -410,7 +504,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* All widgets hidden */}
+      {allHidden && (
+        <div className="rounded-xl p-8 text-center" style={cardStyle}>
+          <Settings2 className="mx-auto h-6 w-6 text-muted-foreground" />
+          <p className="mt-3 text-sm text-muted-foreground">
+            All widgets hidden — click <span className="font-medium" style={{ color: '#06b6d4' }}>Customize</span> to bring them back.
+          </p>
+        </div>
+      )}
+
       {/* AI Alert */}
+      {show('insight') && (
       <div
         {...anim(1)}
         className="kv-anim kv-glow-pulse relative overflow-hidden rounded-xl border p-4 flex items-start gap-3"
@@ -440,8 +545,10 @@ export default function DashboardPage() {
           </button>
         </Link>
       </div>
+      )}
 
       {/* Stat cards */}
+      {show('stats') && (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -525,8 +632,10 @@ export default function DashboardPage() {
           </span>
         </div>
       </div>
+      )}
 
       {/* Main 2-col layout */}
+      {show('ai') && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* AI Activity feed */}
         <div {...anim(7)} className="kv-anim lg:col-span-2 rounded-xl border overflow-hidden"
@@ -602,8 +711,10 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Mini metrics row */}
+      {show('mini') && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {miniMetrics.map((m, i) => (
           <div key={m.label} {...anim(9 + i)} className="kv-anim rounded-xl border px-5 py-4"
@@ -614,8 +725,10 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Recent Activity */}
+      {show('activity') && (
       <div className="kv-anim" style={{ animationDelay: '0.45s' }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-foreground">Recent Activity</h2>
@@ -675,6 +788,7 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Edit goals modal */}
       {goalsOpen && (
