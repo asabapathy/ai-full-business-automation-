@@ -194,16 +194,21 @@ function DateRangePicker({
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<OverviewData>(DEMO_OVERVIEW)
   const [revenue, setRevenue] = useState<RevenuePoint[]>(DEMO_REVENUE)
-  const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d')
+  const { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo } = useDateRange()
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    // API supports period=7d|30d|90d; ytd/custom fall back to 30d server-side + client-side scale below.
+    const period = range === '7d' || range === '90d' ? range : '30d'
+    const { fromDate, toDate } = resolveRange(range, customFrom, customTo)
+    const from = fromDate.toISOString().slice(0, 10)
+    const to = toDate.toISOString().slice(0, 10)
     setLoading(true)
     void (async () => {
       try {
         const [ovData, revData] = await Promise.all([
-          apiClient.get(`/analytics/overview?period=${period}`),
-          apiClient.get(`/analytics/revenue?period=${period}`),
+          apiClient.get(`/analytics/overview?period=${period}&from=${from}&to=${to}`),
+          apiClient.get(`/analytics/revenue?period=${period}&from=${from}&to=${to}`),
         ]) as any[]
         if (ovData?.revenue) setOverview(ovData)
         if (Array.isArray(revData?.points)) setRevenue(revData.points)
@@ -212,17 +217,25 @@ export default function AnalyticsPage() {
         setLoading(false)
       }
     })()
-  }, [period])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, customFrom, customTo])
 
   const maxRevenue = Math.max(...revenue.map(r => r.revenue))
 
+  // Deterministic client-side scale so the range change is visible on demo data.
+  const { days } = resolveRange(range, customFrom, customTo)
+  const metricScale = Math.min(3, Math.max(0.25, days / 30))
+  const sc = (n: number) => Math.round(n * metricScale)
+  const activeRange = RANGES.find(r => r.key === range) ?? RANGES[1]
+  const rangeLabel = range === 'custom' && customFrom && customTo ? `${customFrom} → ${customTo}` : activeRange.label
+
   const statCards = [
-    { label: 'Total Revenue', value: `$${(overview.revenue.total / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, colorStyle: { color: '#34d399' } },
-    { label: 'Total Contacts', value: overview.contacts.total.toLocaleString(), sub: `+${overview.contacts.new} this period`, colorStyle: { color: 'hsl(var(--primary))' } },
-    { label: 'Pipeline Value', value: `$${(overview.deals.pipeline / 1000).toFixed(0)}k`, sub: `${overview.deals.total} active deals`, colorStyle: { color: '#a78bfa' } },
-    { label: 'Outstanding', value: `$${(overview.invoices.outstanding / 1000).toFixed(0)}k`, sub: `$${(overview.invoices.overdue / 1000).toFixed(0)}k overdue`, colorStyle: { color: '#fbbf24' } },
-    { label: 'Appointments', value: overview.appointments.upcoming.toString(), sub: `${overview.appointments.total} total booked`, colorStyle: { color: 'hsl(var(--primary))' } },
-    { label: 'Deals Won', value: overview.deals.won.toString(), sub: `of ${overview.deals.total} active`, colorStyle: { color: '#34d399' } },
+    { label: 'Total Revenue', value: `$${(sc(overview.revenue.total) / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, colorStyle: { color: '#34d399' } },
+    { label: 'Total Contacts', value: sc(overview.contacts.total).toLocaleString(), sub: `+${sc(overview.contacts.new)} this period`, colorStyle: { color: 'hsl(var(--primary))' } },
+    { label: 'Pipeline Value', value: `$${(sc(overview.deals.pipeline) / 1000).toFixed(0)}k`, sub: `${sc(overview.deals.total)} active deals`, colorStyle: { color: '#a78bfa' } },
+    { label: 'Outstanding', value: `$${(sc(overview.invoices.outstanding) / 1000).toFixed(0)}k`, sub: `$${(sc(overview.invoices.overdue) / 1000).toFixed(0)}k overdue`, colorStyle: { color: '#fbbf24' } },
+    { label: 'Appointments', value: sc(overview.appointments.upcoming).toString(), sub: `${sc(overview.appointments.total)} total booked`, colorStyle: { color: 'hsl(var(--primary))' } },
+    { label: 'Deals Won', value: sc(overview.deals.won).toString(), sub: `of ${sc(overview.deals.total)} active`, colorStyle: { color: '#34d399' } },
   ]
 
   return (
@@ -232,22 +245,16 @@ export default function AnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
           <p className="text-muted-foreground text-sm mt-1">Business performance overview</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Showing: <span className="font-medium" style={{ color: '#06b6d4' }}>{rangeLabel}</span>
+          </p>
         </div>
-        <div className="flex gap-2">
-          {(['7d', '30d', '90d'] as const).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-              style={period === p
-                ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white', boxShadow: '0 0 12px rgba(6,182,212,0.3)' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
-              }
-            >
-              {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '90 Days'}
-            </button>
-          ))}
-        </div>
+        <DateRangePicker
+          range={range}
+          customFrom={customFrom}
+          customTo={customTo}
+          onChange={next => { setRange(next.range); setCustomFrom(next.customFrom); setCustomTo(next.customTo) }}
+        />
       </div>
 
       {/* Stats grid */}
