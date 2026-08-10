@@ -86,6 +86,7 @@ const navGroups: NavGroup[] = [
   {
     label: '⑤ Engage & Retain',
     items: [
+      { name: 'Inbox', href: '/dashboard/inbox', icon: Inbox },
       { name: 'Automations', href: '/dashboard/automations', icon: Zap, feature: 'core:automations' },
       { name: 'Campaigns', href: '/dashboard/campaigns', icon: Mail, feature: 'marketing:campaigns' },
       { name: 'Sequences', href: '/dashboard/sequences', icon: GitBranch, feature: 'marketing:sequences' },
