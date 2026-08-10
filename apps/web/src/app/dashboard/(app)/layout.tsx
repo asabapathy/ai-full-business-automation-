@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Keyboard, Menu, MessageSquare, Monitor, Moon, Search, Sun, X } from 'lucide-react'
+import { Check, ChevronRight, Keyboard, Menu, MessageSquare, Monitor, Moon, Search, Sun, X } from 'lucide-react'
 import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
@@ -13,8 +13,18 @@ import { ImpersonateBanner } from '../../../components/layout/impersonate-banner
 import { TrialExpiredGate } from '../../../components/layout/trial-expired-gate'
 import { Toaster } from '../../../components/ui/Toaster'
 import { CommandPalette } from '../../../components/ui/CommandPalette'
+import { toast } from '../../../lib/toast'
 
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
+
+const CHECKLIST_STEPS = [
+  { key: 'contact', label: 'Add your first contact', href: '/dashboard/crm' },
+  { key: 'invoice', label: 'Create an invoice', href: '/dashboard/invoices' },
+  { key: 'appointment', label: 'Book an appointment', href: '/dashboard/appointments' },
+  { key: 'campaign', label: 'Send a campaign', href: '/dashboard/campaigns' },
+  { key: 'automation', label: 'Set up an automation', href: '/dashboard/automations' },
+  { key: 'goals', label: 'Set monthly goals', href: '/dashboard' },
+]
 
 const SHORTCUTS: { keys: string[]; label: string; group: string }[] = [
   { keys: ['⌘', 'K'], label: 'Search everything', group: 'General' },
@@ -59,6 +69,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const pendingKey = useRef<{ key: string; at: number } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('system')
+  const [checklist, setChecklist] = useState<Record<string, boolean>>({})
+  const [checklistOpen, setChecklistOpen] = useState(false)
+  const [checklistDismissed, setChecklistDismissed] = useState(false)
+  const checklistLoaded = useRef(false)
 
   useEffect(() => {
     if (isLoading) return
@@ -119,6 +133,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const saved = localStorage.getItem('kv-theme') as 'dark' | 'light' | 'system' | null
     if (saved) setTheme(saved)
   }, [])
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('kv-checklist')
+      if (saved) setChecklist(JSON.parse(saved))
+      if (localStorage.getItem('kv-checklist-dismissed') === 'true') setChecklistDismissed(true)
+    } catch { /* corrupted storage — start fresh */ }
+    checklistLoaded.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!checklistLoaded.current) return
+    localStorage.setItem('kv-checklist', JSON.stringify(checklist))
+  }, [checklist])
+
+  useEffect(() => {
+    if (!checklistLoaded.current) return
+    localStorage.setItem('kv-checklist-dismissed', String(checklistDismissed))
+  }, [checklistDismissed])
+
+  // Auto-dismiss permanently once every step is complete (brief delay so the 🎉 state is visible)
+  useEffect(() => {
+    if (!checklistLoaded.current || checklistDismissed) return
+    if (!CHECKLIST_STEPS.every(s => checklist[s.key])) return
+    const t = setTimeout(() => setChecklistDismissed(true), 2500)
+    return () => clearTimeout(t)
+  }, [checklist, checklistDismissed])
 
   useEffect(() => {
     const root = document.documentElement

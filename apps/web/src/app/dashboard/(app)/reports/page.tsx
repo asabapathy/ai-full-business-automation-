@@ -327,6 +327,17 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [emailing, setEmailing] = useState(false)
   const [printing, setPrinting] = useState(false)
+  const [team, setTeam] = useState<TeamMember[]>(DEMO_TEAM)
+  const [boardMetric, setBoardMetric] = useState<BoardMetric>('revenue')
+
+  useEffect(() => {
+    apiClient.get<{ team: TeamMember[] }>('/reports/team-leaderboard')
+      .then((d: any) => {
+        const list = Array.isArray(d) ? d : d?.team
+        if (Array.isArray(list) && list.length > 0) setTeam(list)
+      })
+      .catch(() => { /* keep demo data */ })
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -355,6 +366,20 @@ export default function ReportsPage() {
   }, [report, location])
 
   const selectedLocation = LOCATIONS.find(l => l.id === location) ?? LOCATIONS[0]
+
+  // Leaderboard sorted by the active metric (lower is better for response time)
+  const sortedTeam = useMemo(() => {
+    const sorted = [...team]
+    sorted.sort((a, b) => boardMetric === 'avgResponseMins'
+      ? a[boardMetric] - b[boardMetric]
+      : b[boardMetric] - a[boardMetric])
+    return sorted
+  }, [team, boardMetric])
+
+  const boardBestValue = useMemo(() => {
+    if (sortedTeam.length === 0) return 0
+    return sortedTeam[0][boardMetric]
+  }, [sortedTeam, boardMetric])
 
   const handleEmail = async () => {
     setEmailing(true)
@@ -587,6 +612,84 @@ export default function ReportsPage() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Team Leaderboard */}
+          <div
+            {...anim(4)}
+            className="kv-anim rounded-xl overflow-hidden"
+            style={{ ...cardStyle, animationDelay: '0.39s' }}
+          >
+            <div className="px-5 py-4 border-b flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: 'hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4" style={{ color: '#fbbf24' }} />
+                <h2 className="text-sm font-semibold text-foreground">Team Leaderboard</h2>
+              </div>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+                {BOARD_METRICS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setBoardMetric(m.id)}
+                    className="px-3 py-1.5 text-xs font-medium transition-all"
+                    style={boardMetric === m.id
+                      ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                      : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))' }
+                    }
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
+              {sortedTeam.map((m, i) => {
+                const display = boardMetricDisplay(m, boardMetric)
+                const value = m[boardMetric]
+                const barPct = boardBestValue > 0
+                  ? boardMetric === 'avgResponseMins'
+                    ? (value > 0 ? (boardBestValue / value) * 100 : 100)
+                    : (value / boardBestValue) * 100
+                  : 0
+                return (
+                  <div
+                    key={m.name}
+                    className="px-5 py-3 transition-colors"
+                    style={i === 0 ? { background: 'rgba(251,191,36,0.06)' } : undefined}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 text-center text-base tabular shrink-0">
+                        {i < RANK_MEDALS.length
+                          ? RANK_MEDALS[i]
+                          : <span className="text-xs font-semibold text-muted-foreground">#{i + 1}</span>
+                        }
+                      </span>
+                      <div
+                        className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        style={{ background: avatarGradient(m.name) }}
+                      >
+                        {initials(m.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-foreground truncate">{m.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{boardSummary(m, boardMetric)}</p>
+                      </div>
+                      <p
+                        className="text-lg font-bold tabular shrink-0"
+                        style={display.color ? { color: display.color } : { color: 'hsl(var(--foreground))' }}
+                      >
+                        {display.text}
+                      </p>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden mt-2" style={{ background: 'hsl(var(--muted))' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.max(0, Math.min(100, barPct))}%`, background: '#06b6d4' }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </>

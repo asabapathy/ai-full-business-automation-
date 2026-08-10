@@ -105,6 +105,22 @@ const DEMO_NOTES: Note[] = [
   { id: 'tn2', author: 'Sarah', body: 'Met at the trade show. High intent.', createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
 ]
 
+function downloadFile(content: string, filename: string, mime: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }))
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'contact'
+}
+
+function csvCell(v: string | number | undefined | null): string {
+  const s = v === undefined || v === null ? '' : String(v)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
 const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50'
 const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
@@ -200,6 +216,7 @@ export default function ContactDetailPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [noteDraft, setNoteDraft] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -352,6 +369,59 @@ export default function ContactDetailPage() {
 
   const completeMention = (name: string) => {
     setNoteDraft(d => d.replace(/@\w*$/, `@${name} `))
+  }
+
+  const exportSlug = () => slugify(`${contact?.firstName ?? ''} ${contact?.lastName ?? ''}`.trim())
+
+  const exportText = () => {
+    if (!contact) return
+    const fullName = `${contact.firstName} ${contact.lastName ?? ''}`.trim()
+    const lines: string[] = [
+      `CONTACT HISTORY — ${fullName}`,
+      `Generated ${new Date().toLocaleDateString()}`,
+      '========================================',
+      '',
+      'PROFILE',
+      `Name: ${fullName}`,
+      `Email: ${contact.email ?? '—'}`,
+      `Phone: ${contact.phone ?? '—'}`,
+      `Company: ${contact.company?.name ?? '—'}`,
+      `Status: ${contact.status.replace(/_/g, ' ')}`,
+      `Type: ${contact.type}`,
+      `Score: ${contact.score}`,
+      `Lifetime value: $${(clv?.total ?? 0).toLocaleString()}`,
+    ]
+    if (contact.notes) lines.push(`Notes: ${contact.notes}`)
+    if (notes.length > 0) {
+      lines.push('', `TEAM NOTES (${notes.length})`)
+      for (const n of notes) lines.push(`[${formatRelativeTime(n.createdAt)}] ${n.author}: ${n.body}`)
+    }
+    if (activity.length > 0) {
+      lines.push('', `ACTIVITY TIMELINE (${activity.length})`)
+      for (const a of activity) {
+        const extra = a.amount !== undefined ? ` ($${a.amount.toLocaleString()}${a.status ? ` · ${a.status}` : ''})` : ''
+        lines.push(`[${new Date(a.createdAt).toLocaleDateString()}] ${a.title}${a.description ? ` — ${a.description}` : ''}${extra}`)
+      }
+    }
+    if (deals.length > 0) {
+      lines.push('', `DEALS (${deals.length})`)
+      for (const d of deals) lines.push(`${d.title} · $${d.value.toLocaleString()} · ${d.status} · created ${new Date(d.createdAt).toLocaleDateString()}`)
+    }
+    downloadFile(lines.join('\n') + '\n', `${exportSlug()}-history.txt`, 'text/plain')
+    setExportOpen(false)
+    toast('History exported', 'success')
+  }
+
+  const exportCsv = () => {
+    if (!contact) return
+    const rows: (string | number | undefined)[][] = [['type', 'date', 'author', 'description', 'amount']]
+    for (const n of notes) rows.push(['note', new Date(n.createdAt).toISOString(), n.author, n.body, ''])
+    for (const a of activity) rows.push([a.type, new Date(a.createdAt).toISOString(), '', `${a.title}${a.description ? ` — ${a.description}` : ''}${a.status ? ` · ${a.status}` : ''}`, a.amount])
+    for (const d of deals) rows.push(['deal', new Date(d.createdAt).toISOString(), '', `${d.title} · ${d.status}`, d.value])
+    const csv = rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n'
+    downloadFile(csv, `${exportSlug()}-history.csv`, 'text/csv')
+    setExportOpen(false)
+    toast('History exported', 'success')
   }
 
   function applyTemplate(templateName: string) {
@@ -520,6 +590,40 @@ export default function ContactDetailPage() {
                   <Edit3 className="h-3.5 w-3.5" />
                   Edit
                 </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setExportOpen(o => !o)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    style={cardStyle}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Export
+                  </button>
+                  {exportOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setExportOpen(false)} />
+                      <div
+                        className="absolute right-0 top-full mt-2 z-40 w-48 rounded-lg p-1"
+                        style={{ ...cardStyle, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}
+                      >
+                        <button
+                          onClick={exportText}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors text-left"
+                        >
+                          <FileText className="h-3.5 w-3.5 shrink-0" style={{ color: '#38bdf8' }} />
+                          Text summary (.txt)
+                        </button>
+                        <button
+                          onClick={exportCsv}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors text-left"
+                        >
+                          <FileText className="h-3.5 w-3.5 shrink-0" style={{ color: '#34d399' }} />
+                          Data file (.csv)
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>

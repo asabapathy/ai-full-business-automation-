@@ -370,6 +370,26 @@ export default function EstimatesPage() {
         </div>
       )}
 
+      {/* Stale quotes banner */}
+      {followUp.enabled && staleEstimates.length > 0 && (
+        <div {...anim(2)} className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+          style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: '#fbbf24' }} />
+            <p className="text-sm text-foreground">
+              <span className="font-semibold">{staleEstimates.length} quote{staleEstimates.length === 1 ? '' : 's'}</span>
+              <span className="text-muted-foreground"> waiting over {followUp.afterDays} days</span>
+            </p>
+          </div>
+          <button onClick={nudgeAll} disabled={nudging === 'all'}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 transition-all hover:scale-[1.02]"
+            style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)' }}>
+            <Send className="h-3 w-3" />
+            {nudging === 'all' ? 'Sending…' : 'Nudge all now'}
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div {...anim(2)} className="rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
@@ -393,20 +413,47 @@ export default function EstimatesPage() {
               <tbody className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
                 {estimates.map(e => {
                   const meta = STATUS_META[e.status] ?? STATUS_META.draft!
+                  const stale = followUp.enabled && isStale(e)
+                  const nudged = nudgedIds.has(e.id)
+                  const waitingDays = daysSince((e as any).sentAt ?? e.createdAt)
                   return (
-                    <tr key={e.id} className="hover:bg-accent/30 transition-colors">
+                    <tr key={e.id} className="group hover:bg-accent/30 transition-colors">
                       <td className="px-5 py-3.5 font-mono text-xs text-muted-foreground">{e.estimateNumber}</td>
                       <td className="px-5 py-3.5 font-medium text-foreground">{e.title}</td>
                       <td className="px-5 py-3.5 text-muted-foreground">{e.contact ? `${e.contact.firstName} ${e.contact.lastName}` : '—'}</td>
                       <td className="px-5 py-3.5">
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: meta.text, background: meta.bg }}>
-                          {e.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: meta.text, background: meta.bg }}>
+                            {e.status}
+                          </span>
+                          {stale && nudged ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
+                              Nudged ✓
+                            </span>
+                          ) : stale ? (
+                            <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                              style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.12)' }}>
+                              <Clock className="h-3 w-3" />
+                              waiting {waitingDays}d
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 font-semibold text-foreground tabular">{fmt(Number(e.total))}</td>
                       <td className="px-5 py-3.5 text-muted-foreground text-xs">{e.validUntil ? new Date(e.validUntil).toLocaleDateString() : '—'}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1 justify-end">
+                          {stale && !nudged && (
+                            <button
+                              onClick={() => nudgeOne(e.id)}
+                              disabled={nudging === e.id}
+                              title="Send follow-up nudge"
+                              className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 disabled:opacity-50 transition-opacity"
+                              style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)' }}
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button onClick={() => setPreview(e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Preview">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
