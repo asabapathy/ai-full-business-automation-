@@ -156,7 +156,7 @@ export default function IntegrationsPage() {
           className="kv-anim flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
           style={{ ...cardStyle, animationDelay: '0.1s' }}
         >
-          <Zap className="h-4 w-4 text-amber-400" />
+          <Zap className="h-4 w-4" style={{ color: '#fbbf24' }} />
           <span className="text-foreground font-medium tabular">{loading ? '—' : connected}</span>
           <span className="text-muted-foreground">/ {INTEGRATIONS.length} connected</span>
         </div>

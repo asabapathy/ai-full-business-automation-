@@ -17,8 +17,8 @@ export default function ClientPortalPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Client Portal</h1>
-        <p className="text-sm text-gray-500 mt-1">Self-service portal for your clients to view appointments and invoices</p>
+        <h1 className="text-2xl font-bold text-foreground">Client Portal</h1>
+        <p className="text-sm text-muted-foreground mt-1">Self-service portal for your clients to view appointments and invoices</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -27,29 +27,31 @@ export default function ClientPortalPage() {
           { title: 'Appointment History', desc: 'Clients can view all their past and upcoming appointments.' },
           { title: 'Invoice Access', desc: 'Clients can view and download their invoices at any time.' },
         ].map(f => (
-          <div key={f.title} className="rounded-xl border bg-white p-5 shadow-sm">
-            <UserCircle className="h-8 w-8 text-blue-600 mb-3" />
-            <h3 className="font-semibold text-gray-900">{f.title}</h3>
-            <p className="text-sm text-gray-500 mt-1">{f.desc}</p>
+          <div key={f.title} className="rounded-xl p-5" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <UserCircle className="h-8 w-8 mb-3" style={{ color: '#06b6d4' }} />
+            <h3 className="font-semibold text-foreground">{f.title}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{f.desc}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Link2 className="h-4 w-4 text-blue-600" />
+      <div className="rounded-xl p-6" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+        <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Link2 className="h-4 w-4" style={{ color: '#06b6d4' }} />
           Portal Link
         </h2>
-        <p className="text-sm text-gray-500 mb-3">Share this link with your clients so they can access their portal:</p>
+        <p className="text-sm text-muted-foreground mb-3">Share this link with your clients so they can access their portal:</p>
         <div className="flex items-center gap-2">
           <input
             readOnly
             value={portalUrl}
-            className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 font-mono"
+            className="flex-1 rounded-lg px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
           />
           <button
             onClick={copyLink}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             {copied ? 'Copied' : 'Copy'}
@@ -57,8 +59,8 @@ export default function ClientPortalPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h2 className="font-semibold text-gray-900 mb-3">How It Works</h2>
+      <div className="rounded-xl p-6" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+        <h2 className="font-semibold text-foreground mb-3">How It Works</h2>
         <ol className="space-y-3">
           {[
             'Client visits the portal link and enters their email address.',
@@ -66,8 +68,11 @@ export default function ClientPortalPage() {
             'After entering the code, they can view their appointments and invoices.',
             'Sessions are valid for 30 days for convenience.',
           ].map((step, i) => (
-            <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+            <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+              <span
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4' }}
+              >
                 {i + 1}
               </span>
               {step}

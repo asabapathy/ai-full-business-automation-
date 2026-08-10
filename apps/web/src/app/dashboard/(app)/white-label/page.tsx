@@ -51,7 +51,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       className="relative w-11 h-6 rounded-full transition-all shrink-0"
       style={enabled ? { background: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' } : { background: 'rgba(255,255,255,0.08)' }}
     >
-      <div className="absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform" style={{ left: enabled ? '24px' : '4px' }} />
+      <div className="absolute top-1 w-4 h-4 rounded-full transition-transform" style={{ left: enabled ? '24px' : '4px', background: 'white' }} />
     </button>
   )
 }

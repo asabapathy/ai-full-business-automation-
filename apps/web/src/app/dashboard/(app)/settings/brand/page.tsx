@@ -212,7 +212,8 @@ export default function BrandSettingsPage() {
             style={{ background: config.hideKanavuBranding ? 'linear-gradient(135deg, #06b6d4, #0ea5e9)' : 'hsl(var(--border))' }}
           >
             <span
-              className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all"
+              className="absolute top-1 w-4 h-4 rounded-full transition-all"
+              style={{ background: 'white' }}
               style={{ left: config.hideKanavuBranding ? '1.375rem' : '0.25rem' }}
             />
           </button>

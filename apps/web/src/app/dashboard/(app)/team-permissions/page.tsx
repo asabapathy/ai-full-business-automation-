@@ -269,7 +269,7 @@ export default function TeamPermissionsPage() {
                   <div className="space-y-1">
                     {rolePreviewPerms.map(p => (
                       <div key={p} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                        <Check className="h-3 w-3 shrink-0" style={{ color: '#34d399' }} />
                         {p}
                       </div>
                     ))}

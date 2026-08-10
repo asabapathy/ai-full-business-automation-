@@ -392,7 +392,7 @@ export default function ReceptionistPage() {
                   className="relative cursor-pointer w-9 h-5 rounded-full transition-all"
                   style={voiceConfig.useElevenLabs ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' } : { background: 'rgba(255,255,255,0.1)' }}
                 >
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${voiceConfig.useElevenLabs ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform ${voiceConfig.useElevenLabs ? 'translate-x-4' : 'translate-x-0.5'}`} style={{ background: 'white' }} />
                 </div>
               </div>
               {voiceConfig.useElevenLabs && (

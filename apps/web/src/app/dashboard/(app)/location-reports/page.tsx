@@ -73,26 +73,26 @@ export default function LocationReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Multi-Location Reports</h1>
-        <p className="text-sm text-gray-500 mt-1">30-day performance across all locations</p>
+        <h1 className="text-2xl font-bold text-foreground">Multi-Location Reports</h1>
+        <p className="text-sm text-muted-foreground mt-1">30-day performance across all locations</p>
       </div>
 
       {aggregate && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Revenue (30d)', value: fmt(aggregate.revenue30d), change: aggregate.revenueChange30d, icon: TrendingUp, color: 'text-green-600' },
-            { label: 'Appointments', value: aggregate.appointments30d, icon: Calendar, color: 'text-blue-600' },
-            { label: 'New Contacts', value: aggregate.newContacts30d, icon: Users, color: 'text-purple-600' },
-            { label: 'Locations', value: aggregate.locationCount, icon: MapPin, color: 'text-orange-600' },
+            { label: 'Revenue (30d)', value: fmt(aggregate.revenue30d), change: aggregate.revenueChange30d, icon: TrendingUp, hexColor: '#34d399' },
+            { label: 'Appointments', value: aggregate.appointments30d, icon: Calendar, hexColor: '#06b6d4' },
+            { label: 'New Contacts', value: aggregate.newContacts30d, icon: Users, hexColor: '#a78bfa' },
+            { label: 'Locations', value: aggregate.locationCount, icon: MapPin, hexColor: '#fb923c' },
           ].map(s => (
-            <div key={s.label} className="rounded-xl border bg-white p-4 shadow-sm">
+            <div key={s.label} className="rounded-xl p-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <div className="flex items-center gap-2 mb-2">
-                <s.icon className={`h-4 w-4 ${s.color}`} />
-                <span className="text-xs text-gray-500">{s.label}</span>
+                <s.icon className="h-4 w-4" style={{ color: s.hexColor }} />
+                <span className="text-xs text-muted-foreground">{s.label}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+              <p className="text-2xl font-bold text-foreground">{s.value}</p>
               {s.change !== undefined && (
-                <p className={`text-xs mt-1 ${s.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-xs mt-1" style={{ color: s.change >= 0 ? '#34d399' : '#f87171' }}>
                   {s.change >= 0 ? '▲' : '▼'} {Math.abs(s.change)}% vs prev 30d
                 </p>
               )}
@@ -102,9 +102,12 @@ export default function LocationReportsPage() {
       )}
 
       {topPerformers && (
-        <div className="rounded-xl border bg-gradient-to-r from-yellow-50 to-orange-50 p-5">
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-            <Trophy className="h-4 w-4 text-yellow-600" />
+        <div
+          className="rounded-xl p-5"
+          style={{ border: '1px solid hsl(var(--border))', background: 'linear-gradient(to right, rgba(251,191,36,0.08), rgba(251,146,60,0.08))' }}
+        >
+          <h2 className="font-semibold text-foreground flex items-center gap-2 mb-4">
+            <Trophy className="h-4 w-4" style={{ color: '#fbbf24' }} />
             Top Performers
           </h2>
           <div className="grid grid-cols-3 gap-4">
@@ -113,21 +116,28 @@ export default function LocationReportsPage() {
               { label: 'Top by Appointments', value: topPerformers.topByAppointments },
               { label: 'Top by Rating', value: topPerformers.topByRating },
             ].map(t => (
-              <div key={t.label} className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-500 mb-1">{t.label}</p>
-                <p className="font-semibold text-gray-900">{t.value ?? '—'}</p>
+              <div key={t.label} className="rounded-lg p-3 text-center" style={{ background: 'hsl(var(--card))' }}>
+                <p className="text-xs text-muted-foreground mb-1">{t.label}</p>
+                <p className="font-semibold text-foreground">{t.value ?? '—'}</p>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <div className="rounded-xl p-5" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
         <div className="flex items-center justify-between mb-5">
-          <h2 className="font-semibold text-gray-900">Location Comparison</h2>
+          <h2 className="font-semibold text-foreground">Location Comparison</h2>
           <div className="flex gap-1">
             {(['revenue', 'appointments', 'contacts'] as const).map(m => (
-              <button key={m} onClick={() => setMetric(m)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${metric === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${metric === m ? '' : 'text-muted-foreground'}`}
+                style={metric === m
+                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                  : { background: 'hsl(var(--muted))' }}
+              >
                 {m.charAt(0).toUpperCase() + m.slice(1)}
               </button>
             ))}
@@ -135,9 +145,9 @@ export default function LocationReportsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-8 text-gray-400">Loading...</div>
+          <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : sorted.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">No locations found</div>
+          <div className="text-center py-8 text-muted-foreground">No locations found</div>
         ) : (
           <div className="space-y-3">
             {sorted.map((s, i) => {
@@ -147,23 +157,23 @@ export default function LocationReportsPage() {
                 <div key={s.location.id}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-400 w-4">{i + 1}</span>
-                      <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-900">{s.location.name}</span>
-                      {s.location.city && <span className="text-xs text-gray-500">{s.location.city}, {s.location.state}</span>}
+                      <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}</span>
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">{s.location.name}</span>
+                      {s.location.city && <span className="text-xs text-muted-foreground">{s.location.city}, {s.location.state}</span>}
                     </div>
                     <div className="flex items-center gap-3 text-sm">
                       {s.avgRating && (
-                        <span className="flex items-center gap-0.5 text-yellow-600 text-xs">
+                        <span className="flex items-center gap-0.5 text-xs" style={{ color: '#fbbf24' }}>
                           <Star className="h-3 w-3 fill-current" />
                           {s.avgRating}
                         </span>
                       )}
-                      <span className="font-semibold text-gray-900">{metricValue(s)}</span>
+                      <span className="font-semibold text-foreground">{metricValue(s)}</span>
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: '#06b6d4' }} />
                   </div>
                 </div>
               )

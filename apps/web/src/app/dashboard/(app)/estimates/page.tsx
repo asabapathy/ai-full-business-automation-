@@ -241,10 +241,10 @@ export default function EstimatesPage() {
                           )}
                           {e.status === 'sent' && (
                             <>
-                              <button onClick={() => accept(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-400 transition-colors" title="Mark Accepted">
+                              <button onClick={() => accept(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Mark Accepted">
                                 <CheckCircle className="h-3.5 w-3.5" />
                               </button>
-                              <button onClick={() => reject(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 transition-colors" title="Mark Rejected">
+                              <button onClick={() => reject(e.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors" title="Mark Rejected">
                                 <XCircle className="h-3.5 w-3.5" />
                               </button>
                             </>

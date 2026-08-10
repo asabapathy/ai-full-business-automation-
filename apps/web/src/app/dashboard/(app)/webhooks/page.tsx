@@ -245,8 +245,8 @@ export default function WebhooksPage() {
                   {wh.deliveries.map(d => (
                     <div key={d.id} className="flex items-center gap-2 text-xs">
                       {d.success
-                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                        : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                        ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: '#34d399' }} />
+                        : <XCircle className="h-3.5 w-3.5 shrink-0" style={{ color: '#f87171' }} />
                       }
                       <span className="text-foreground/80">{d.event}</span>
                       <span className="text-muted-foreground tabular">{d.statusCode ?? '—'}</span>

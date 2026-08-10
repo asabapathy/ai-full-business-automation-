@@ -78,38 +78,46 @@ export default function OperationsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Operations</h1>
-          <p className="text-gray-400 text-sm mt-1">Employees, inventory, and vendor management</p>
+          <h1 className="text-2xl font-bold text-foreground">Operations</h1>
+          <p className="text-muted-foreground text-sm mt-1">Employees, inventory, and vendor management</p>
         </div>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-blue-400">{employees.filter(e => e.isActive).length}</p>
-          <p className="text-xs text-gray-400 mt-1">Active Employees</p>
+        <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <p className="text-3xl font-bold" style={{ color: '#06b6d4' }}>{employees.filter(e => e.isActive).length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Active Employees</p>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-purple-400">{inventory.length}</p>
-          <p className="text-xs text-gray-400 mt-1">Inventory Items</p>
+        <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <p className="text-3xl font-bold" style={{ color: '#a78bfa' }}>{inventory.length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Inventory Items</p>
         </div>
-        <div className={`border rounded-xl p-4 text-center ${lowStockItems.length > 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'}`}>
-          <p className={`text-3xl font-bold ${lowStockItems.length > 0 ? 'text-red-400' : 'text-green-400'}`}>{lowStockItems.length}</p>
-          <p className="text-xs text-gray-400 mt-1">Low Stock Alerts</p>
+        <div
+          className="rounded-xl p-4 text-center"
+          style={lowStockItems.length > 0
+            ? { background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }
+            : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+        >
+          <p className="text-3xl font-bold" style={{ color: lowStockItems.length > 0 ? '#f87171' : '#34d399' }}>
+            {lowStockItems.length}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">Low Stock Alerts</p>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-amber-400">{vendors.length}</p>
-          <p className="text-xs text-gray-400 mt-1">Active Vendors</p>
+        <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <p className="text-3xl font-bold" style={{ color: '#fbbf24' }}>{vendors.length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Active Vendors</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-white/10 pb-0">
+      <div className="flex gap-2 pb-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         {(['employees', 'inventory', 'vendors'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${tab === t ? 'border-purple-500 text-purple-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${tab === t ? 'border-primary' : 'border-transparent text-muted-foreground'}`}
+            style={tab === t ? { color: '#a78bfa' } : {}}
           >
             {t}
           </button>
@@ -120,19 +128,24 @@ export default function OperationsPage() {
       {tab === 'employees' && (
         <div className="space-y-3">
           {employees.map(emp => (
-            <div key={emp.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+            <div key={emp.id} className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-purple-600/30 rounded-full flex items-center justify-center text-purple-300 font-bold">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{ background: 'rgba(168,85,247,0.3)', color: '#a78bfa' }}>
                   {emp.firstName[0]}{emp.lastName[0]}
                 </div>
                 <div>
-                  <p className="text-white font-medium">{emp.firstName} {emp.lastName}</p>
-                  <p className="text-sm text-gray-400">{emp.role} · {emp.department}</p>
+                  <p className="text-foreground font-medium">{emp.firstName} {emp.lastName}</p>
+                  <p className="text-sm text-muted-foreground">{emp.role} · {emp.department}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {emp.hourlyRate && <span className="text-sm text-gray-400">${emp.hourlyRate}/hr</span>}
-                <span className={`text-xs px-2 py-0.5 rounded-full ${emp.isActive ? 'bg-green-400/10 text-green-400' : 'bg-gray-400/10 text-gray-400'}`}>
+                {emp.hourlyRate && <span className="text-sm text-muted-foreground">${emp.hourlyRate}/hr</span>}
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full"
+                  style={emp.isActive
+                    ? { background: 'rgba(52,211,153,0.1)', color: '#34d399' }
+                    : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
+                >
                   {emp.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
@@ -147,17 +160,23 @@ export default function OperationsPage() {
           {inventory.map(item => {
             const isLow = item.quantity <= item.reorderPoint
             return (
-              <div key={item.id} className={`border rounded-xl p-4 flex items-center justify-between ${isLow ? 'bg-red-500/5 border-red-500/20' : 'bg-white/5 border-white/10'}`}>
+              <div
+                key={item.id}
+                className="rounded-xl p-4 flex items-center justify-between"
+                style={isLow
+                  ? { background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }
+                  : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-white font-medium">{item.name}</p>
-                    {isLow && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Low Stock</span>}
+                    <p className="text-foreground font-medium">{item.name}</p>
+                    {isLow && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(248,113,113,0.2)', color: '#f87171' }}>Low Stock</span>}
                   </div>
-                  <p className="text-sm text-gray-400">{item.sku} · {item.category} · {item.location}</p>
+                  <p className="text-sm text-muted-foreground">{item.sku} · {item.category} · {item.location}</p>
                 </div>
                 <div className="text-right">
-                  <p className={`text-xl font-bold ${isLow ? 'text-red-400' : 'text-white'}`}>{item.quantity}</p>
-                  <p className="text-xs text-gray-500">min {item.reorderPoint}</p>
+                  <p className="text-xl font-bold" style={{ color: isLow ? '#f87171' : 'hsl(var(--foreground))' }}>{item.quantity}</p>
+                  <p className="text-xs text-muted-foreground">min {item.reorderPoint}</p>
                 </div>
               </div>
             )
@@ -169,12 +188,12 @@ export default function OperationsPage() {
       {tab === 'vendors' && (
         <div className="space-y-3">
           {vendors.map(vendor => (
-            <div key={vendor.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+            <div key={vendor.id} className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div>
-                <p className="text-white font-medium">{vendor.name}</p>
-                <p className="text-sm text-gray-400">{vendor.category} · {vendor.email}</p>
+                <p className="text-foreground font-medium">{vendor.name}</p>
+                <p className="text-sm text-muted-foreground">{vendor.category} · {vendor.email}</p>
               </div>
-              <span className="text-sm text-gray-400">{vendor.phone}</span>
+              <span className="text-sm text-muted-foreground">{vendor.phone}</span>
             </div>
           ))}
         </div>
