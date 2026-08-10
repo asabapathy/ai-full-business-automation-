@@ -83,12 +83,14 @@ export default function LoyaltyPage() {
     } catch {}
   }
 
-  const tierColor: Record<string, string> = {
-    bronze: 'bg-orange-100 text-orange-700',
-    silver: 'bg-gray-100 text-gray-700',
-    gold: 'bg-yellow-100 text-yellow-700',
-    platinum: 'bg-purple-100 text-purple-700',
+  const tierStyle: Record<string, React.CSSProperties> = {
+    bronze: { background: 'rgba(251,146,60,0.15)', color: '#fb923c' },
+    silver: { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' },
+    gold: { background: 'rgba(251,191,36,0.15)', color: '#fbbf24' },
+    platinum: { background: 'rgba(168,85,247,0.15)', color: '#a78bfa' },
   }
+
+  const tierFallbackStyle: React.CSSProperties = { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
 
   const tierIcon: Record<string, string> = {
     bronze: '🥉',
@@ -105,10 +107,10 @@ export default function LoyaltyPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Loyalty Program</h1>
-          <p className="text-sm text-gray-500 mt-1">Reward your best customers with points and perks</p>
+          <h1 className="text-2xl font-bold text-foreground">Loyalty Program</h1>
+          <p className="text-sm text-muted-foreground mt-1">Reward your best customers with points and perks</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
           <Plus className="h-4 w-4" />
           Add Points
         </button>
@@ -116,35 +118,35 @@ export default function LoyaltyPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="rounded-xl border p-4" style={{ background: 'hsl(var(--card))' }}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">Members</p>
-            <Users className="h-4 w-4 text-blue-600" />
+            <p className="text-sm text-muted-foreground">Members</p>
+            <Users className="h-4 w-4" style={{ color: '#06b6d4' }} />
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalAccounts}</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{stats.totalAccounts}</p>
         </div>
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="rounded-xl border p-4" style={{ background: 'hsl(var(--card))' }}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">Points Earned</p>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <p className="text-sm text-muted-foreground">Points Earned</p>
+            <TrendingUp className="h-4 w-4" style={{ color: '#34d399' }} />
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalPointsEarned.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{stats.totalPointsEarned.toLocaleString()}</p>
         </div>
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="rounded-xl border p-4" style={{ background: 'hsl(var(--card))' }}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">Outstanding</p>
-            <Gift className="h-4 w-4 text-orange-600" />
+            <p className="text-sm text-muted-foreground">Outstanding</p>
+            <Gift className="h-4 w-4" style={{ color: '#fb923c' }} />
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalPointsOutstanding.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{stats.totalPointsOutstanding.toLocaleString()}</p>
         </div>
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="rounded-xl border p-4" style={{ background: 'hsl(var(--card))' }}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">Tiers</p>
-            <Crown className="h-4 w-4 text-purple-600" />
+            <p className="text-sm text-muted-foreground">Tiers</p>
+            <Crown className="h-4 w-4" style={{ color: '#a78bfa' }} />
           </div>
           <div className="flex gap-1 mt-1 flex-wrap">
             {Object.entries(stats.tierBreakdown).map(([tier, count]) => (
-              <span key={tier} className={`text-xs rounded-full px-2 py-0.5 ${tierColor[tier] ?? 'bg-gray-100 text-gray-600'}`}>{tierIcon[tier]} {count}</span>
+              <span key={tier} className="text-xs rounded-full px-2 py-0.5" style={tierStyle[tier] ?? tierFallbackStyle}>{tierIcon[tier]} {count}</span>
             ))}
           </div>
         </div>
@@ -153,36 +155,36 @@ export default function LoyaltyPage() {
       {/* Tabs */}
       <div className="flex gap-2 border-b">
         {(['leaderboard', 'accounts'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize ${tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>
             {t === 'leaderboard' ? 'Leaderboard' : 'All Members'}
           </button>
         ))}
       </div>
 
       {tab === 'leaderboard' && (
-        <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border overflow-hidden" style={{ background: 'hsl(var(--card))' }}>
           <div className="p-4 border-b">
-            <h2 className="font-semibold text-gray-900">Top Members</h2>
+            <h2 className="font-semibold text-foreground">Top Members</h2>
           </div>
           <div className="divide-y">
             {leaderboard.map((a, i) => (
-              <div key={a.id} onClick={() => selectAccount(a)} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer">
-                <div className={`text-lg font-bold w-8 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-gray-300'}`}>
+              <div key={a.id} onClick={() => selectAccount(a)} className="flex items-center gap-4 px-4 py-3 hover:bg-muted cursor-pointer">
+                <div className="text-lg font-bold w-8 text-center" style={{ color: i === 0 ? '#fbbf24' : i === 1 ? 'hsl(var(--muted-foreground))' : i === 2 ? '#fb923c' : 'hsl(var(--muted-foreground))' }}>
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900">{a.contact ? `${a.contact.firstName} ${a.contact.lastName}` : a.contactId.slice(0, 8)}</p>
-                  <p className="text-xs text-gray-500">{a.contact?.email}</p>
+                  <p className="font-medium text-foreground">{a.contact ? `${a.contact.firstName} ${a.contact.lastName}` : a.contactId.slice(0, 8)}</p>
+                  <p className="text-xs text-muted-foreground">{a.contact?.email}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-gray-900">{a.points.toLocaleString()} pts</p>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${tierColor[a.tier] ?? 'bg-gray-100 text-gray-600'}`}>
+                  <p className="font-bold text-foreground">{a.points.toLocaleString()} pts</p>
+                  <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium" style={tierStyle[a.tier] ?? tierFallbackStyle}>
                     {tierIcon[a.tier]} {a.tier}
                   </span>
                 </div>
               </div>
             ))}
-            {leaderboard.length === 0 && <div className="p-8 text-center text-gray-400">No members yet</div>}
+            {leaderboard.length === 0 && <div className="p-8 text-center text-muted-foreground">No members yet</div>}
           </div>
         </div>
       )}
@@ -191,65 +193,76 @@ export default function LoyaltyPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input className="w-full rounded-lg border border-gray-200 pl-9 pr-4 py-2 text-sm" placeholder="Search members..." value={search} onChange={e => setSearch(e.target.value)} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                className="w-full rounded-lg pl-9 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                placeholder="Search members..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
-            <div className="rounded-xl border bg-white shadow-sm divide-y overflow-hidden">
+            <div className="rounded-xl border divide-y overflow-hidden" style={{ background: 'hsl(var(--card))' }}>
               {filtered.map(a => (
-                <div key={a.id} onClick={() => selectAccount(a)} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer ${selected?.id === a.id ? 'bg-blue-50' : ''}`}>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-sm">
+                <div
+                  key={a.id}
+                  onClick={() => selectAccount(a)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted cursor-pointer"
+                  style={selected?.id === a.id ? { background: 'rgba(6,182,212,0.1)' } : undefined}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm" style={{ background: 'rgba(168,85,247,0.15)' }}>
                     {tierIcon[a.tier]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{a.contact ? `${a.contact.firstName} ${a.contact.lastName}` : a.contactId.slice(0, 8)}</p>
-                    <p className="text-xs text-gray-500">{a.contact?.email}</p>
+                    <p className="font-medium text-foreground truncate">{a.contact ? `${a.contact.firstName} ${a.contact.lastName}` : a.contactId.slice(0, 8)}</p>
+                    <p className="text-xs text-muted-foreground">{a.contact?.email}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-semibold text-gray-900 text-sm">{a.points.toLocaleString()}</p>
-                    <p className="text-xs text-gray-400">pts</p>
+                    <p className="font-semibold text-foreground text-sm">{a.points.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">pts</p>
                   </div>
                 </div>
               ))}
-              {filtered.length === 0 && <div className="p-6 text-center text-gray-400 text-sm">No members</div>}
+              {filtered.length === 0 && <div className="p-6 text-center text-muted-foreground text-sm">No members</div>}
             </div>
           </div>
 
           {selected && (
-            <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-xl border p-5 space-y-4" style={{ background: 'hsl(var(--card))' }}>
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{selected.contact ? `${selected.contact.firstName} ${selected.contact.lastName}` : 'Member'}</h3>
-                  <p className="text-sm text-gray-500">{selected.contact?.email}</p>
+                  <h3 className="font-semibold text-foreground">{selected.contact ? `${selected.contact.firstName} ${selected.contact.lastName}` : 'Member'}</h3>
+                  <p className="text-sm text-muted-foreground">{selected.contact?.email}</p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-sm font-medium ${tierColor[selected.tier] ?? 'bg-gray-100 text-gray-600'}`}>
+                <span className="rounded-full px-3 py-1 text-sm font-medium" style={tierStyle[selected.tier] ?? tierFallbackStyle}>
                   {tierIcon[selected.tier]} {selected.tier}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Current Points</p>
-                  <p className="text-2xl font-bold text-gray-900">{selected.points.toLocaleString()}</p>
+                <div className="rounded-lg p-3" style={{ background: 'hsl(var(--muted))' }}>
+                  <p className="text-xs text-muted-foreground">Current Points</p>
+                  <p className="text-2xl font-bold text-foreground">{selected.points.toLocaleString()}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Lifetime Points</p>
-                  <p className="text-2xl font-bold text-gray-900">{selected.lifetimePoints.toLocaleString()}</p>
+                <div className="rounded-lg p-3" style={{ background: 'hsl(var(--muted))' }}>
+                  <p className="text-xs text-muted-foreground">Lifetime Points</p>
+                  <p className="text-2xl font-bold text-foreground">{selected.lifetimePoints.toLocaleString()}</p>
                 </div>
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Recent Transactions</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Recent Transactions</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {transactions.map(tx => (
                     <div key={tx.id} className="flex items-center justify-between text-sm">
                       <div>
-                        <p className="text-gray-700">{tx.description}</p>
-                        <p className="text-xs text-gray-400">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                        <p className="text-muted-foreground">{tx.description}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
                       </div>
-                      <span className={`font-semibold ${tx.type === 'earn' ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className="font-semibold" style={{ color: tx.type === 'earn' ? '#34d399' : '#f87171' }}>
                         {tx.type === 'earn' ? '+' : '-'}{tx.points}
                       </span>
                     </div>
                   ))}
-                  {transactions.length === 0 && <p className="text-xs text-gray-400">No transactions</p>}
+                  {transactions.length === 0 && <p className="text-xs text-muted-foreground">No transactions</p>}
                 </div>
               </div>
             </div>
@@ -260,23 +273,43 @@ export default function LoyaltyPage() {
       {/* Add Points Modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <h2 className="font-semibold text-gray-900">Add Points</h2>
+          <div className="rounded-2xl p-6 w-full max-w-md space-y-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <h2 className="font-semibold text-foreground">Add Points</h2>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Contact ID</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Contact UUID" value={addForm.contactId} onChange={e => setAddForm(f => ({ ...f, contactId: e.target.value }))} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Contact ID</label>
+              <input
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                placeholder="Contact UUID"
+                value={addForm.contactId}
+                onChange={e => setAddForm(f => ({ ...f, contactId: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Points</label>
-              <input type="number" min="1" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="100" value={addForm.points} onChange={e => setAddForm(f => ({ ...f, points: e.target.value }))} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Points</label>
+              <input
+                type="number"
+                min="1"
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                placeholder="100"
+                value={addForm.points}
+                onChange={e => setAddForm(f => ({ ...f, points: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-              <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Purchase reward" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Description</label>
+              <input
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                placeholder="Purchase reward"
+                value={addForm.description}
+                onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))}
+              />
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
-              <button onClick={addPoints} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add Points</button>
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-muted-foreground">Cancel</button>
+              <button onClick={addPoints} className="px-4 py-2 text-sm rounded-lg" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>Add Points</button>
             </div>
           </div>
         </div>

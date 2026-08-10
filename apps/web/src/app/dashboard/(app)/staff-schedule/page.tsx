@@ -86,13 +86,13 @@ export default function StaffSchedulePage() {
     fetchAll()
   }
 
-  const statusColor: Record<string, string> = {
-    scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-    completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-    cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-    pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-    approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-    denied: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  const statusStyle: Record<string, { background: string; color: string }> = {
+    scheduled: { background: 'rgba(6,182,212,0.1)', color: '#06b6d4' },
+    completed: { background: 'rgba(52,211,153,0.1)', color: '#34d399' },
+    cancelled: { background: 'rgba(248,113,113,0.1)', color: '#f87171' },
+    pending: { background: 'rgba(251,191,36,0.1)', color: '#fbbf24' },
+    approved: { background: 'rgba(52,211,153,0.1)', color: '#34d399' },
+    denied: { background: 'rgba(248,113,113,0.1)', color: '#f87171' },
   }
 
   return (
@@ -192,7 +192,7 @@ export default function StaffSchedulePage() {
                   <td className="px-4 py-3">{s.startTime} – {s.endTime}</td>
                   <td className="px-4 py-3 text-muted-foreground">{s.role ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[s.status] ?? ''}`}>{s.status}</span>
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={statusStyle[s.status] ?? {}}>{s.status}</span>
                   </td>
                   <td className="px-4 py-3">
                     <Button size="sm" variant="ghost" onClick={() => handleDeleteShift(s.id)}>
@@ -230,13 +230,13 @@ export default function StaffSchedulePage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{r.reason ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[r.status] ?? ''}`}>{r.status}</span>
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={statusStyle[r.status] ?? {}}>{r.status}</span>
                   </td>
                   <td className="px-4 py-3">
                     {r.status === 'pending' && (
                       <div className="flex gap-1">
                         <Button size="sm" variant="outline" className="h-7" onClick={() => handleApproveTimeOff(r.id, true)}>
-                          <Check className="h-3 w-3 text-green-600" />
+                          <Check className="h-3 w-3" style={{ color: '#34d399' }} />
                         </Button>
                         <Button size="sm" variant="outline" className="h-7" onClick={() => handleApproveTimeOff(r.id, false)}>
                           <X className="h-3 w-3 text-destructive" />

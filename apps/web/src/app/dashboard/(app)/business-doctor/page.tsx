@@ -33,11 +33,6 @@ function scoreLabel(score: number) {
   return 'Critical'
 }
 
-function scoreLabelColor(score: number) {
-  if (score >= 80) return 'text-emerald-400'
-  if (score >= 60) return 'text-amber-400'
-  return 'text-red-400'
-}
 
 function CircleScore({ score, size = 120 }: { score: number; size?: number }) {
   const r = size * 0.38
@@ -93,7 +88,7 @@ const DEMO_REPORT: DiagnosticReport = {
 function VitalCard({ metric, index }: { metric: HealthMetric; index: number }) {
   const [expanded, setExpanded] = useState(false)
   const color = scoreColor(metric.score)
-  const labelColor = scoreLabelColor(metric.score)
+  const labelColor = scoreColor(metric.score)
 
   const borderColor = metric.status === 'healthy' ? 'rgba(16,185,129,0.2)' : metric.status === 'warning' ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)'
   const bgColor = metric.status === 'healthy' ? 'rgba(16,185,129,0.04)' : metric.status === 'warning' ? 'rgba(245,158,11,0.04)' : 'rgba(239,68,68,0.04)'
@@ -111,8 +106,8 @@ function VitalCard({ metric, index }: { metric: HealthMetric; index: number }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
             {metric.status === 'healthy'
-              ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              : <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${metric.status === 'warning' ? 'text-amber-400' : 'text-red-400'}`} />
+              ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: '#34d399' }} />
+              : <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: metric.status === 'warning' ? '#fbbf24' : '#f87171' }} />
             }
             <span className="text-sm font-semibold text-foreground truncate">{metric.category}</span>
           </div>
@@ -123,7 +118,7 @@ function VitalCard({ metric, index }: { metric: HealthMetric; index: number }) {
             />
           </div>
         </div>
-        <span className={`text-xl font-bold tabular shrink-0 ${labelColor}`}>{metric.score}</span>
+        <span className="text-xl font-bold tabular shrink-0" style={{ color: labelColor }}>{metric.score}</span>
       </div>
 
       <p className="text-xs text-muted-foreground leading-relaxed">{metric.insight}</p>
@@ -248,7 +243,7 @@ export default function BusinessDoctorPage() {
               <CircleScore score={report.overallScore} size={120} />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-lg font-bold ${scoreLabelColor(report.overallScore)}`}>
+                  <span className="text-lg font-bold" style={{ color: scoreColor(report.overallScore) }}>
                     {scoreLabel(report.overallScore)}
                   </span>
                   <span className="text-sm text-muted-foreground">— Overall Business Health</span>

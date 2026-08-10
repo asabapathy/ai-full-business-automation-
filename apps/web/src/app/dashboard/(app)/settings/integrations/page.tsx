@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 import { CheckCircle, XCircle, AlertCircle, RefreshCw, ExternalLink, Zap, Mail, Calendar, Phone, CreditCard } from 'lucide-react'
 
 interface Integration {
@@ -166,7 +166,7 @@ export default function IntegrationsPage() {
       <div className="space-y-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-28" style={{ animationDelay: `${0.11 + i * 0.07}s` } as any} />
+              <div key={i} className="h-28 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))', animationDelay: `${0.11 + i * 0.07}s` }} />
             ))
           : INTEGRATIONS.map((integration, i) => {
               const status = statuses[integration.id] ?? 'disconnected'

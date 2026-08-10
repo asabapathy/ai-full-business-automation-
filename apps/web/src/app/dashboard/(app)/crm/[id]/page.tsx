@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 
 interface Contact {
   id: string
@@ -194,13 +194,13 @@ export default function ContactDetailPage() {
   if (loading) {
     return (
       <div className="p-6 space-y-4 max-w-[1200px]">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-40" />
+        <div className="h-8 w-32 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+        <div className="h-40 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
           </div>
-          <Skeleton className="h-64" />
+          <div className="h-64 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
         </div>
       </div>
     )
@@ -302,7 +302,7 @@ export default function ContactDetailPage() {
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -387,7 +387,7 @@ export default function ContactDetailPage() {
                     const actMeta = ACTIVITY_ICONS[item.type] ?? ACTIVITY_ICONS['note']!
                     const Icon = actMeta.icon
                     return (
-                      <div key={item.id} className="flex items-start gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors">
+                      <div key={item.id} className="flex items-start gap-4 px-5 py-4 hover:bg-accent/5 transition-colors">
                         <div
                           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 z-10 relative"
                           style={{ background: `${actMeta.color}15`, border: `1px solid ${actMeta.color}30` }}
@@ -452,7 +452,7 @@ export default function ContactDetailPage() {
                 {deals.map(deal => {
                   const dm = DEAL_STATUS_META[deal.status] ?? DEAL_STATUS_META['LEAD']!
                   return (
-                    <div key={deal.id} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                    <div key={deal.id} className="px-4 py-3 hover:bg-accent/5 transition-colors">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-medium text-foreground">{deal.title}</p>
                         <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ color: dm.text, background: dm.bg }}>
@@ -480,7 +480,7 @@ export default function ContactDetailPage() {
               <button
                 key={a.label}
                 onClick={a.action}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors text-left"
               >
                 <a.icon className="h-3.5 w-3.5 text-primary shrink-0" />
                 {a.label}

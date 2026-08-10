@@ -14,6 +14,9 @@ interface Draft {
   createdAt: string
 }
 
+const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary'
+const inputStyle = { border: '1px solid hsl(var(--border))' }
+
 export default function EmailWriterPage() {
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,12 +81,12 @@ export default function EmailWriterPage() {
               <label className="text-xs font-medium text-muted-foreground block mb-1">PROMPT</label>
               <textarea value={form.prompt} onChange={e => setForm({ ...form, prompt: e.target.value })}
                 rows={4} placeholder="Write a follow-up email to a client who requested a quote last week…"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
+                className={inputCls + ' resize-none'} style={inputStyle} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">TONE</label>
               <select value={form.tone} onChange={e => setForm({ ...form, tone: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary">
+                className={inputCls} style={inputStyle}>
                 {['professional', 'friendly', 'formal', 'casual', 'persuasive'].map(t => (
                   <option key={t} value={t} className="capitalize">{t}</option>
                 ))}
@@ -93,10 +96,11 @@ export default function EmailWriterPage() {
               <label className="text-xs font-medium text-muted-foreground block mb-1">SUBJECT (optional)</label>
               <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
                 placeholder="Override AI-generated subject"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                className={inputCls} style={inputStyle} />
             </div>
             <button onClick={generate} disabled={generating || !form.prompt}
-              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium disabled:opacity-50 hover:opacity-90">
+              className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium disabled:opacity-50 hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
               <Sparkles className="h-4 w-4" />
               {generating ? 'Generating…' : 'Generate Email'}
             </button>
@@ -121,8 +125,8 @@ export default function EmailWriterPage() {
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={e => { e.stopPropagation(); remove(d.id) }}
-                          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30">
-                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                          className="p-1 rounded hover:bg-muted">
+                          <Trash2 className="h-3.5 w-3.5" style={{ color: '#f87171' }} />
                         </button>
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
@@ -147,7 +151,7 @@ export default function EmailWriterPage() {
                 </div>
               </div>
               <div className="flex-1 p-4 overflow-auto">
-                <div className="prose dark:prose-invert max-w-none text-sm"
+                <div className="prose max-w-none text-sm"
                   dangerouslySetInnerHTML={{ __html: selected.htmlContent }} />
               </div>
               <div className="p-4 border-t space-y-2">
@@ -156,9 +160,11 @@ export default function EmailWriterPage() {
                   <input value={refineText} onChange={e => setRefineText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && refine()}
                     placeholder="Make it shorter, add a P.S., change the CTA…"
-                    className="flex-1 border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+                    className="flex-1 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    style={{ border: '1px solid hsl(var(--border))' }} />
                   <button onClick={refine} disabled={refining || !refineText}
-                    className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:opacity-90">
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:opacity-90"
+                    style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}>
                     <RefreshCw className={`h-4 w-4 ${refining ? 'animate-spin' : ''}`} />
                     Refine
                   </button>

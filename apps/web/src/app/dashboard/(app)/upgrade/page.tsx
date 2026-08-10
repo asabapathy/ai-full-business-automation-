@@ -72,7 +72,7 @@ function UpgradePageInner() {
                 : { color: 'hsl(var(--muted-foreground))' }
               }
             >
-              {b}{b === 'annual' && <span className="text-emerald-400 text-xs ml-1.5">Save 17%</span>}
+              {b}{b === 'annual' && <span className="text-xs ml-1.5" style={{ color: '#34d399' }}>Save 17%</span>}
             </button>
           ))}
         </div>
@@ -133,7 +133,7 @@ function UpgradePageInner() {
               <ul className="space-y-2 mb-8 flex-1">
                 {plan.highlights.map(h => (
                   <li key={h} className="flex items-start gap-2.5 text-sm">
-                    <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <Check className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: '#34d399' }} />
                     <span className="text-muted-foreground">{h}</span>
                   </li>
                 ))}

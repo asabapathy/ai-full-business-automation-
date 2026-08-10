@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Wrench, AlertTriangle, TrendingUp, Package, Plus } from 'lucide-react'
-import { Button } from '../../../../components/ui/button'
 import { apiClient } from '../../../../lib/api-client'
 
 interface InventoryItem {
@@ -25,6 +24,10 @@ interface ProfitSummary {
 }
 
 type Tab = 'inventory' | 'alerts' | 'summary'
+
+const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground bg-background focus:outline-none focus:ring-1 focus:ring-primary/50'
+const inputStyle = { border: '1px solid hsl(var(--border))' }
+const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }
 
 export default function JobCostingPage() {
   const [tab, setTab] = useState<Tab>('inventory')
@@ -65,40 +68,47 @@ export default function JobCostingPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Wrench className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Job Costing & Inventory</h1>
+          <h1 className="text-2xl font-bold">Job Costing &amp; Inventory</h1>
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+        >
+          <Plus className="h-4 w-4" />
           Add Item
-        </Button>
+        </button>
       </div>
 
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Revenue', value: `$${summary.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: 'text-green-500' },
-            { label: 'Total Cost', value: `$${summary.totalCost.toLocaleString()}`, icon: Package, color: 'text-orange-500' },
-            { label: 'Gross Profit', value: `$${summary.grossProfit.toLocaleString()}`, icon: TrendingUp, color: 'text-blue-500' },
-            { label: 'Margin', value: `${summary.margin.toFixed(1)}%`, icon: TrendingUp, color: summary.margin > 30 ? 'text-green-500' : 'text-red-500' },
+            { label: 'Total Revenue', value: `$${summary.totalRevenue.toLocaleString()}`, icon: TrendingUp, colorStyle: { color: '#34d399' } },
+            { label: 'Total Cost', value: `$${summary.totalCost.toLocaleString()}`, icon: Package, colorStyle: { color: '#f97316' } },
+            { label: 'Gross Profit', value: `$${summary.grossProfit.toLocaleString()}`, icon: TrendingUp, colorStyle: { color: '#06b6d4' } },
+            { label: 'Margin', value: `${summary.margin.toFixed(1)}%`, icon: TrendingUp, colorStyle: { color: summary.margin > 30 ? '#34d399' : '#f87171' } },
           ].map(card => (
-            <div key={card.label} className="rounded-xl border bg-card p-4">
+            <div key={card.label} className="rounded-xl p-4" style={cardStyle}>
               <div className="flex items-center gap-2 mb-1">
-                <card.icon className={`h-4 w-4 ${card.color}`} />
+                <card.icon className="h-4 w-4" style={card.colorStyle} />
                 <span className="text-xs text-muted-foreground">{card.label}</span>
               </div>
-              <p className="text-xl font-bold">{card.value}</p>
+              <p className="text-xl font-bold" style={card.colorStyle}>{card.value}</p>
             </div>
           ))}
         </div>
       )}
 
       {alerts.length > 0 && (
-        <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+        <div
+          className="rounded-xl p-4 flex items-start gap-3"
+          style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)' }}
+        >
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#fbbf24' }} />
           <div>
-            <p className="font-medium text-orange-800 dark:text-orange-300">{alerts.length} low-stock items</p>
-            <p className="text-sm text-orange-600 dark:text-orange-400 mt-0.5">
+            <p className="font-medium" style={{ color: '#fbbf24' }}>{alerts.length} low-stock items</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
               {alerts.slice(0, 3).map(a => a.name).join(', ')}{alerts.length > 3 ? ` and ${alerts.length - 3} more` : ''}
             </p>
           </div>
@@ -106,7 +116,7 @@ export default function JobCostingPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
         {([['inventory', 'Inventory'], ['alerts', 'Low Stock'], ['summary', 'Summary']] as [Tab, string][]).map(([t, label]) => (
           <button
             key={t}
@@ -117,54 +127,67 @@ export default function JobCostingPage() {
           >
             {label}
             {t === 'alerts' && alerts.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-orange-500 text-white text-[10px] px-1.5 py-0.5">{alerts.length}</span>
+              <span className="ml-1.5 rounded-full text-white text-[10px] px-1.5 py-0.5" style={{ background: '#fbbf24' }}>{alerts.length}</span>
             )}
           </button>
         ))}
       </div>
 
       {showForm && (
-        <div className="rounded-xl border bg-card p-6 space-y-4">
-          <h2 className="font-semibold">Add Inventory Item</h2>
+        <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
+          <h2 className="font-semibold text-foreground">Add Inventory Item</h2>
           <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
-              <input className="w-full rounded-lg border bg-background px-3 py-2 text-sm" required
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Name</label>
+              <input className={inputCls} style={inputStyle} required
                 value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">SKU</label>
-              <input className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              <label className="block text-sm font-medium text-muted-foreground mb-1">SKU</label>
+              <input className={inputCls} style={inputStyle}
                 value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
-              <input className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Category</label>
+              <input className={inputCls} style={inputStyle}
                 value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Quantity</label>
-              <input type="number" min="0" className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Quantity</label>
+              <input type="number" min="0" className={inputCls} style={inputStyle}
                 value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: parseFloat(e.target.value) }))} required />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Unit Cost ($)</label>
-              <input type="number" min="0" step="0.01" className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Unit Cost ($)</label>
+              <input type="number" min="0" step="0.01" className={inputCls} style={inputStyle}
                 value={form.unitCost} onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) }))} required />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Unit Price ($)</label>
-              <input type="number" min="0" step="0.01" className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Unit Price ($)</label>
+              <input type="number" min="0" step="0.01" className={inputCls} style={inputStyle}
                 value={form.unitPrice} onChange={e => setForm(f => ({ ...f, unitPrice: parseFloat(e.target.value) }))} required />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Reorder Point</label>
-              <input type="number" min="0" className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Reorder Point</label>
+              <input type="number" min="0" className={inputCls} style={inputStyle}
                 value={form.reorderPoint} onChange={e => setForm(f => ({ ...f, reorderPoint: parseInt(e.target.value) }))} />
             </div>
             <div className="col-span-2 flex gap-2">
-              <Button type="submit">Add Item</Button>
-              <Button variant="outline" type="button" onClick={() => setShowForm(false)}>Cancel</Button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }}
+              >
+                Add Item
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                style={{ border: '1px solid hsl(var(--border))' }}
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
@@ -173,35 +196,39 @@ export default function JobCostingPage() {
       {loading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : (
-        <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="rounded-xl overflow-hidden" style={cardStyle}>
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/50">
+            <thead style={{ borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted))' }}>
               <tr>
-                <th className="text-left px-4 py-3 font-medium">Name</th>
-                <th className="text-left px-4 py-3 font-medium">SKU</th>
-                <th className="text-left px-4 py-3 font-medium">Category</th>
-                <th className="text-right px-4 py-3 font-medium">Qty</th>
-                <th className="text-right px-4 py-3 font-medium">Unit Cost</th>
-                <th className="text-right px-4 py-3 font-medium">Unit Price</th>
-                <th className="text-right px-4 py-3 font-medium">Margin</th>
+                <th className="text-left px-4 py-3 font-medium text-foreground">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-foreground">SKU</th>
+                <th className="text-left px-4 py-3 font-medium text-foreground">Category</th>
+                <th className="text-right px-4 py-3 font-medium text-foreground">Qty</th>
+                <th className="text-right px-4 py-3 font-medium text-foreground">Unit Cost</th>
+                <th className="text-right px-4 py-3 font-medium text-foreground">Unit Price</th>
+                <th className="text-right px-4 py-3 font-medium text-foreground">Margin</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y" style={{ borderColor: 'hsl(var(--border))' }}>
               {(tab === 'alerts' ? alerts : inventory).map(item => {
                 const margin = item.unitCost > 0 ? ((item.unitPrice - item.unitCost) / item.unitPrice) * 100 : 0
                 const isLow = item.reorderPoint !== undefined && item.quantity <= item.reorderPoint
                 return (
-                  <tr key={item.id} className={`hover:bg-muted/30 transition-colors ${isLow ? 'bg-orange-50/50 dark:bg-orange-950/10' : ''}`}>
-                    <td className="px-4 py-3 font-medium">
+                  <tr
+                    key={item.id}
+                    className="hover:bg-muted/30 transition-colors"
+                    style={isLow ? { background: 'rgba(251,191,36,0.07)' } : undefined}
+                  >
+                    <td className="px-4 py-3 font-medium text-foreground">
                       {item.name}
-                      {isLow && <AlertTriangle className="inline h-3 w-3 ml-1 text-orange-500" />}
+                      {isLow && <AlertTriangle className="inline h-3 w-3 ml-1" style={{ color: '#fbbf24' }} />}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.sku ?? '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{item.category ?? '—'}</td>
-                    <td className="px-4 py-3 text-right">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right">${item.unitCost.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right">${item.unitPrice.toFixed(2)}</td>
-                    <td className={`px-4 py-3 text-right font-medium ${margin > 30 ? 'text-green-600' : 'text-red-500'}`}>
+                    <td className="px-4 py-3 text-right text-foreground">{item.quantity}</td>
+                    <td className="px-4 py-3 text-right text-foreground">${item.unitCost.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right text-foreground">${item.unitPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-medium" style={{ color: margin > 30 ? '#34d399' : '#f87171' }}>
                       {margin.toFixed(1)}%
                     </td>
                   </tr>

@@ -438,7 +438,7 @@ export default function ReceptionistPage() {
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-medium text-muted-foreground">{item.label}</span>
                       <button onClick={() => copyUrl(item.url, item.key)} className="p-0.5 text-muted-foreground hover:text-foreground transition-colors">
-                        {copied === item.key ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied === item.key ? <CheckCircle className="h-3.5 w-3.5" style={{ color: '#34d399' }} /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                     <code className="text-xs font-mono text-primary break-all">{item.url}</code>

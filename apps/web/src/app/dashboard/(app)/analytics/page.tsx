@@ -73,12 +73,12 @@ export default function AnalyticsPage() {
   const maxRevenue = Math.max(...revenue.map(r => r.revenue))
 
   const statCards = [
-    { label: 'Total Revenue', value: `$${(overview.revenue.total / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, color: 'text-emerald-400' },
-    { label: 'Total Contacts', value: overview.contacts.total.toLocaleString(), sub: `+${overview.contacts.new} this period`, color: 'text-primary' },
-    { label: 'Pipeline Value', value: `$${(overview.deals.pipeline / 1000).toFixed(0)}k`, sub: `${overview.deals.total} active deals`, color: 'text-violet-400' },
-    { label: 'Outstanding', value: `$${(overview.invoices.outstanding / 1000).toFixed(0)}k`, sub: `$${(overview.invoices.overdue / 1000).toFixed(0)}k overdue`, color: 'text-amber-400' },
-    { label: 'Appointments', value: overview.appointments.upcoming.toString(), sub: `${overview.appointments.total} total booked`, color: 'text-primary' },
-    { label: 'Deals Won', value: overview.deals.won.toString(), sub: `of ${overview.deals.total} active`, color: 'text-emerald-400' },
+    { label: 'Total Revenue', value: `$${(overview.revenue.total / 1000).toFixed(0)}k`, sub: `+${overview.revenue.growth}% growth`, colorStyle: { color: '#34d399' } },
+    { label: 'Total Contacts', value: overview.contacts.total.toLocaleString(), sub: `+${overview.contacts.new} this period`, colorStyle: { color: 'hsl(var(--primary))' } },
+    { label: 'Pipeline Value', value: `$${(overview.deals.pipeline / 1000).toFixed(0)}k`, sub: `${overview.deals.total} active deals`, colorStyle: { color: '#a78bfa' } },
+    { label: 'Outstanding', value: `$${(overview.invoices.outstanding / 1000).toFixed(0)}k`, sub: `$${(overview.invoices.overdue / 1000).toFixed(0)}k overdue`, colorStyle: { color: '#fbbf24' } },
+    { label: 'Appointments', value: overview.appointments.upcoming.toString(), sub: `${overview.appointments.total} total booked`, colorStyle: { color: 'hsl(var(--primary))' } },
+    { label: 'Deals Won', value: overview.deals.won.toString(), sub: `of ${overview.deals.total} active`, colorStyle: { color: '#34d399' } },
   ]
 
   return (
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
             style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', animationDelay: `${0.11 + i * 0.06}s` }}
           >
             <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">{card.label}</p>
-            <p className={`text-2xl font-bold tabular ${card.color}`}>{card.value}</p>
+            <p className="text-2xl font-bold tabular" style={card.colorStyle}>{card.value}</p>
             <p className="text-xs text-muted-foreground mt-1">{card.sub}</p>
           </div>
         ))}

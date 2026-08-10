@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Webhook, Plus, Trash2, Play, CheckCircle2, XCircle, Eye, EyeOff, X } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 
 interface WebhookEntry {
   id: string
@@ -154,7 +154,7 @@ export default function WebhooksPage() {
       {/* Webhook list */}
       {loading ? (
         <div {...anim(1)} className="space-y-4">
-          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
+          {Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-28 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
         </div>
       ) : webhooks.length === 0 ? (
         <div {...anim(1)} className="flex flex-col items-center justify-center py-16 text-center rounded-xl" style={cardStyle}>

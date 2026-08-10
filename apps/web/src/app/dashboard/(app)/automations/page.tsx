@@ -260,7 +260,7 @@ function StepCanvas({ workflow: initial, onClose, onSave }: CanvasProps) {
                       >
                         <Settings className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => removeStep(step.id)} className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
+                      <button onClick={() => removeStep(step.id)} className="p-1 rounded text-muted-foreground transition-colors" style={{ }} onMouseEnter={e => (e.currentTarget.style.color='#f87171')} onMouseLeave={e => (e.currentTarget.style.color='')}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => setExpandedId(isExpanded ? null : step.id)} className="p-1 rounded hover:bg-white/10 text-muted-foreground">
@@ -433,17 +433,17 @@ export default function AutomationsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Workflows', value: stats.total, color: 'text-primary' },
-          { label: 'Active', value: stats.active, color: 'text-emerald-400' },
-          { label: 'Total Runs', value: stats.totalRuns, color: 'text-primary' },
-          { label: 'Failures (7d)', value: stats.recentFailures, color: stats.recentFailures > 0 ? 'text-red-400' : 'text-emerald-400' },
+          { label: 'Total Workflows', value: stats.total, hex: null as string | null },
+          { label: 'Active', value: stats.active, hex: '#34d399' as string | null },
+          { label: 'Total Runs', value: stats.totalRuns, hex: null as string | null },
+          { label: 'Failures (7d)', value: stats.recentFailures, hex: (stats.recentFailures > 0 ? '#f87171' : '#34d399') as string | null },
         ].map((stat, i) => (
           <div
             key={stat.label}
             className="kv-anim rounded-xl border p-4 text-center"
             style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
           >
-            <p className={`text-3xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+            <p className={`text-3xl font-bold tabular${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined}>{stat.value}</p>
             <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
           </div>
         ))}
@@ -551,11 +551,11 @@ export default function AutomationsPage() {
                 </button>
                 <button
                   onClick={() => toggleWorkflow(wf.id, wf.isActive)}
-                  className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${wf.isActive
-                    ? 'text-red-400 hover:bg-red-400/10'
-                    : 'text-emerald-400 hover:bg-emerald-400/10'
-                  }`}
-                  style={{ border: `1px solid ${wf.isActive ? 'rgba(248,113,113,0.2)' : 'rgba(52,211,153,0.2)'}` }}
+                  className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    color: wf.isActive ? '#f87171' : '#34d399',
+                    border: `1px solid ${wf.isActive ? 'rgba(248,113,113,0.2)' : 'rgba(52,211,153,0.2)'}`,
+                  }}
                 >
                   {wf.isActive ? <><Pause className="h-3 w-3" /> Pause</> : <><Play className="h-3 w-3" /> Activate</>}
                 </button>

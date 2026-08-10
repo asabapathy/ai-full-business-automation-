@@ -228,9 +228,9 @@ export default function TeamPermissionsPage() {
                           <button
                             onClick={e => { e.stopPropagation(); remove(m.userId) }}
                             disabled={removing === m.userId}
-                            className="p-1.5 rounded-lg transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                            className="p-1.5 rounded-lg transition-colors hover:bg-muted disabled:opacity-50"
                           >
-                            <Trash2 className="h-4 w-4 text-red-400" />
+                            <Trash2 className="h-4 w-4" style={{ color: '#f87171' }} />
                           </button>
                         </td>
                       </tr>

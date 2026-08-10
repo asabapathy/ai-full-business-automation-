@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { FileCheck, Plus, Send, Trash2, CheckCircle, XCircle, Eye, X } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 
 interface LineItem { description: string; quantity: number; unitPrice: number; total: number }
 interface Estimate {
@@ -191,7 +191,7 @@ export default function EstimatesPage() {
       {/* Table */}
       <div {...anim(2)} className="rounded-xl overflow-hidden" style={cardStyle}>
         {loading ? (
-          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+          <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
         ) : estimates.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <FileCheck className="h-10 w-10 text-muted-foreground/30 mb-3" />

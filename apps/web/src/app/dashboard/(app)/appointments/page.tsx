@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle } from 'lucide-react'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
 
@@ -206,7 +206,7 @@ export default function AppointmentsPage() {
               <stat.icon className="h-4 w-4" style={{ color: stat.color }} />
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>
-            {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>}
+            {isLoading ? <div className="h-8 w-16 mt-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} /> : <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>}
           </div>
         ))}
       </div>
@@ -256,7 +256,7 @@ export default function AppointmentsPage() {
 
               {isLoading ? (
                 <div className="p-4 space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+                  {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-20 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
                 </div>
               ) : appointments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
@@ -307,7 +307,7 @@ export default function AppointmentsPage() {
                                   onClick={() => updateStatus(appt.id, 'CONFIRMED')}
                                   disabled={updatingId === appt.id}
                                   title="Confirm"
-                                  className="p-1 rounded hover:bg-emerald-400/10 transition-colors disabled:opacity-50"
+                                  className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                   style={{ color: '#34d399' }}
                                 >
                                   <CheckCircle className="h-4 w-4" />
@@ -318,7 +318,7 @@ export default function AppointmentsPage() {
                                   onClick={() => updateStatus(appt.id, 'COMPLETED')}
                                   disabled={updatingId === appt.id}
                                   title="Mark completed"
-                                  className="p-1 rounded hover:bg-white/5 transition-colors disabled:opacity-50"
+                                  className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                   style={{ color: '#94a3b8' }}
                                 >
                                   <CheckCircle className="h-4 w-4" />
@@ -328,7 +328,7 @@ export default function AppointmentsPage() {
                                 onClick={() => updateStatus(appt.id, 'NO_SHOW')}
                                 disabled={updatingId === appt.id}
                                 title="No show"
-                                className="p-1 rounded hover:bg-amber-400/10 transition-colors disabled:opacity-50"
+                                className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                 style={{ color: '#f59e0b' }}
                               >
                                 <AlertCircle className="h-4 w-4" />
@@ -337,7 +337,7 @@ export default function AppointmentsPage() {
                                 onClick={() => updateStatus(appt.id, 'CANCELLED')}
                                 disabled={updatingId === appt.id}
                                 title="Cancel"
-                                className="p-1 rounded hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                                className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
                                 style={{ color: '#f87171' }}
                               >
                                 <XCircle className="h-4 w-4" />
@@ -361,7 +361,7 @@ export default function AppointmentsPage() {
           </div>
           <div className="p-4 space-y-2">
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)
+              Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-9 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)
             ) : slots.filter(s => s.available).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">No open slots today</p>
             ) : (

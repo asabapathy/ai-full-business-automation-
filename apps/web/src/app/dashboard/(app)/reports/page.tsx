@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { FileText, Download, Mail, TrendingUp, Users, Calendar, Star, DollarSign } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
 
 interface ReportData {
   revenue: number
@@ -236,7 +235,7 @@ export default function ReportsPage() {
       {/* Stat cards */}
       <div {...anim(1)} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {loading
-          ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20" />)
+          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-20 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)
           : stats.map((s, i) => (
               <div key={i} className="rounded-xl p-4" style={cardStyle}>
                 <div className="flex items-center gap-1.5 mb-2">
@@ -268,7 +267,7 @@ export default function ReportsPage() {
                     <p className="text-sm text-foreground">{item.label}</p>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-muted-foreground tabular">{item.pct}%</span>
-                      <span className="text-sm font-semibold text-emerald-400 tabular">{fmt(item.amount)}</span>
+                      <span className="text-sm font-semibold tabular" style={{ color: '#34d399' }}>{fmt(item.amount)}</span>
                     </div>
                   </div>
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
@@ -303,7 +302,7 @@ export default function ReportsPage() {
                         <span className="text-xs font-semibold text-muted-foreground tabular w-4">{i + 1}</span>
                         <p className="text-sm text-foreground">{c.name}</p>
                       </div>
-                      <p className="text-sm font-semibold text-emerald-400 tabular">{fmt(c.revenue)}</p>
+                      <p className="text-sm font-semibold tabular" style={{ color: '#34d399' }}>{fmt(c.revenue)}</p>
                     </div>
                   ))}
                 </div>

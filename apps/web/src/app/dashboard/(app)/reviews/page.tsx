@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 import { Star, CheckCircle, Zap } from 'lucide-react'
 
 interface Review {
@@ -46,7 +46,14 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map(s => (
-        <Star key={s} className={`h-3.5 w-3.5 ${s <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
+        <Star
+          key={s}
+          className="h-3.5 w-3.5"
+          style={s <= rating
+            ? { color: '#fbbf24', fill: '#fbbf24' }
+            : { color: 'hsl(var(--muted-foreground))', opacity: 0.3 }
+          }
+        />
       ))}
     </div>
   )
@@ -142,10 +149,10 @@ export default function ReviewsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Avg Rating', value: stats.avgRating.toFixed(1), sub: <StarRating rating={Math.round(stats.avgRating)} />, color: 'text-amber-400' },
-            { label: 'Total Reviews', value: stats.total, color: 'text-primary' },
-            { label: 'Response Rate', value: `${stats.responseRate}%`, color: 'text-emerald-400' },
-            { label: 'Positive', value: stats.positive, color: 'text-violet-400' },
+            { label: 'Avg Rating', value: stats.avgRating.toFixed(1), sub: <StarRating rating={Math.round(stats.avgRating)} />, colorStyle: { color: '#fbbf24' } },
+            { label: 'Total Reviews', value: stats.total, colorStyle: { color: 'hsl(var(--primary))' } },
+            { label: 'Response Rate', value: `${stats.responseRate}%`, colorStyle: { color: '#34d399' } },
+            { label: 'Positive', value: stats.positive, colorStyle: { color: '#a78bfa' } },
           ].map((stat, i) => (
             <div
               key={stat.label}
@@ -153,8 +160,8 @@ export default function ReviewsPage() {
               style={{ ...cardStyle, animationDelay: `${0.11 + i * 0.07}s` }}
             >
               {loading
-                ? <Skeleton className="h-8 w-12 mx-auto mb-1" />
-                : <p className={`text-3xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+                ? <div className="h-8 w-12 mx-auto mb-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+                : <p className="text-3xl font-bold tabular" style={stat.colorStyle}>{stat.value}</p>
               }
               <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
               {stat.sub && <div className="flex justify-center mt-1">{stat.sub}</div>}
@@ -172,7 +179,7 @@ export default function ReviewsPage() {
             {starDist.map(({ star, count, pct }) => (
               <div key={star} className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground tabular w-3">{star}</span>
-                <Star className="h-3 w-3 fill-amber-400 text-amber-400 shrink-0" />
+                <Star className="h-3 w-3 shrink-0" style={{ color: '#fbbf24', fill: '#fbbf24' }} />
                 <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                   <div
                     className="h-full rounded-full transition-all duration-700"
@@ -212,7 +219,7 @@ export default function ReviewsPage() {
       {/* Review list */}
       <div className="kv-anim space-y-3" style={{ animationDelay: '0.53s' }}>
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28" />)
+          Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-center rounded-xl" style={cardStyle}>
             <Star className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -236,7 +243,7 @@ export default function ReviewsPage() {
                         {review.sentiment}
                       </span>
                       {review.respondedAt && (
-                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                        <span className="text-xs flex items-center gap-1" style={{ color: '#34d399' }}>
                           <CheckCircle className="h-3 w-3" />
                           Responded
                         </span>

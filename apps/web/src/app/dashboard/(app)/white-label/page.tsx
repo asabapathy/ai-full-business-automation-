@@ -357,7 +357,7 @@ export default function WhiteLabelPage() {
                             <td className="px-4 py-2.5 text-muted-foreground tabular">{r.ttl}</td>
                             <td className="px-4 py-2.5">
                               <button onClick={() => copyDns(r.value)} className="p-1 rounded transition-colors hover:text-foreground text-muted-foreground">
-                                {copiedDns === r.value ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                                {copiedDns === r.value ? <CheckCircle className="h-3.5 w-3.5" style={{ color: '#34d399' }} /> : <Copy className="h-3.5 w-3.5" />}
                               </button>
                             </td>
                           </tr>

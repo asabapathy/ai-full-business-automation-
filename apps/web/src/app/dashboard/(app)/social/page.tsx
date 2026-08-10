@@ -216,10 +216,10 @@ export default function SocialPage() {
       {!loading && stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Posts', value: stats.totalPosts, icon: FileText, color: 'text-primary' },
-            { label: 'Published', value: stats.publishedPosts, icon: CheckCircle, color: 'text-emerald-400' },
-            { label: 'Scheduled', value: stats.scheduledPosts, icon: Clock, color: 'text-amber-400' },
-            { label: 'Failed', value: stats.failedPosts, icon: AlertTriangle, color: 'text-red-400' },
+            { label: 'Total Posts', value: stats.totalPosts, icon: FileText, hex: null as string | null },
+            { label: 'Published', value: stats.publishedPosts, icon: CheckCircle, hex: '#34d399' as string | null },
+            { label: 'Scheduled', value: stats.scheduledPosts, icon: Clock, hex: '#fbbf24' as string | null },
+            { label: 'Failed', value: stats.failedPosts, icon: AlertTriangle, hex: '#f87171' as string | null },
           ].map((stat, i) => (
             <div
               key={stat.label}
@@ -227,10 +227,10 @@ export default function SocialPage() {
               style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                <stat.icon className={`h-4 w-4${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined} />
                 <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
-              <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+              <p className={`text-2xl font-bold tabular${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined}>{stat.value}</p>
             </div>
           ))}
         </div>
@@ -332,16 +332,16 @@ export default function SocialPage() {
                     {post.status === 'draft' && (
                       <button
                         onClick={() => handlePublish(post.id)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-400/10"
-                        style={{ border: '1px solid rgba(52,211,153,0.3)' }}
+                        className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                        style={{ color: '#34d399', border: '1px solid rgba(52,211,153,0.3)' }}
                       >
                         Publish
                       </button>
                     )}
                     <button
                       onClick={() => handleDelete(post.id)}
-                      className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-400/10"
-                      style={{ border: '1px solid rgba(248,113,113,0.2)' }}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                      style={{ color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}
                     >
                       Delete
                     </button>
@@ -371,10 +371,11 @@ export default function SocialPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#34d399' }} />
                   <button
                     onClick={() => handleDisconnect(account.id)}
-                    className="text-xs text-red-400 hover:underline"
+                    className="text-xs hover:underline"
+                    style={{ color: '#f87171' }}
                   >
                     Disconnect
                   </button>

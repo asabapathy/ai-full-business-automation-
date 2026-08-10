@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Palette, Save, Globe, X } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 
 interface BrandConfig {
   brandName: string | null
@@ -60,7 +60,7 @@ export default function BrandSettingsPage() {
   if (loading) {
     return (
       <div className="p-6 space-y-4 max-w-[800px]">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32" />)}
+        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
       </div>
     )
   }

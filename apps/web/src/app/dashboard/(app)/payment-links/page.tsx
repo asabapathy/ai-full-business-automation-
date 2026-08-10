@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
-import { Skeleton } from '../../../../components/ui/skeleton'
+
 import { Link2, Plus, Copy, XCircle, CheckCircle, DollarSign, Clock, TrendingUp, X } from 'lucide-react'
 
 interface PaymentLink {
@@ -177,10 +177,10 @@ export default function PaymentLinksPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Links', value: stats.total, icon: Link2, color: 'text-primary' },
-          { label: 'Active', value: stats.active, icon: Clock, color: 'text-emerald-400' },
-          { label: 'Paid', value: stats.paid, icon: CheckCircle, color: 'text-primary' },
-          { label: 'Revenue Collected', value: `$${stats.totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'text-emerald-400' },
+          { label: 'Total Links', value: stats.total, icon: Link2, colorStyle: { color: 'hsl(var(--primary))' } },
+          { label: 'Active', value: stats.active, icon: Clock, colorStyle: { color: '#34d399' } },
+          { label: 'Paid', value: stats.paid, icon: CheckCircle, colorStyle: { color: 'hsl(var(--primary))' } },
+          { label: 'Revenue Collected', value: `$${stats.totalRevenue.toLocaleString()}`, icon: DollarSign, colorStyle: { color: '#34d399' } },
         ].map((s, i) => (
           <div
             key={s.label}
@@ -188,10 +188,10 @@ export default function PaymentLinksPage() {
             style={{ ...cardStyle, animationDelay: `${0.11 + i * 0.07}s` }}
           >
             <div className="flex items-center gap-2 mb-1">
-              <s.icon className={`h-4 w-4 ${s.color}`} />
+              <s.icon className="h-4 w-4" style={s.colorStyle} />
               <p className="text-xs text-muted-foreground">{s.label}</p>
             </div>
-            <p className={`text-2xl font-bold tabular ${s.color}`}>{s.value}</p>
+            <p className="text-2xl font-bold tabular" style={s.colorStyle}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -220,7 +220,7 @@ export default function PaymentLinksPage() {
       >
         {loading ? (
           <div className="p-4 space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -242,7 +242,7 @@ export default function PaymentLinksPage() {
                 {filtered.map(link => {
                   const meta = STATUS_META[link.status] ?? STATUS_META['inactive']!
                   return (
-                    <tr key={link.id} className="border-b last:border-0 hover:bg-white/[0.02] transition-colors" style={{ borderColor: 'hsl(var(--border))' }}>
+                    <tr key={link.id} className="border-b last:border-0 hover:bg-accent/5 transition-colors" style={{ borderColor: 'hsl(var(--border))' }}>
                       <td className="px-4 py-3 font-medium text-foreground">{link.description || '—'}</td>
                       <td className="px-4 py-3 text-foreground/80 tabular">
                         ${(link.amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })} {link.currency}
@@ -266,7 +266,7 @@ export default function PaymentLinksPage() {
                           <button
                             onClick={() => copyLink(link.url, link.id)}
                             title="Copy link"
-                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-accent/20 transition-colors"
                           >
                             {copiedId === link.id
                               ? <CheckCircle className="h-4 w-4" style={{ color: '#34d399' }} />
@@ -279,7 +279,7 @@ export default function PaymentLinksPage() {
                                 onClick={() => markPaid(link.id)}
                                 disabled={markingPaidId === link.id}
                                 title="Mark paid"
-                                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
+                                className="p-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50"
                               >
                                 <CheckCircle className="h-4 w-4" style={{ color: '#38bdf8' }} />
                               </button>
@@ -287,7 +287,7 @@ export default function PaymentLinksPage() {
                                 onClick={() => deactivate(link.id)}
                                 disabled={deactivatingId === link.id}
                                 title="Deactivate"
-                                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
+                                className="p-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50"
                               >
                                 <XCircle className="h-4 w-4" style={{ color: '#f87171' }} />
                               </button>

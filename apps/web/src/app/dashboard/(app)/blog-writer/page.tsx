@@ -160,58 +160,65 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-          <BookOpen className="h-5 w-5 text-purple-600" />
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(167,139,250,0.1)' }}>
+          <BookOpen className="h-5 w-5" style={{ color: '#a78bfa' }} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">AI Blog Writer</h1>
-          <p className="text-sm text-gray-500">Generate SEO-optimized blog posts in seconds</p>
+          <h1 className="text-2xl font-bold text-foreground">AI Blog Writer</h1>
+          <p className="text-sm text-muted-foreground">Generate SEO-optimized blog posts in seconds</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input panel */}
         <div className="space-y-4">
-          <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-gray-700">Topic & Audience</h2>
+          <div className="rounded-xl border p-5 space-y-4" style={{ background: 'hsl(var(--card))' }}>
+            <h2 className="text-sm font-semibold text-muted-foreground">Topic & Audience</h2>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Blog Topic *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Blog Topic *</label>
               <input
                 value={topic}
                 onChange={e => setTopic(e.target.value)}
                 placeholder="e.g. How to save money on HVAC maintenance"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Target Audience</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Target Audience</label>
               <input
                 value={audience}
                 onChange={e => setAudience(e.target.value)}
                 placeholder="e.g. homeowners in Austin, TX"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Target SEO Keyword</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Target SEO Keyword</label>
               <input
                 value={keyword}
                 onChange={e => setKeyword(e.target.value)}
                 placeholder="e.g. HVAC maintenance tips"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
               />
             </div>
           </div>
 
           {/* Templates */}
-          <div className="rounded-xl border bg-white p-5 shadow-sm space-y-3">
-            <h2 className="text-sm font-semibold text-gray-700">Blog Template</h2>
+          <div className="rounded-xl border p-5 space-y-3" style={{ background: 'hsl(var(--card))' }}>
+            <h2 className="text-sm font-semibold text-muted-foreground">Blog Template</h2>
             <div className="grid grid-cols-2 gap-2">
               {BLOG_TEMPLATES.map(tmpl => (
                 <button
                   key={tmpl.label}
                   onClick={() => setSelectedTemplate(selectedTemplate?.label === tmpl.label ? null : tmpl)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-all ${selectedTemplate?.label === tmpl.label ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-purple-300 text-gray-700'}`}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-all"
+                  style={selectedTemplate?.label === tmpl.label
+                    ? { borderColor: '#a78bfa', background: 'rgba(167,139,250,0.1)', color: '#a78bfa' }
+                    : { borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
+                  }
                 >
                   <span>{tmpl.icon}</span>
                   {tmpl.label}
@@ -221,10 +228,10 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
           </div>
 
           {/* Advanced options */}
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-xl border p-5" style={{ background: 'hsl(var(--card))' }}>
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
+              className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground"
             >
               Advanced Options
               {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -232,13 +239,17 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
             {showAdvanced && (
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tone</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Tone</label>
                   <div className="flex flex-wrap gap-2">
                     {TONE_OPTIONS.map(t => (
                       <button
                         key={t}
                         onClick={() => setTone(t)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${tone === t ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                        style={tone === t
+                          ? { background: '#a78bfa', color: 'white' }
+                          : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                        }
                       >
                         {t}
                       </button>
@@ -246,7 +257,7 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Word Count: ~{wordCount}</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Word Count: ~{wordCount}</label>
                   <input
                     type="range"
                     min={500}
@@ -256,18 +267,19 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
                     onChange={e => setWordCount(parseInt(e.target.value))}
                     className="w-full accent-purple-600"
                   />
-                  <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                     <span>500</span><span>1000</span><span>1500</span><span>2000</span>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Custom Instructions (optional)</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Custom Instructions (optional)</label>
                   <textarea
                     rows={2}
                     value={customPrompt}
                     onChange={e => setCustomPrompt(e.target.value)}
                     placeholder="Any specific angle, format, or instructions..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                    style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
                   />
                 </div>
               </div>
@@ -277,7 +289,8 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
           <button
             onClick={generate}
             disabled={generating || !topic.trim()}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-colors disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', color: 'white' }}
           >
             {generating ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
             {generating ? 'Generating Blog Post...' : 'Generate Blog Post'}
@@ -287,41 +300,44 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
         {/* Output panel */}
         <div className="space-y-4">
           {generating && (
-            <div className="rounded-xl border bg-white p-8 shadow-sm flex flex-col items-center gap-3 text-center">
-              <div className="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center">
-                <Zap className="h-7 w-7 text-purple-600 animate-pulse" />
+            <div className="rounded-xl border p-8 flex flex-col items-center gap-3 text-center" style={{ background: 'hsl(var(--card))' }}>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(167,139,250,0.1)' }}>
+                <Zap className="h-7 w-7 animate-pulse" style={{ color: '#a78bfa' }} />
               </div>
-              <p className="font-semibold text-gray-900">Writing your blog post…</p>
-              <p className="text-sm text-gray-500">AI is researching, structuring, and crafting SEO-optimized content</p>
-              <div className="w-48 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                <div className="bg-purple-600 h-1.5 rounded-full animate-pulse w-3/4" />
+              <p className="font-semibold text-foreground">Writing your blog post…</p>
+              <p className="text-sm text-muted-foreground">AI is researching, structuring, and crafting SEO-optimized content</p>
+              <div className="w-48 rounded-full h-1.5 overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                <div className="h-1.5 rounded-full animate-pulse w-3/4" style={{ background: '#a78bfa' }} />
               </div>
             </div>
           )}
 
           {post && !generating && (
             <>
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
+              <div className="rounded-xl border p-5" style={{ background: 'hsl(var(--card))' }}>
                 <div className="flex items-start justify-between gap-3 mb-4">
-                  <h2 className="text-base font-bold text-gray-900 leading-snug">{post.title}</h2>
+                  <h2 className="text-base font-bold text-foreground leading-snug">{post.title}</h2>
                   <div className="flex gap-2 flex-shrink-0">
                     <button
                       onClick={() => copyContent(`# ${post.title}\n\n${post.content}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
                     >
-                      {copied ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? <CheckCircle className="h-3.5 w-3.5" style={{ color: '#34d399' }} /> : <Copy className="h-3.5 w-3.5" />}
                       {copied ? 'Copied!' : 'Copy'}
                     </button>
                     <button
                       onClick={downloadMarkdown}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
                     >
                       <Download className="h-3.5 w-3.5" />
                       .md
                     </button>
                     <button
                       onClick={generate}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-xs font-medium text-purple-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa' }}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
                       Regenerate
@@ -329,21 +345,23 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 mb-4 text-xs text-gray-500">
+                <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
                   <span>📝 {post.wordCount} words</span>
                   <span>⏱ {post.readingTime} min read</span>
                   <div className="flex flex-wrap gap-1">
-                    {post.tags.map(t => <span key={t} className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{t}</span>)}
+                    {post.tags.map(t => (
+                      <span key={t} className="px-2 py-0.5 rounded-full text-xs" style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa' }}>{t}</span>
+                    ))}
                   </div>
                 </div>
 
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 mb-4">
-                  <p className="text-xs font-semibold text-blue-800 mb-0.5">Meta Description (SEO)</p>
-                  <p className="text-xs text-blue-700">{post.metaDescription}</p>
+                <div className="rounded-lg p-3 mb-4" style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)' }}>
+                  <p className="text-xs font-semibold mb-0.5" style={{ color: '#06b6d4' }}>Meta Description (SEO)</p>
+                  <p className="text-xs" style={{ color: '#06b6d4' }}>{post.metaDescription}</p>
                 </div>
 
-                <div className="max-h-96 overflow-y-auto rounded-lg bg-gray-50 border p-4">
-                  <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap text-sm leading-relaxed">
+                <div className="max-h-96 overflow-y-auto rounded-lg p-4" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                  <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap text-sm leading-relaxed">
                     {post.content}
                   </div>
                 </div>
@@ -352,14 +370,14 @@ ${topic} doesn't have to be complicated. With the right strategy and consistent 
           )}
 
           {!post && !generating && (
-            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-white p-8 text-center">
-              <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">Your blog post will appear here</p>
-              <p className="text-sm text-gray-400 mt-1">Fill in the topic and click Generate to get started</p>
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-400">
+            <div className="rounded-xl border-2 border-dashed p-8 text-center" style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+              <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="text-muted-foreground font-medium">Your blog post will appear here</p>
+              <p className="text-sm text-muted-foreground mt-1">Fill in the topic and click Generate to get started</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 {['AI-powered content', 'SEO optimized', 'Fully customizable', 'Export to Markdown'].map(f => (
                   <div key={f} className="flex items-center gap-1.5 justify-center">
-                    <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                    <CheckCircle className="h-3.5 w-3.5" style={{ color: '#34d399' }} />
                     {f}
                   </div>
                 ))}

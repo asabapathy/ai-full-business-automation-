@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { TrendingUp, Plus, DollarSign, Target, CheckCircle, LayoutList, LayoutGrid, ChevronRight, Zap, X } from 'lucide-react'
-import { Skeleton } from '../../../../../components/ui/skeleton'
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
 
@@ -159,17 +158,17 @@ export default function SalesPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Pipeline Value', value: `$${(pipelineValue / 1000).toFixed(1)}k`, icon: TrendingUp, color: 'text-primary' },
-          { label: 'Won Revenue', value: analytics ? `$${(analytics.wonRevenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: 'text-emerald-400' },
-          { label: 'Won Deals', value: analytics?.wonDeals ?? '--', icon: CheckCircle, color: 'text-emerald-400' },
-          { label: 'Conversion', value: analytics ? `${analytics.conversionRate}%` : '--', icon: Target, color: 'text-violet-400' },
+          { label: 'Pipeline Value', value: `$${(pipelineValue / 1000).toFixed(1)}k`, icon: TrendingUp, hex: null as string | null },
+          { label: 'Won Revenue', value: analytics ? `$${(analytics.wonRevenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, hex: '#34d399' as string | null },
+          { label: 'Won Deals', value: analytics?.wonDeals ?? '--', icon: CheckCircle, hex: '#34d399' as string | null },
+          { label: 'Conversion', value: analytics ? `${analytics.conversionRate}%` : '--', icon: Target, hex: '#a78bfa' as string | null },
         ].map((stat, i) => (
           <div key={stat.label} {...anim(i + 1)} className="rounded-xl border p-4" style={cardStyle}>
             <div className="flex items-center gap-2 mb-1">
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <stat.icon className={`h-4 w-4${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined} />
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>
-            {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>}
+            {isLoading ? <div className="h-8 w-16 mt-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} /> : <p className={`text-2xl font-bold tabular${!stat.hex ? ' text-primary' : ''}`} style={stat.hex ? { color: stat.hex } : undefined}>{stat.value}</p>}
           </div>
         ))}
       </div>
@@ -210,7 +209,7 @@ export default function SalesPage() {
                         </p>
                         <div className="flex items-center justify-between">
                           {deal.value ? (
-                            <span className="text-sm font-semibold text-emerald-400 tabular">${deal.value.toLocaleString()}</span>
+                            <span className="text-sm font-semibold tabular" style={{ color: '#34d399' }}>${deal.value.toLocaleString()}</span>
                           ) : <span />}
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -277,7 +276,7 @@ export default function SalesPage() {
               <span className="ml-auto text-xs text-muted-foreground">{deals.length} deals</span>
             </div>
             {isLoading ? (
-              <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+              <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
             ) : deals.length === 0 ? (
               <div className="py-16 text-center">
                 <TrendingUp className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -295,7 +294,7 @@ export default function SalesPage() {
                           {deal.contact ? `${deal.contact.firstName} ${deal.contact.lastName ?? ''}` : deal.company?.name ?? '—'}
                         </p>
                       </div>
-                      {deal.value && <span className="text-sm font-semibold text-emerald-400 tabular">${deal.value.toLocaleString()}</span>}
+                      {deal.value && <span className="text-sm font-semibold tabular" style={{ color: '#34d399' }}>${deal.value.toLocaleString()}</span>}
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.color }}>
                         {meta.label}
                       </span>

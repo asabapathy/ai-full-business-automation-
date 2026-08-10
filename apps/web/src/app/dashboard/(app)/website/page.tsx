@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Globe, Plus, Zap, FileText, ExternalLink, Search, BookOpen, RefreshCw, X, ChevronRight, Palette, Users, Briefcase } from 'lucide-react'
-import { Skeleton } from '../../../../../components/ui/skeleton'
+
 import { api } from '../../../../../lib/api-client'
 
 interface Website {
@@ -88,7 +88,7 @@ function GenerateWizardModal({ onClose, onGenerated }: GenerateWizardProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
       <div
-        className="w-full max-w-lg rounded-2xl shadow-2xl"
+        className="w-full max-w-lg rounded-2xl"
         style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
       >
         {/* Header */}
@@ -340,7 +340,7 @@ export default function WebsitePage() {
   }
 
   const seoGrade = analytics ? (analytics.seoScore >= 80 ? 'A' : analytics.seoScore >= 60 ? 'B' : analytics.seoScore >= 40 ? 'C' : 'D') : '--'
-  const seoColor = analytics ? (analytics.seoScore >= 80 ? 'text-emerald-400' : analytics.seoScore >= 60 ? 'text-amber-400' : 'text-red-400') : 'text-primary'
+  const seoColorStyle = analytics ? (analytics.seoScore >= 80 ? { color: '#34d399' } : analytics.seoScore >= 60 ? { color: '#fbbf24' } : { color: '#f87171' }) : { color: 'hsl(var(--primary))' }
 
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
@@ -379,10 +379,10 @@ export default function WebsitePage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'SEO Score', value: analytics ? `${analytics.seoScore}/100` : '--', extra: `Grade ${seoGrade}`, icon: Search, color: seoColor },
-          { label: 'Total Pages', value: analytics?.totalPages ?? '--', icon: FileText, color: 'text-violet-400' },
-          { label: 'Published', value: analytics?.publishedPages ?? '--', icon: Globe, color: 'text-emerald-400' },
-          { label: 'Blog Posts', value: analytics?.recentBlogPosts ?? '--', icon: BookOpen, color: 'text-amber-400' },
+          { label: 'SEO Score', value: analytics ? `${analytics.seoScore}/100` : '--', extra: `Grade ${seoGrade}`, icon: Search, colorStyle: seoColorStyle },
+          { label: 'Total Pages', value: analytics?.totalPages ?? '--', icon: FileText, colorStyle: { color: '#a78bfa' } },
+          { label: 'Published', value: analytics?.publishedPages ?? '--', icon: Globe, colorStyle: { color: '#34d399' } },
+          { label: 'Blog Posts', value: analytics?.recentBlogPosts ?? '--', icon: BookOpen, colorStyle: { color: '#fbbf24' } },
         ].map((stat, i) => (
           <div
             key={stat.label}
@@ -390,14 +390,14 @@ export default function WebsitePage() {
             style={{ animationDelay: `${0.11 + i * 0.07}s`, background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
           >
             <div className="flex items-center gap-2 mb-1">
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <stat.icon className="h-4 w-4" style={stat.colorStyle} />
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>
             {isLoading ? (
-              <Skeleton className="h-8 w-16 mt-1" />
+              <div className="h-8 w-16 mt-1 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
             ) : (
               <div className="flex items-baseline gap-1.5 mt-1">
-                <p className={`text-2xl font-bold tabular ${stat.color}`}>{stat.value}</p>
+                <p className="text-2xl font-bold tabular" style={stat.colorStyle}>{stat.value}</p>
                 {stat.extra && <span className="text-xs text-muted-foreground">{stat.extra}</span>}
               </div>
             )}
@@ -416,7 +416,7 @@ export default function WebsitePage() {
             <h3 className="text-sm font-semibold text-foreground">Websites</h3>
           </div>
           {isLoading ? (
-            <div className="p-4 space-y-3">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32" />)}</div>
+            <div className="p-4 space-y-3">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-32 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}</div>
           ) : websites.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
               <Globe className="h-8 w-8 text-muted-foreground/30 mb-3" />
@@ -469,7 +469,10 @@ export default function WebsitePage() {
                         style={{ background: 'hsl(var(--background))' }}
                       >
                         <span className="text-xs font-medium text-foreground">{page.title}</span>
-                        <span className={`text-[10px] font-medium ${page.status === 'PUBLISHED' ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                        <span
+                          className={page.status !== 'PUBLISHED' ? 'text-[10px] font-medium text-muted-foreground' : 'text-[10px] font-medium'}
+                          style={page.status === 'PUBLISHED' ? { color: '#34d399' } : undefined}
+                        >
                           {page.status === 'PUBLISHED' ? 'Live' : 'Draft'}
                         </span>
                       </div>
