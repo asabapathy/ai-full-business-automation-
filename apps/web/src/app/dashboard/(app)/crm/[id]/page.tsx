@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, Building2, Edit3, Save, X, Calendar, FileText, DollarSign, MessageSquare, Star, CheckCircle, Clock, TrendingUp, Check, Send } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
 
@@ -93,6 +93,47 @@ const DEAL_STATUS_META: Record<string, { text: string; bg: string }> = {
   LOST:        { text: '#f87171', bg: 'rgba(248,113,113,0.12)' },
 }
 
+const EMAIL_TEMPLATES = [
+  {
+    name: 'Follow-up',
+    subject: 'Following up on our conversation',
+    body: `Hi {{name}},
+
+I wanted to follow up on our recent conversation and see if you had any questions.
+
+I'd love to connect and discuss how we can help you further. Would you have 15 minutes this week for a quick call?
+
+Looking forward to hearing from you.`,
+  },
+  {
+    name: 'Quote ready',
+    subject: 'Your quote is ready',
+    body: `Hi {{name}},
+
+Thank you for your interest! I've prepared a quote based on your requirements.
+
+Please let me know if you have any questions or if you'd like to discuss the details.`,
+  },
+  {
+    name: 'Check-in',
+    subject: 'Checking in',
+    body: `Hi {{name}},
+
+Just checking in to see how things are going on your end.
+
+Is there anything we can help you with? We're always here if you need us.`,
+  },
+  {
+    name: 'Thank you',
+    subject: 'Thank you for your business',
+    body: `Hi {{name}},
+
+I just wanted to reach out to say thank you for choosing us. It's been a pleasure working with you.
+
+Please don't hesitate to reach out if you ever need anything.`,
+  },
+]
+
 export default function ContactDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -107,6 +148,11 @@ export default function ContactDetailPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', status: '', notes: '' })
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [emailForm, setEmailForm] = useState({ to: '', subject: '', body: '' })
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -120,6 +166,7 @@ export default function ContactDetailPage() {
         const c = contactData?.contact ?? contactData
         setContact(c)
         setForm({ firstName: c.firstName ?? '', lastName: c.lastName ?? '', email: c.email ?? '', phone: c.phone ?? '', status: c.status ?? 'NEW', notes: c.notes ?? '' })
+        setEmailForm(prev => ({ ...prev, to: c.email ?? '' }))
         setActivity(activityData?.activities ?? [])
         setDeals(dealsData?.deals ?? [])
       } catch {
