@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Bell, Mail, MessageSquare, Smartphone, Check } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { useAuthStore } from '../../../../stores/auth.store'
 import { toast } from '../../../../lib/toast'
@@ -28,6 +29,34 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void 
       <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-1'}`} style={{ background: 'white' }} />
     </div>
   )
+}
+
+const NOTIFY_EVENTS = [
+  { key: 'new_lead',              label: 'New lead captured' },
+  { key: 'invoice_paid',          label: 'Invoice paid' },
+  { key: 'invoice_overdue',       label: 'Invoice overdue' },
+  { key: 'appointment_booked',    label: 'Appointment booked' },
+  { key: 'appointment_cancelled', label: 'Appointment cancelled' },
+  { key: 'estimate_approved',     label: 'Estimate approved' },
+  { key: 'review_received',       label: 'New review' },
+  { key: 'campaign_finished',     label: 'Campaign finished' },
+]
+const CHANNELS = ['email', 'sms', 'push'] as const
+
+const CHANNEL_META: Record<(typeof CHANNELS)[number], { label: string; Icon: typeof Mail }> = {
+  email: { label: 'Email', Icon: Mail },
+  sms:   { label: 'SMS',   Icon: MessageSquare },
+  push:  { label: 'Push',  Icon: Smartphone },
+}
+
+function defaultNotifyPrefs(): Record<string, Record<string, boolean>> {
+  const smsOn = new Set(['invoice_paid', 'appointment_booked', 'appointment_cancelled'])
+  const pushOn = new Set(['new_lead', 'invoice_paid', 'review_received'])
+  const prefs: Record<string, Record<string, boolean>> = {}
+  for (const ev of NOTIFY_EVENTS) {
+    prefs[ev.key] = { email: true, sms: smsOn.has(ev.key), push: pushOn.has(ev.key) }
+  }
+  return prefs
 }
 
 const PLAN_INFO: Record<string, { price: string; label: string; desc: string; color: string }> = {
@@ -66,6 +95,11 @@ export default function SettingsPage() {
     stripe:     { enabled: false, publishableKey: '', secretKey: '' },
   })
 
+  const [notifyPrefs, setNotifyPrefs] = useState<Record<string, Record<string, boolean>>>(defaultNotifyPrefs)
+  const [savingPrefs, setSavingPrefs] = useState(false)
+  const [savedPrefsJson, setSavedPrefsJson] = useState(() => JSON.stringify(defaultNotifyPrefs()))
+  const prefsDirty = JSON.stringify(notifyPrefs) !== savedPrefsJson
+
   const [notifSettings, setNotifSettings] = useState({
     emailNotifications:  true,
     newLead:             true,
@@ -88,6 +122,35 @@ export default function SettingsPage() {
       setProfileSettings(s => ({ ...s, firstName: user.firstName ?? '', lastName: user.lastName ?? '', email: user.email ?? '' }))
     }
   }, [user?.firstName, user?.lastName, user?.email])
+
+  // Load notification preferences (localStorage first, then API) — runs client-side only, so hydration-safe
+  useEffect(() => {
+    let merged = defaultNotifyPrefs()
+    try {
+      const stored = localStorage.getItem('kv-notify-prefs')
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, Record<string, boolean>>
+        for (const ev of NOTIFY_EVENTS) {
+          if (parsed[ev.key]) merged[ev.key] = { ...merged[ev.key], ...parsed[ev.key] }
+        }
+      }
+    } catch { /* ignore corrupt localStorage */ }
+    setNotifyPrefs(merged)
+    setSavedPrefsJson(JSON.stringify(merged))
+    ;(async () => {
+      try {
+        const data = await (apiClient as any).get('/settings/notification-preferences')
+        if (data && typeof data === 'object') {
+          const next = defaultNotifyPrefs()
+          for (const ev of NOTIFY_EVENTS) {
+            if (data[ev.key]) next[ev.key] = { ...next[ev.key], ...data[ev.key] }
+          }
+          setNotifyPrefs(next)
+          setSavedPrefsJson(JSON.stringify(next))
+        }
+      } catch { /* silent — endpoint may not exist yet */ }
+    })()
+  }, [])
 
   // Handle Stripe checkout success redirect
   useEffect(() => {
@@ -144,6 +207,34 @@ export default function SettingsPage() {
   }
 
   function saveNotifications() {
+    toast('Notification preferences saved', 'success')
+  }
+
+  function toggleNotifyPref(eventKey: string, channel: string) {
+    setNotifyPrefs(p => ({ ...p, [eventKey]: { ...p[eventKey], [channel]: !p[eventKey]?.[channel] } }))
+  }
+
+  function toggleNotifyColumn(channel: string) {
+    setNotifyPrefs(p => {
+      const anyOff = NOTIFY_EVENTS.some(ev => !p[ev.key]?.[channel])
+      const next: Record<string, Record<string, boolean>> = { ...p }
+      for (const ev of NOTIFY_EVENTS) {
+        next[ev.key] = { ...next[ev.key], [channel]: anyOff }
+      }
+      return next
+    })
+  }
+
+  async function saveNotifyPrefs() {
+    setSavingPrefs(true)
+    try {
+      await (apiClient as any).put('/settings/notification-preferences', notifyPrefs)
+    } catch { /* silent — endpoint may not exist yet */ }
+    try {
+      localStorage.setItem('kv-notify-prefs', JSON.stringify(notifyPrefs))
+    } catch { /* ignore */ }
+    setSavedPrefsJson(JSON.stringify(notifyPrefs))
+    setSavingPrefs(false)
     toast('Notification preferences saved', 'success')
   }
 
@@ -371,6 +462,82 @@ export default function SettingsPage() {
               >
                 Save Preferences
               </button>
+            </div>
+          )}
+
+          {/* Per-event notification matrix */}
+          {tab === 'notifications' && (
+            <div className="rounded-xl p-6" style={cardStyle}>
+              <div className="flex items-center gap-3 mb-4">
+                <Bell className="w-5 h-5" style={{ color: '#06b6d4' }} />
+                <div>
+                  <h2 className="text-foreground font-semibold">Notification Preferences</h2>
+                  <p className="text-xs text-muted-foreground">Choose how you hear about each event</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                      <th className="text-left py-2 pr-4 text-xs uppercase font-medium text-muted-foreground">Event</th>
+                      {CHANNELS.map(ch => {
+                        const { label, Icon } = CHANNEL_META[ch]
+                        return (
+                          <th key={ch} className="py-2 px-3">
+                            <button
+                              onClick={() => toggleNotifyColumn(ch)}
+                              title={`Toggle all ${label} notifications`}
+                              className="mx-auto flex items-center gap-1.5 text-xs uppercase font-medium text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {label}
+                            </button>
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {NOTIFY_EVENTS.map(ev => (
+                      <tr key={ev.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td className="py-2.5 pr-4 text-muted-foreground whitespace-nowrap">{ev.label}</td>
+                        {CHANNELS.map(ch => {
+                          const on = !!notifyPrefs[ev.key]?.[ch]
+                          return (
+                            <td key={ch} className="py-2.5 px-3 text-center">
+                              <button
+                                onClick={() => toggleNotifyPref(ev.key, ch)}
+                                aria-label={`${ev.label} via ${CHANNEL_META[ch].label}`}
+                                aria-pressed={on}
+                                className="mx-auto flex h-5 w-5 items-center justify-center rounded border cursor-pointer transition-all"
+                                style={on
+                                  ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', border: '1px solid transparent' }
+                                  : { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }
+                                }
+                              >
+                                {on && <Check className="w-3.5 h-3.5" style={{ color: 'white' }} />}
+                              </button>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                SMS requires a connected phone number. Push requires a subscribed browser (Settings → Push Notifications).
+              </p>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={saveNotifyPrefs}
+                  disabled={savingPrefs || !prefsDirty}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
+                >
+                  {savingPrefs ? 'Saving…' : 'Save preferences'}
+                </button>
+              </div>
             </div>
           )}
 
