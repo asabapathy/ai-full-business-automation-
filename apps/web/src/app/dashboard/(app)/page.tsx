@@ -474,8 +474,10 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      )}
 
       {/* Monthly Goals */}
+      {show('goals') && (
       <div {...anim(6)} className="kv-anim rounded-xl p-5" style={cardStyle}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
