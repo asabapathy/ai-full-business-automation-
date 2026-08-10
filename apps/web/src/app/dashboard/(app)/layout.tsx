@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, MessageSquare } from 'lucide-react'
+import { Menu, MessageSquare, Search } from 'lucide-react'
 import { Sidebar } from '../../../components/layout/sidebar'
 import { useAuthStore } from '../../../stores/auth.store'
 import { GlobalSearch } from '../../../components/ui/GlobalSearch'
@@ -12,12 +12,14 @@ import { TrialBanner } from '../../../components/layout/trial-banner'
 import { ImpersonateBanner } from '../../../components/layout/impersonate-banner'
 import { TrialExpiredGate } from '../../../components/layout/trial-expired-gate'
 import { Toaster } from '../../../components/ui/Toaster'
+import { CommandPalette } from '../../../components/ui/CommandPalette'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user, organization } = useAuthStore()
   const router = useRouter()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [cmdOpen, setCmdOpen] = useState(false)
 
   useEffect(() => {
     if (isLoading) return
@@ -27,6 +29,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     setMobileSidebarOpen(false)
+  }, [])
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setCmdOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   if (!isAuthenticated) {
@@ -83,6 +96,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setCmdOpen(true)}
+              className="hidden sm:flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span>Search</span>
+              <kbd className="text-xs" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', borderRadius: 4, padding: '0 4px' }}>⌘K</kbd>
+            </button>
+            <button
               onClick={() => setChatOpen(o => !o)}
               title="Ask AI"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.03]"
@@ -111,6 +133,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
       <Toaster />
     </div>
   )
