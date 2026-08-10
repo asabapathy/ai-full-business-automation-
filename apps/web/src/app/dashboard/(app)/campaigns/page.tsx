@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mail, Plus, Send, Trash2, Sparkles, Edit2, Clock, CheckCircle2, X, BarChart2 } from 'lucide-react'
+import { Mail, Plus, Send, Trash2, Sparkles, Edit2, Clock, CheckCircle2, X, BarChart2, Download } from 'lucide-react'
 import { apiClient } from '../../../../lib/api-client'
 import { toast } from '../../../../lib/toast'
 
@@ -157,6 +157,22 @@ export default function CampaignsPage() {
     }
   }
 
+  function downloadCSV(rows: Record<string, string | number>[], filename: string) {
+    if (!rows.length) return
+    const headers = Object.keys(rows[0])
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => {
+        const v = String(r[h] ?? '')
+        return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+      }).join(','))
+    ].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function bulkSend() {
     if (selectedIds.size === 0) return
     const drafts = campaigns.filter(c => selectedIds.has(c.id) && c.status === 'DRAFT')
@@ -194,6 +210,22 @@ export default function CampaignsPage() {
           >
             <Sparkles className="h-4 w-4" />
             AI Generate
+          </button>
+          <button
+            onClick={() => downloadCSV(
+              campaigns.map(c => ({
+                Name: c.name,
+                Status: c.status,
+                Sent: c.recipientCount,
+                Opened: c.openCount,
+                Clicked: c.clickCount,
+              })),
+              'campaigns.csv'
+            )}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <Download className="h-4 w-4" /> Export
           </button>
           <button
             onClick={() => setShowCreate(true)}

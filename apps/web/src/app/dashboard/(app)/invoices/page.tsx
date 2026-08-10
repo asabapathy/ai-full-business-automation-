@@ -164,6 +164,22 @@ export default function InvoicesPage() {
     }
   }
 
+  function downloadCSV(rows: Record<string, string | number>[], filename: string) {
+    if (!rows.length) return
+    const headers = Object.keys(rows[0])
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => {
+        const v = String(r[h] ?? '')
+        return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+      }).join(','))
+    ].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function bulkRemind() {
     if (selectedIds.size === 0) return
     const remindable = invoices.filter(inv => selectedIds.has(inv.id) && ['SENT', 'OVERDUE'].includes(inv.status))
@@ -191,11 +207,27 @@ export default function InvoicesPage() {
         <div className="flex gap-2">
           <button
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
-            style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.2)' }}
-            style={{ border: '1px solid rgba(6,182,212,0.3)' }}
+            style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.3)' }}
           >
             <Zap className="h-4 w-4" />
             AI Analyze
+          </button>
+          <button
+            onClick={() => downloadCSV(
+              invoices.map(inv => ({
+                Number: inv.invoiceNumber,
+                Client: inv.contact ? `${inv.contact.firstName} ${inv.contact.lastName ?? ''}`.trim() : '',
+                Amount: inv.total,
+                Status: inv.status,
+                Due: inv.dueDate ?? '',
+                Paid: '',
+              })),
+              'invoices.csv'
+            )}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <Download className="h-4 w-4" /> Export
           </button>
           <button
             onClick={() => setShowCreate(true)}
