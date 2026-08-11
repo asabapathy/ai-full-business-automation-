@@ -451,7 +451,12 @@ export default function InvoicesPage() {
             </div>
             {isLoading
               ? <div className="h-8 w-16 mt-1 animate-pulse rounded" style={{ background: 'hsl(var(--muted))' }} />
-              : <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>
+              : (
+                <>
+                  <p className="text-2xl font-bold tabular" style={{ color: stat.color }}>{stat.value}</p>
+                  {stat.sub && <p className="text-[11px] text-muted-foreground mt-0.5">{stat.sub}</p>}
+                </>
+              )
             }
           </div>
         ))}
@@ -658,6 +663,7 @@ export default function InvoicesPage() {
               const displayStatus = isOverdue ? 'OVERDUE' : invoice.status
               const Icon = STATUS_ICONS[displayStatus] ?? FileText
               const isSelected = selectedIds.has(invoice.id)
+              const fee = lateFeeFor(invoice)
 
               return (
                 <div key={invoice.id} className="flex items-center gap-3 px-5 py-3 hover:bg-accent/40 transition-colors group">
@@ -688,7 +694,14 @@ export default function InvoicesPage() {
                     </p>
                   </div>
 
-                  <span className="text-sm font-semibold text-foreground tabular">${invoice.total.toLocaleString()}</span>
+                  <div className="text-right">
+                    <span className="text-sm font-semibold text-foreground tabular">${(invoice.total + fee).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                    {fee > 0 && (
+                      <p className="text-[10px] font-medium tabular" style={{ color: '#f87171' }}>
+                        +${fee.toLocaleString(undefined, { maximumFractionDigits: 2 })} late fee
+                      </p>
+                    )}
+                  </div>
 
                   {invoice.isRecurring && (
                     <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
@@ -835,9 +848,21 @@ export default function InvoicesPage() {
                       <span>Tax</span><span>${Number(previewInvoice.tax).toFixed(2)}</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 8, borderTop: '2px solid #eee', fontSize: 18, fontWeight: 700, color: '#111' }}>
-                    <span>Total</span><span>${Number(previewInvoice.total ?? 0).toFixed(2)}</span>
-                  </div>
+                  {(() => {
+                    const fee = lateFeeFor(previewInvoice)
+                    return (
+                      <>
+                        {fee > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14, color: '#991b1b' }}>
+                            <span>Late fee</span><span>${fee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 8, borderTop: '2px solid #eee', fontSize: 18, fontWeight: 700, color: '#111' }}>
+                          <span>Total</span><span>${(Number(previewInvoice.total ?? 0) + fee).toFixed(2)}</span>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -1052,6 +1077,101 @@ export default function InvoicesPage() {
                   className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
                   style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
                   <Repeat className="h-4 w-4" /> {recurSaving ? 'Saving…' : 'Set Recurring'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Late fee settings modal */}
+      {lateFeeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-sm rounded-xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+              <div className="flex items-center gap-2">
+                <Percent className="h-4 w-4" style={{ color: '#f87171' }} />
+                <h2 className="text-sm font-semibold text-foreground">Late Fees</h2>
+              </div>
+              <button onClick={() => setLateFeeOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <button onClick={() => setLateFeeDraft(d => ({ ...d, enabled: !d.enabled }))}
+                className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <span className="text-left">
+                  <span className="block text-sm text-foreground">Charge late fees</span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">Automatically add a fee to overdue invoices</span>
+                </span>
+                <span className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
+                  style={{ background: lateFeeDraft.enabled ? '#34d399' : 'rgba(255,255,255,0.15)' }}>
+                  <span className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
+                    style={{ background: 'white', transform: lateFeeDraft.enabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </span>
+              </button>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Fee type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([['percent', '% of total'], ['flat', 'Flat $']] as const).map(([t, label]) => (
+                    <button key={t} onClick={() => setLateFeeDraft(d => ({ ...d, type: t }))}
+                      className="py-2 rounded-lg text-xs font-medium transition-all"
+                      style={lateFeeDraft.type === t
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                  {lateFeeDraft.type === 'percent' ? 'Fee (% of invoice total)' : 'Fee amount ($)'}
+                </label>
+                <div className="relative">
+                  <input type="number" min="0" step={lateFeeDraft.type === 'percent' ? '0.5' : '1'}
+                    value={lateFeeDraft.value}
+                    onChange={e => setLateFeeDraft(d => ({ ...d, value: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                    className={inputCls + ' pr-8'} style={inputStyle} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    {lateFeeDraft.type === 'percent' ? '%' : '$'}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Grace period</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[0, 3, 7, 14].map(days => (
+                    <button key={days} onClick={() => setLateFeeDraft(d => ({ ...d, graceDays: days }))}
+                      className="py-2 rounded-lg text-xs font-medium transition-all"
+                      style={lateFeeDraft.graceDays === days
+                        ? { background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)', color: 'white' }
+                        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+                      {days === 0 ? 'None' : `${days}d`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg p-3 text-xs text-muted-foreground" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                {(() => {
+                  const exampleFee = 10 > lateFeeDraft.graceDays
+                    ? (lateFeeDraft.type === 'percent' ? Math.round(1000 * lateFeeDraft.value) / 100 : lateFeeDraft.value)
+                    : 0
+                  return `A $1,000 invoice 10 days late would owe $${(1000 + exampleFee).toLocaleString(undefined, { maximumFractionDigits: 2 })}.`
+                })()}
+              </div>
+
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setLateFeeOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground"
+                  style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>Cancel</button>
+                <button onClick={saveLateFee} disabled={lateFeeSaving}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+                  {lateFeeSaving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </div>
