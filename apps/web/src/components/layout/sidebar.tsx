@@ -124,7 +124,7 @@ const navGroups: NavGroup[] = [
       { name: 'Projects', href: '/dashboard/projects', icon: Briefcase, feature: 'ops:projects' },
       { name: 'Time Tracking', href: '/dashboard/time-tracking', icon: Timer, feature: 'ops:time_tracking' },
       { name: 'Inventory', href: '/dashboard/inventory', icon: Archive, feature: 'ops:inventory' },
-      { name: 'Vendors', href: '/dashboard/vendors', icon: Truck, feature: 'ops:vendors' },
+      { name: 'Vendors', href: '/dashboard/vendors', icon: Truck },
       { name: 'Resources', href: '/dashboard/resources', icon: Box, feature: 'ops:resources' },
       { name: 'Job Costing', href: '/dashboard/job-costing', icon: Wrench, feature: 'finance:job_costing' },
       { name: 'Commissions', href: '/dashboard/commissions', icon: DollarSign, feature: 'finance:commissions' },

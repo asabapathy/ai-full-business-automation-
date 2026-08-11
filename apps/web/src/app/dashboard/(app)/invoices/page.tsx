@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter, Eye, Printer, Repeat, Package } from 'lucide-react'
+import { FileText, Plus, DollarSign, Clock, CheckCircle, AlertTriangle, Send, Zap, X, Trash2, Download, Filter, Eye, Printer, Repeat, Package, Percent } from 'lucide-react'
 import { apiClient } from '../../../../../lib/api-client'
 import { formatRelativeTime } from '../../../../../lib/utils'
 import { toast } from '../../../../../lib/toast'
@@ -114,6 +114,10 @@ export default function InvoicesPage() {
     dueDate: '',
     notes: '',
   })
+  const [lateFee, setLateFee] = useState({ enabled: false, type: 'percent' as 'percent' | 'flat', value: 5, graceDays: 7 })
+  const [lateFeeOpen, setLateFeeOpen] = useState(false)
+  const [lateFeeDraft, setLateFeeDraft] = useState(lateFee)
+  const [lateFeeSaving, setLateFeeSaving] = useState(false)
   const [catalog, setCatalog] = useState<CatalogItem[]>(DEMO_CATALOG)
   const [catalogLoaded, setCatalogLoaded] = useState(false)
   const [showCatalogPicker, setShowCatalogPicker] = useState(false)
@@ -130,6 +134,20 @@ export default function InvoicesPage() {
       })
       .catch(() => {})
   }, [showCreate, catalogLoaded])
+
+  // Late fee settings — localStorage first (hydration-guarded), then API
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('kv-late-fee')
+      if (raw) setLateFee(prev => ({ ...prev, ...JSON.parse(raw) }))
+    } catch {}
+    apiClient.get('/finance/late-fee-settings')
+      .then((res: any) => {
+        const s = res?.settings ?? res
+        if (s && typeof s === 'object' && 'enabled' in s) setLateFee(prev => ({ ...prev, ...s }))
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -222,6 +240,27 @@ export default function InvoicesPage() {
     toast(`Invoice set to repeat ${recurForm.frequency}`, 'success')
   }
 
+  async function saveLateFee() {
+    setLateFeeSaving(true)
+    try {
+      await apiClient.put('/finance/late-fee-settings', lateFeeDraft)
+    } catch {
+      // demo mode — apply locally
+    }
+    setLateFee(lateFeeDraft)
+    try { localStorage.setItem('kv-late-fee', JSON.stringify(lateFeeDraft)) } catch {}
+    setLateFeeSaving(false)
+    setLateFeeOpen(false)
+    toast('Late fee policy saved', 'success')
+  }
+
+  function lateFeeFor(inv: Invoice): number {
+    if (!lateFee.enabled || inv.status?.toUpperCase() !== 'OVERDUE' || !inv.dueDate) return 0
+    const daysLate = Math.floor((Date.now() - new Date(inv.dueDate).getTime()) / 86400000)
+    if (daysLate <= lateFee.graceDays) return 0
+    return lateFee.type === 'percent' ? Math.round(inv.total * lateFee.value) / 100 : lateFee.value
+  }
+
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -229,6 +268,8 @@ export default function InvoicesPage() {
       return next
     })
   }
+
+  const accruingLateFees = invoices.reduce((sum, inv) => sum + lateFeeFor(inv), 0)
 
   const filteredInvoices = invoices.filter(inv => {
     if (filters.status && inv.status?.toLowerCase() !== filters.status) return false
@@ -352,6 +393,14 @@ export default function InvoicesPage() {
             AI Analyze
           </button>
           <button
+            onClick={() => { setLateFeeDraft(lateFee); setLateFeeOpen(true) }}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            style={cardStyle}
+          >
+            <Percent className="h-4 w-4" /> Late fees
+            {lateFee.enabled && <span className="h-2 w-2 rounded-full" style={{ background: '#34d399' }} />}
+          </button>
+          <button
             onClick={() => downloadCSV(
               invoices.map(inv => ({
                 Number: inv.invoiceNumber,
@@ -384,9 +433,9 @@ export default function InvoicesPage() {
         {[
           { label: 'Revenue (30d)', value: summary ? `$${(summary.revenue / 1000).toFixed(1)}k` : '--', icon: DollarSign, color: '#34d399' },
           { label: 'Outstanding', value: summary ? `$${(summary.outstanding / 1000).toFixed(1)}k` : '--', icon: Clock, color: '#fbbf24' },
-          { label: 'Overdue', value: summary?.overdueInvoices ?? '--', icon: AlertTriangle, color: '#f87171' },
+          { label: 'Overdue', value: summary?.overdueInvoices ?? '--', icon: AlertTriangle, color: '#f87171', sub: accruingLateFees > 0 ? `+$${accruingLateFees.toLocaleString(undefined, { maximumFractionDigits: 2 })} in late fees accruing` : undefined },
           { label: 'Net Profit', value: summary ? `$${(summary.profit / 1000).toFixed(1)}k` : '--', icon: CheckCircle, color: '#06b6d4' },
-        ].map((stat, i) => (
+        ].map((stat: { label: string; value: string | number; icon: React.ElementType; color: string; sub?: string }, i) => (
           <div
             key={stat.label}
             className="kv-anim rounded-xl border p-4"

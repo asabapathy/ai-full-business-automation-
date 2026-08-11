@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays, BellRing } from 'lucide-react'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays, BellRing, Repeat } from 'lucide-react'
 
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
@@ -15,6 +15,7 @@ interface Appointment {
   status: string
   contact?: { firstName: string; lastName?: string; phone?: string }
   service?: { name: string; price?: number }
+  seriesId?: string
 }
 
 interface AvailabilitySlot {
@@ -92,6 +93,37 @@ const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hs
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
+type RepeatFreq = 'none' | 'weekly' | 'biweekly' | 'monthly'
+
+const REPEAT_OPTIONS: { value: RepeatFreq; label: string }[] = [
+  { value: 'none', label: 'Does not repeat' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly', label: 'Monthly' },
+]
+
+function seriesDates(dateStr: string, timeStr: string, freq: Exclude<RepeatFreq, 'none'>, count: number) {
+  const dates: Date[] = []
+  for (let i = 0; i < count; i++) {
+    const d = new Date(`${dateStr}T${timeStr}:00`)
+    if (freq === 'monthly') d.setMonth(d.getMonth() + i)
+    else d.setDate(d.getDate() + (freq === 'weekly' ? 7 : 14) * i)
+    dates.push(d)
+  }
+  return dates
+}
+
+function SeriesBadge() {
+  return (
+    <span title="Part of a series"
+      className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+      style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.12)' }}>
+      <Repeat className="h-2.5 w-2.5" />
+      Series
+    </span>
+  )
+}
+
 function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1) }
 function daysInMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() }
 function isSameDay(a: Date, b: Date) {
@@ -135,6 +167,8 @@ export default function AppointmentsPage() {
   const [bookingRules, setBookingRules] = useState({ slotMinutes: 60, bufferMinutes: 15, maxPerDay: 8, leadHours: 24 })
   const [hoursOpen, setHoursOpen] = useState(false)
   const [savingHours, setSavingHours] = useState(false)
+  const [repeat, setRepeat] = useState<{ freq: RepeatFreq; count: number }>({ freq: 'none', count: 6 })
+  const [seriesConfirmId, setSeriesConfirmId] = useState<string | null>(null)
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
@@ -265,19 +299,44 @@ export default function AppointmentsPage() {
         service: bookForm.serviceName ? { name: bookForm.serviceName, price: bookForm.servicePrice ? Number(bookForm.servicePrice) : undefined } : undefined,
         notes: bookForm.notes || undefined,
       }
+      const seriesId = repeat.freq !== 'none' ? crypto.randomUUID() : undefined
       const res = await api.post('/receptionist/appointments', body) as any
       const newAppt = res?.appointment ?? res?.data?.appointment ?? res
       if (newAppt?.id) {
-        setAppointments(prev => [...prev, newAppt].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()))
+        setAppointments(prev => [...prev, seriesId ? { ...newAppt, seriesId } : newAppt].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()))
       }
-      toast('Appointment booked', 'success')
+      if (repeat.freq !== 'none' && seriesId) {
+        const occurrences: Appointment[] = seriesDates(bookForm.date, bookForm.time, repeat.freq, repeat.count).slice(1).map(d => ({
+          ...body,
+          id: crypto.randomUUID(),
+          status: 'SCHEDULED',
+          startTime: d.toISOString(),
+          endTime: new Date(d.getTime() + bookForm.duration * 60000).toISOString(),
+          seriesId,
+        }))
+        setAppointments(prev => [...prev, ...occurrences].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()))
+        api.post('/appointments/series', { base: body, freq: repeat.freq, count: repeat.count }).catch(() => {})
+        toast(`Series booked — ${repeat.count} visits scheduled`, 'success')
+      } else {
+        toast('Appointment booked', 'success')
+      }
       setShowBook(false)
       setBookForm({ firstName: '', lastName: '', phone: '', serviceName: '', servicePrice: '', date: selectedDate, time: '09:00', duration: 60, notes: '' })
+      setRepeat({ freq: 'none', count: 6 })
     } catch {
       toast('Failed to book appointment', 'error')
     } finally {
       setBooking(false)
     }
+  }
+
+  async function cancelSeries(seriesId: string) {
+    setSeriesConfirmId(null)
+    setAppointments(prev => prev.filter(a => a.seriesId !== seriesId))
+    try {
+      await api.delete(`/appointments/series/${seriesId}`)
+    } catch { /* demo mode */ }
+    toast('Series cancelled', 'success')
   }
 
   async function updateStatus(id: string, status: string) {
