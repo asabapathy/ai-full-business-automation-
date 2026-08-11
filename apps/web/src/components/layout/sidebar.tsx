@@ -121,6 +121,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Operations', href: '/dashboard/operations', icon: Package, feature: 'ops:hub' },
       { name: 'Staff Schedule', href: '/dashboard/staff-schedule', icon: Clock, feature: 'ops:staff_schedule' },
+      { name: 'My Day', href: '/dashboard/my-day', icon: CalendarCheck },
       { name: 'Projects', href: '/dashboard/projects', icon: Briefcase, feature: 'ops:projects' },
       { name: 'Time Tracking', href: '/dashboard/time-tracking', icon: Timer, feature: 'ops:time_tracking' },
       { name: 'Inventory', href: '/dashboard/inventory', icon: Archive, feature: 'ops:inventory' },
