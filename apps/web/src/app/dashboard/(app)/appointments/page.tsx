@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays, BellRing } from 'lucide-react'
+import { Calendar, Plus, Clock, CheckCircle, ChevronLeft, ChevronRight, Phone, Zap, X, User, Wrench, XCircle, AlertCircle, List, CalendarDays, BellRing, Repeat } from 'lucide-react'
 
 import { api } from '../../../../../lib/api-client'
 import { toast } from '../../../../../lib/toast'
@@ -15,6 +15,7 @@ interface Appointment {
   status: string
   contact?: { firstName: string; lastName?: string; phone?: string }
   service?: { name: string; price?: number }
+  seriesId?: string
 }
 
 interface AvailabilitySlot {
@@ -92,6 +93,37 @@ const inputStyle = { background: 'hsl(var(--background))', border: '1px solid hs
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
+type RepeatFreq = 'none' | 'weekly' | 'biweekly' | 'monthly'
+
+const REPEAT_OPTIONS: { value: RepeatFreq; label: string }[] = [
+  { value: 'none', label: 'Does not repeat' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly', label: 'Monthly' },
+]
+
+function seriesDates(dateStr: string, timeStr: string, freq: Exclude<RepeatFreq, 'none'>, count: number) {
+  const dates: Date[] = []
+  for (let i = 0; i < count; i++) {
+    const d = new Date(`${dateStr}T${timeStr}:00`)
+    if (freq === 'monthly') d.setMonth(d.getMonth() + i)
+    else d.setDate(d.getDate() + (freq === 'weekly' ? 7 : 14) * i)
+    dates.push(d)
+  }
+  return dates
+}
+
+function SeriesBadge() {
+  return (
+    <span title="Part of a series"
+      className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+      style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.12)' }}>
+      <Repeat className="h-2.5 w-2.5" />
+      Series
+    </span>
+  )
+}
+
 function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1) }
 function daysInMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() }
 function isSameDay(a: Date, b: Date) {
@@ -135,6 +167,8 @@ export default function AppointmentsPage() {
   const [bookingRules, setBookingRules] = useState({ slotMinutes: 60, bufferMinutes: 15, maxPerDay: 8, leadHours: 24 })
   const [hoursOpen, setHoursOpen] = useState(false)
   const [savingHours, setSavingHours] = useState(false)
+  const [repeat, setRepeat] = useState<{ freq: RepeatFreq; count: number }>({ freq: 'none', count: 6 })
+  const [seriesConfirmId, setSeriesConfirmId] = useState<string | null>(null)
   const [bookForm, setBookForm] = useState({
     firstName: '', lastName: '', phone: '',
     serviceName: '', servicePrice: '',
@@ -265,19 +299,44 @@ export default function AppointmentsPage() {
         service: bookForm.serviceName ? { name: bookForm.serviceName, price: bookForm.servicePrice ? Number(bookForm.servicePrice) : undefined } : undefined,
         notes: bookForm.notes || undefined,
       }
+      const seriesId = repeat.freq !== 'none' ? crypto.randomUUID() : undefined
       const res = await api.post('/receptionist/appointments', body) as any
       const newAppt = res?.appointment ?? res?.data?.appointment ?? res
       if (newAppt?.id) {
-        setAppointments(prev => [...prev, newAppt].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()))
+        setAppointments(prev => [...prev, seriesId ? { ...newAppt, seriesId } : newAppt].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()))
       }
-      toast('Appointment booked', 'success')
+      if (repeat.freq !== 'none' && seriesId) {
+        const occurrences: Appointment[] = seriesDates(bookForm.date, bookForm.time, repeat.freq, repeat.count).slice(1).map(d => ({
+          ...body,
+          id: crypto.randomUUID(),
+          status: 'SCHEDULED',
+          startTime: d.toISOString(),
+          endTime: new Date(d.getTime() + bookForm.duration * 60000).toISOString(),
+          seriesId,
+        }))
+        setAppointments(prev => [...prev, ...occurrences].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()))
+        api.post('/appointments/series', { base: body, freq: repeat.freq, count: repeat.count }).catch(() => {})
+        toast(`Series booked — ${repeat.count} visits scheduled`, 'success')
+      } else {
+        toast('Appointment booked', 'success')
+      }
       setShowBook(false)
       setBookForm({ firstName: '', lastName: '', phone: '', serviceName: '', servicePrice: '', date: selectedDate, time: '09:00', duration: 60, notes: '' })
+      setRepeat({ freq: 'none', count: 6 })
     } catch {
       toast('Failed to book appointment', 'error')
     } finally {
       setBooking(false)
     }
+  }
+
+  async function cancelSeries(seriesId: string) {
+    setSeriesConfirmId(null)
+    setAppointments(prev => prev.filter(a => a.seriesId !== seriesId))
+    try {
+      await api.delete(`/appointments/series/${seriesId}`)
+    } catch { /* demo mode */ }
+    toast('Series cancelled', 'success')
   }
 
   async function updateStatus(id: string, status: string) {
@@ -430,14 +489,15 @@ export default function AppointmentsPage() {
                     const pill = STATUS_PILL[appt.status] ?? STATUS_PILL.SCHEDULED
                     const active = !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appt.status)
                     return (
-                      <div key={appt.id} className="flex items-start gap-4 px-5 py-4 hover:bg-accent/30 transition-colors">
+                      <div key={appt.id} className="hover:bg-accent/30 transition-colors">
+                      <div className="flex items-start gap-4 px-5 py-4">
                         <div className="text-center shrink-0 w-14">
                           <p className="text-sm font-bold text-foreground tabular">{formatTime(appt.startTime)}</p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">{appt.duration}m</p>
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-foreground">{appt.title}</p>
+                          <p className="font-medium text-sm text-foreground inline-flex items-center gap-1.5">{appt.title}{appt.seriesId && <SeriesBadge />}</p>
                           {appt.contact && (
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {appt.contact.firstName} {appt.contact.lastName}
@@ -503,7 +563,7 @@ export default function AppointmentsPage() {
                                 <AlertCircle className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => updateStatus(appt.id, 'CANCELLED')}
+                                onClick={() => appt.seriesId ? setSeriesConfirmId(cid => cid === appt.id ? null : appt.id) : updateStatus(appt.id, 'CANCELLED')}
                                 disabled={updatingId === appt.id}
                                 title="Cancel"
                                 className="p-1 rounded hover:bg-accent/20 transition-colors disabled:opacity-50"
@@ -514,6 +574,28 @@ export default function AppointmentsPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                      {seriesConfirmId === appt.id && appt.seriesId && (
+                        <div className="flex items-center gap-2 px-5 pb-3 -mt-1">
+                          <Repeat className="h-3 w-3 shrink-0" style={{ color: '#a78bfa' }} />
+                          <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Cancel this visit or the entire series?</span>
+                          <button
+                            onClick={() => { setSeriesConfirmId(null); updateStatus(appt.id, 'CANCELLED') }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                            style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))', color: 'hsl(var(--foreground))' }}>
+                            This visit only
+                          </button>
+                          <button
+                            onClick={() => cancelSeries(appt.seriesId!)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                            style={{ border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.12)', color: '#f87171' }}>
+                            Entire series
+                          </button>
+                          <button onClick={() => setSeriesConfirmId(null)} className="p-1 text-muted-foreground hover:text-foreground">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                       </div>
                     )
                   })}
@@ -663,8 +745,9 @@ export default function AppointmentsPage() {
                           style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}>
                           <div className="h-2 w-2 rounded-full mt-1.5 shrink-0" style={{ background: '#06b6d4' }} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground">
+                            <p className="text-sm font-medium text-foreground inline-flex items-center gap-1.5">
                               {apt.contact ? `${apt.contact.firstName} ${apt.contact.lastName ?? ''}`.trim() : apt.title}
+                              {apt.seriesId && <SeriesBadge />}
                             </p>
                             <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{apt.service?.name ?? ''}</p>
                             <p className="text-xs mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>
@@ -975,6 +1058,50 @@ export default function AppointmentsPage() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Repeat className="h-3.5 w-3.5" style={{ color: '#a78bfa' }} />
+                <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Repeats</p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {REPEAT_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setRepeat(r => ({ ...r, freq: opt.value }))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={repeat.freq === opt.value
+                      ? { background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', color: 'white' }
+                      : { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
+                    }
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {repeat.freq !== 'none' && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">for</span>
+                    <input
+                      type="number" min={2} max={24}
+                      value={repeat.count}
+                      onChange={e => setRepeat(r => ({ ...r, count: Math.min(24, Math.max(2, Number(e.target.value) || 2)) }))}
+                      className={inputCls + ' !w-20 !py-1.5'}
+                      style={inputStyle}
+                    />
+                    <span className="text-xs text-muted-foreground">visits</span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {(() => {
+                      const dates = seriesDates(bookForm.date, bookForm.time, repeat.freq, repeat.count)
+                      const preview = dates.slice(0, 3).map(d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })).join(', ')
+                      return dates.length > 3 ? `${preview} …and ${dates.length - 3} more` : preview
+                    })()}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
